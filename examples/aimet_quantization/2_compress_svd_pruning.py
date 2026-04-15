@@ -17,7 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
 
 # Add project root to sys.path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.aimet.utils import evaluate_model, create_sampled_data_loader, AutoQuantDatasetWrapper
 from src.models import build_model

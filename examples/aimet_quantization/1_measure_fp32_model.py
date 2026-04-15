@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from skimage.metrics import peak_signal_noise_ratio as psnr, structural_similarity as ssim
 
 # Add project root to sys.path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.models import build_model
 from src.data.datasets import PairedDataset

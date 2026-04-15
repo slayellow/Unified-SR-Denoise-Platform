@@ -1,0 +1,11 @@
+# .gitignore 파일 내용
+*.pth
+*.pt
+*.onnx
+*.engine
+*.onnx.data
+__pycache__/
+logs/
+Dataset/
+tmp/
+md/

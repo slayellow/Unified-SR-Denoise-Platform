@@ -12,7 +12,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 
 # Add project root to sys.path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.models import build_model
 from src.data.datasets import PairedDataset, SRDataset, DenoiseDataset

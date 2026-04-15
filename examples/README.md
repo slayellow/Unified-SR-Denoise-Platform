@@ -6,7 +6,7 @@
 ## 파이프라인 오버뷰
 
 ### 단계 1: 기준 성능 측정 (FP32 Baseline)
-- **`1_measure_fp32_model.py`**
+- **`aimet_quantization/1_measure_fp32_model.py`**
 - **목적**: 학습이 완료된 32비트 부동소수점(FP32) 모델의 정확도(PSNR)를 측정하여, 이후 압축/양자화 과정에서의 성능 손실(Drop)을 비교하기 위한 기준점(Baseline)을 잡습니다. (내부적으로 자동으로 `switch_to_deploy` 모드로 측정합니다.)
 - **전체 아규먼트 (Arguments)**:
     - `--config`: 메인 모델 설정 파일 경로 (기본값: configs/train.yaml)
@@ -15,7 +15,7 @@
     - `--device`: 실행 장치 지정 (기본값: cuda)
 
 ### 단계 2: 경량화 (압축)
-- **`2_compress_svd_pruning.py`**
+- **`aimet_quantization/2_compress_svd_pruning.py`**
 - **목적**: 불필요한 레이어/채널을 가지치기(Channel Pruning) 하거나 랭크 분해(Spatial SVD)를 통해 파라미터 수와 MACs 연산량을 줄입니다. 이 과정 후 짧은 파인튜닝(Fine-tuning)이 동반됩니다.
 - **전체 아규먼트 (Arguments)**:
     - `--config`: 메인 모델 설정 파일 경로 (기본값: configs/train.yaml)
@@ -36,7 +36,7 @@
     - `--device`: 실행 장치 지정 (기본값: cuda)
 
 ### 단계 3: 양자화 민감도 분석
-- **`3_analyze_quant_sensitivity.py`**
+- **`aimet_quantization/3_analyze_quant_sensitivity.py`**
 - **목적**: FP32 모델에 `W4A4`, `W8A8`, `W8A4` 등 다양한 양자화 비트(Bit-width)와 전략(TF, Percentile 등)을 적용해보고, 가장 방어가 잘 되는 조합(Sensitivity)을 시각화합니다.
 - **전체 아규먼트 (Arguments)**:
     - `--config`: 메인 설정 파일 경로 (기본값: configs/train.yaml)
@@ -51,7 +51,7 @@
     - `--height`: 더미 입력 세로 해상도 (기본값: 360)
 
 ### 단계 4: 계층별 노이즈 분석 (QuantAnalyzer)
-- **`4_apply_quant_analyzer.py`**
+- **`aimet_quantization/4_apply_quant_analyzer.py`**
 - **목적**: AIMET의 `QuantAnalyzer`를 사용하여, 네트워크의 얕은 층부터 깊은 층까지 각 층(Layer)별로 양자화를 한 번씩 껐다 켜보며 어떤 레이어가 정확도 하락(MSE 증가)의 주범인지 찾아냅니다. 결과로 `.json`과 시각화 파일이 도출됩니다.
 - **전체 아규먼트 (Arguments)**:
     - `--config`: 메인 설정 파일 경로 (기본값: configs/train.yaml)
@@ -67,7 +67,7 @@
     - `--device`: 실행 장치 지정 (기본값: cuda)
 
 ### 단계 5: 혼합 정밀도 인코딩 (Manual Mixed Precision)
-- **`5_apply_manual_mixed_precision.py`**
+- **`aimet_quantization/5_apply_manual_mixed_precision.py`**
 - **목적**: 단계 4에서 발굴한 취약 레이어들(High MSE)만 선별적으로 높은 정밀도(INT8)로 고정하고, 나머지 대부분의 레이어는 고속 처리를 위해 INT4로 유지하는 형태의 양자화 파라미터(Encoding)를 확정합니다.
 - **전체 아규먼트 (Arguments)**:
     - `--config`: 메인 설정 파일 경로 (기본값: configs/train.yaml)
@@ -84,7 +84,7 @@
     - `--device`: 실행 장치 지정 (기본값: cuda)
 
 ### 단계 6: 양자화 인지 학습 (Quantization-Aware Training, QAT)
-- **`6_apply_qat.py`**
+- **`aimet_quantization/6_apply_qat.py`**
 - **목적**: 단계 5에서 확정된 인코딩 파라미터(혼합 정밀도/8비트)들을 바탕으로, 딥러닝 망 자체를 파인튜닝하여 양자화로 인해 발생하는 수학적인 노이즈/손실에 모델이 적응하도록 훈련합니다. 이 과정이 완료되면 비로소 실제 NPU에 올릴 수 있는 최종 `.encodings`와 모델 체크포인트가 생성됩니다. 
 - **전체 아규먼트 (Arguments)**:
     - `--config`: 메인 설정 파일 경로 (기본값: configs/train.yaml)
@@ -105,7 +105,7 @@
     - `--device`: 실행 장치 (기본값: cuda)
 
 ### 부가 (추론)
-- **`7_inference_qat.py`**
+- **`aimet_quantization/7_inference_qat.py`**
 - QAT까지 끝난 모델을 불러들여 가상의 장비 환경하에서 최종 결과 이미지를 얻어냅니다.
 
 ## 주의 사항 (Reparameterization 구조)

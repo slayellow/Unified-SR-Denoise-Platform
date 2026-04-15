@@ -57,8 +57,8 @@ def add_unprocess_isp_noise(img, read_noise_max=0.02, shot_noise_max=10.0):
     # 4. Processing: Demosaicing (cv2 expects uint16 for 16-bit Bayer)
     bayer_uint16 = (bayer_noisy * 65535.0).astype(np.uint16)
     
-    # Use cv2.COLOR_BayerRG2RGB since we built an RGGB mosaic exactly
-    rgb_noisy = cv2.cvtColor(bayer_uint16, cv2.COLOR_BayerRG2RGB).astype(np.float32) / 65535.0
+    # Use cv2.COLOR_BayerRG2BGR instead of RGB because the input channel 0 (which mapped to bayer[0,0]) is Blue from OpenCV's BGR.
+    rgb_noisy = cv2.cvtColor(bayer_uint16, cv2.COLOR_BayerRG2BGR).astype(np.float32) / 65535.0
     
     # 5. Forward Color Correction Matrix (CCM)
     # Simulates random cross-talk and color space conversion, amplifying color noise
