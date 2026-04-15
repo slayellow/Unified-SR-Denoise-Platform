@@ -21,7 +21,7 @@ from src.aimet.quant_sim import prepare_model_for_quantization, create_quantsim,
 
 def get_args():
     parser = argparse.ArgumentParser(description="Unified AIMET Quantization Simulation")
-    parser.add_argument("--config", type=str, default="configs/train.yaml", help="Config file")
+    parser.add_argument("--config", type=str, required=True, help="Main train config file")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to float32 checkpoint")
     parser.add_argument("--output_dir", type=str, default="aimet_export", help="Output directory")
     parser.add_argument("--calib_batches", type=int, default=100, help="Number of batches for calibration")

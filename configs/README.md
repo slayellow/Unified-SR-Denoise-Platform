@@ -21,5 +21,5 @@
 
 스크립트 실행 시 `--config` 와 `--data_config` 인자로 해당 YAML 파일 경로를 전달하여 사용합니다.
 ```bash
-python tools/train.py --config configs/train/quicksrnet.yaml --data_config configs/data/sr.yaml
+python tools/train.py --config configs/train/QuickSRNet/quicksrnet_2x.yaml --data_config configs/data/sr_train.yaml
 ```

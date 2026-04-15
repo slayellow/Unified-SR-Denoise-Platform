@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader
 
 def get_args():
     parser = argparse.ArgumentParser(description="Unified Model Evaluation")
-    parser.add_argument("--config", type=str, default="configs/train.yaml", help="Config file used for training (to load model params)")
+    parser.add_argument("--config", type=str, required=True, help="Config file used for training (to load model params)")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to model checkpoint (.pth)")
     parser.add_argument("--hr_dir", type=str, default=None, help="Path to HR images (Optional, defaults to config val_hr_root)")
     parser.add_argument("--lr_dir", type=str, default=None, help="Path to LR images (Optional, defaults to config val_lr_root)")

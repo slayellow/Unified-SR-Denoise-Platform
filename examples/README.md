@@ -9,8 +9,8 @@
 - **`aimet_quantization/1_measure_fp32_model.py`**
 - **목적**: 학습이 완료된 32비트 부동소수점(FP32) 모델의 정확도(PSNR)를 측정하여, 이후 압축/양자화 과정에서의 성능 손실(Drop)을 비교하기 위한 기준점(Baseline)을 잡습니다. (내부적으로 자동으로 `switch_to_deploy` 모드로 측정합니다.)
 - **전체 아규먼트 (Arguments)**:
-    - `--config`: 메인 모델 설정 파일 경로 (기본값: configs/train.yaml)
-    - `--data_config`: 데이터 파이프라인 설정 파일 경로 (기본값: configs/data/sr.yaml)
+    - `--config`: 메인 모델 설정 파일 경로 (필수)
+    - `--data_config`: 데이터 파이프라인 설정 파일 경로 (예: `configs/data/sr_train.yaml`)
     - `--checkpoint`: FP32 모델 검증용 가중치 파일 경로 (필수)
     - `--device`: 실행 장치 지정 (기본값: cuda)
 
@@ -18,8 +18,8 @@
 - **`aimet_quantization/2_compress_svd_pruning.py`**
 - **목적**: 불필요한 레이어/채널을 가지치기(Channel Pruning) 하거나 랭크 분해(Spatial SVD)를 통해 파라미터 수와 MACs 연산량을 줄입니다. 이 과정 후 짧은 파인튜닝(Fine-tuning)이 동반됩니다.
 - **전체 아규먼트 (Arguments)**:
-    - `--config`: 메인 모델 설정 파일 경로 (기본값: configs/train.yaml)
-    - `--data_config`: 데이터 설정 파일 경로 (기본값: configs/data/sr.yaml)
+    - `--config`: 메인 모델 설정 파일 경로 (필수)
+    - `--data_config`: 데이터 설정 파일 경로 (예: `configs/data/sr_train.yaml`)
     - `--checkpoint`: 초기 모델 가중치 파일 경로 (필수)
     - `--output_dir`: 압축된 모델 및 로그가 저장될 경로 (기본값: results/compression)
     - `--width`: SVD/Pruning 분석용 더미 입력 가로 (기본값: 640)
@@ -39,8 +39,8 @@
 - **`aimet_quantization/3_analyze_quant_sensitivity.py`**
 - **목적**: FP32 모델에 `W4A4`, `W8A8`, `W8A4` 등 다양한 양자화 비트(Bit-width)와 전략(TF, Percentile 등)을 적용해보고, 가장 방어가 잘 되는 조합(Sensitivity)을 시각화합니다.
 - **전체 아규먼트 (Arguments)**:
-    - `--config`: 메인 설정 파일 경로 (기본값: configs/train.yaml)
-    - `--data_config`: 데이터 설정 파일 경로 (기본값: configs/data/sr.yaml)
+    - `--config`: 메인 설정 파일 경로 (필수)
+    - `--data_config`: 데이터 설정 파일 경로 (예: `configs/data/sr_train.yaml`)
     - `--checkpoint`: 가중치 파일 경로 (필수)
     - `--output_dir`: 결과 CSV 및 그래프 이미지가 저장될 경로 (기본값: results/sensitivity)
     - `--calib_batches`: 양자화 파라미터 도출에 쓰일 샘플 배치 수 (기본값: 500)
@@ -54,8 +54,8 @@
 - **`aimet_quantization/4_apply_quant_analyzer.py`**
 - **목적**: AIMET의 `QuantAnalyzer`를 사용하여, 네트워크의 얕은 층부터 깊은 층까지 각 층(Layer)별로 양자화를 한 번씩 껐다 켜보며 어떤 레이어가 정확도 하락(MSE 증가)의 주범인지 찾아냅니다. 결과로 `.json`과 시각화 파일이 도출됩니다.
 - **전체 아규먼트 (Arguments)**:
-    - `--config`: 메인 설정 파일 경로 (기본값: configs/train.yaml)
-    - `--data_config`: 데이터 설정 파일 경로 (기본값: configs/data/sr.yaml)
+    - `--config`: 메인 설정 파일 경로 (필수)
+    - `--data_config`: 데이터 설정 파일 경로 (예: `configs/data/sr_train.yaml`)
     - `--checkpoint`: 입력 파일 위치 (필수)
     - `--output_dir`: 분석 결과 HTML 및 JSON이 저장될 경로 (기본값: results/quant_analyzer)
     - `--scheme`: AIMET 내부 양자화 계산 스킴 방식 (기본: `post_training_tf_enhanced`)
@@ -70,8 +70,8 @@
 - **`aimet_quantization/5_apply_manual_mixed_precision.py`**
 - **목적**: 단계 4에서 발굴한 취약 레이어들(High MSE)만 선별적으로 높은 정밀도(INT8)로 고정하고, 나머지 대부분의 레이어는 고속 처리를 위해 INT4로 유지하는 형태의 양자화 파라미터(Encoding)를 확정합니다.
 - **전체 아규먼트 (Arguments)**:
-    - `--config`: 메인 설정 파일 경로 (기본값: configs/train.yaml)
-    - `--data_config`: 데이터 설정 파일 경로 (기본값: configs/data/sr.yaml)
+    - `--config`: 메인 설정 파일 경로 (필수)
+    - `--data_config`: 데이터 설정 파일 경로 (예: `configs/data/sr_train.yaml`)
     - `--checkpoint`: 입력 가중치 경로 (필수)
     - `--output_dir`: 최종 .encodings 파일이 추출될 위치 (기본값: results/mmp)
     - `--param_bw`: 기본 가중치 비트 (기본값: 8)
@@ -87,8 +87,8 @@
 - **`aimet_quantization/6_apply_qat.py`**
 - **목적**: 단계 5에서 확정된 인코딩 파라미터(혼합 정밀도/8비트)들을 바탕으로, 딥러닝 망 자체를 파인튜닝하여 양자화로 인해 발생하는 수학적인 노이즈/손실에 모델이 적응하도록 훈련합니다. 이 과정이 완료되면 비로소 실제 NPU에 올릴 수 있는 최종 `.encodings`와 모델 체크포인트가 생성됩니다. 
 - **전체 아규먼트 (Arguments)**:
-    - `--config`: 메인 설정 파일 경로 (기본값: configs/train.yaml)
-    - `--data_config`: 데이터 설정 파일 경로 (기본값: configs/data/sr.yaml)
+    - `--config`: 메인 설정 파일 경로 (필수)
+    - `--data_config`: 데이터 설정 파일 경로 (예: `configs/data/sr_train.yaml`)
     - `--checkpoint`: 파인튜닝을 시작할 FP32 모델 가중치 (필수)
     - `--output_dir`: QAT 완료 `.pth` 와 `.encodings` 가 저장될 경로 (기본값: results/qat)
     - `--scheme`: QAT 학습에 적합한 양자화 범위 추적 스킴 (기본값: `training_range_learning_with_tf_init`)

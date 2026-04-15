@@ -21,7 +21,7 @@ from src.engine.gan_trainer import GANTrainer
 
 def get_args():
     parser = argparse.ArgumentParser(description="Unified SR/Denoise Training")
-    parser.add_argument("--config", type=str, default="configs/train.yaml", help="Path to main train config file")
+    parser.add_argument("--config", type=str, required=True, help="Path to main train config file")
     parser.add_argument("--data_config", type=str, help="Path to data config file (override default)")
     parser.add_argument("--model", type=str, help="Model name (override config)")
     parser.add_argument("--task", type=str, choices=['sr', 'denoise', 'guide'], help="Task type (override config)")
@@ -66,11 +66,11 @@ def load_config(args):
     if args.data_config:
         data_cfg_path = args.data_config
     elif config['task'] == 'sr':
-        data_cfg_path = "configs/data/sr.yaml"
+        data_cfg_path = "configs/data/sr_train.yaml"
     elif config['task'] == 'denoise':
         data_cfg_path = "configs/data/denoise.yaml"
     elif config['task'] == 'guide':
-        data_cfg_path = "configs/data/gsr.yaml"
+        data_cfg_path = "configs/data/gsr_train.yaml"
     else:
         data_cfg_path = None
         
@@ -84,8 +84,6 @@ def load_config(args):
         config['data_config_path'] = None
     
     # Args override
-    if args.model: config['model']['name'] = args.model
-    if args.task: config['task'] = args.task
     if args.model: config['model']['name'] = args.model
     if args.task: config['task'] = args.task
     if args.scale: config['model']['scale'] = args.scale

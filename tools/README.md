@@ -6,7 +6,7 @@
 
 - **`train.py`**: 밑바닥부터 새로운 모델을 학습하거나 (Train from scratch), 특정 Pre-trained 가중치를 불러와 이어서 학습하는 메인 트레이닝 스크립트입니다.
     - 전체 아규먼트 (Arguments):
-        - `--config`: 메인 학습 설정 파일 경로 (기본값: configs/train.yaml)
+        - `--config`: 메인 학습 설정 파일 경로 (필수)
         - `--data_config`: 데이터셋 설정 파일 경로 (설정 파일의 내용을 덮어씀)
         - `--model`: 사용할 모델 이름 (설정 파일 덮어쓰기)
         - `--task`: 태스크 종류 (`sr` 또는 `denoise`, 설정 파일 덮어쓰기)
@@ -20,7 +20,7 @@
 
 - **`evaluate.py`**: `.pth` 체크포인트를 불러들어 검증 데이터셋에 대해 성능(PSNR, SSIM 등)을 평가합니다. 배포용 모델(`switch_to_deploy`)의 성능 측정에도 사용됩니다.
     - 전체 아규먼트 (Arguments):
-        - `--config`: 설정 파일 경로 (기본값: configs/train.yaml)
+        - `--config`: 설정 파일 경로 (필수)
         - `--checkpoint`: 평가할 모델 가중치 파일 경로 (필수)
         - `--hr_dir`: 검증에 사용할 High-Resolution 이미지 폴더 (설정 파일 덮어쓰기)
         - `--lr_dir`: 검증에 사용할 Low-Resolution 이미지 폴더 (설정 파일 덮어쓰기)
@@ -30,7 +30,7 @@
 
 - **`export.py`**: 모델 체크포인트를 ONNX 포맷으로 변환(Export)합니다.
     - 전체 아규먼트 (Arguments):
-        - `--config`: 모델 파라미터 로드를 위한 설정 파일 경로 (기본값: configs/train.yaml)
+        - `--config`: 모델 파라미터 로드를 위한 설정 파일 경로 (필수)
         - `--checkpoint`: 변환할 가중치 경로 (생략 시 초기화된 가중치로 빈 모델 Export)
         - `--output`: 출력 ONNX 파일을 저장할 디렉토리 (기본값: ./results)
         - `--height`: 더미(Dummy) 입력 이미지 세로 길이 (기본값: 256)

@@ -18,7 +18,7 @@ train:
   batch_size: 128
   lr: 5e-5
   num_workers: 4
-  radient_accumulation_steps: 1
+  gradient_accumulation_steps: 1
   patch_size: 256
   save_interval: 20
   save_name: "train_svfocusdenoise_adv_x1_epoch300_lr5e-5_edge_ssim_perceptual_v3_260415"

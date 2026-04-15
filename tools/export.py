@@ -13,7 +13,7 @@ from src.models import build_model
 
 def get_args():
     parser = argparse.ArgumentParser(description="Unified Model Export (ONNX)")
-    parser.add_argument("--config", type=str, default="configs/train.yaml", help="Config file used for training")
+    parser.add_argument("--config", type=str, required=True, help="Config file used for training")
     parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint (.pth). If None, exports using initialized weights.")
     parser.add_argument("--output", type=str, default=None, help="Output ONNX Folder Path (default: ./results)")
     parser.add_argument("--height", type=int, default=256, help="Input Height")
