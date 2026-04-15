@@ -1,0 +1,73 @@
+task: guide
+model:
+  name: corefusion
+  scale: 2
+  pretrained: true
+  contrastive: true
+  guided: true
+
+data:
+  type: ir
+  train_hr_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/FLIR/HR_unified/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/HR/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/HR/train
+  train_lr_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/FLIR/LRx2/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/LRx2/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/LRx2/train
+  train_guide_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/FLIR/RGB_unified/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/RGB/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/RGB/train
+
+  val_hr_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/HR/val
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/HR/val
+  val_lr_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/LRx2/val
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/LRx2/val
+  val_guide_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/RGB/val
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/RGB/val
+
+# CoReFusion paper: Adam lr=1e-4, CosineAnnealing, 250 epochs, batch=8
+train:
+  epochs: 250
+  batch_size: 64
+  lr: 1e-4
+  num_workers: 4
+  gradient_accumulation_steps: 1
+  patch_size: 128
+  save_interval: 50
+  save_name: "train_gsr_corefusion_x2_epoch250"
+  pretrained_path: null
+
+  optimizer:
+    type: Adam
+    betas: [0.9, 0.999]
+  weight_decay: 0
+  grad_clip: 1.0
+
+  early_stopping:
+    patience: 30
+    min_delta: 0.0001
+
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 250
+    eta_min: 1e-7
+
+# CoReFusion paper: MSE + (1-SSIM)/10 + contrastive(β)
+# contrastive_weight is handled in trainer, not in UnifiedLoss
+contrastive_weight: 0.1
+
+loss:
+  l1:
+    enabled: false
+  mse:
+    enabled: true
+    weight: 1.0
+  ssim:
+    enabled: true
+    weight: 0.1

@@ -1,0 +1,7 @@
+# Guided Super-Resolution Data Config
+dataset_type: guide
+
+# General Settings
+crop_size: 256
+use_flip: true
+use_rot: true

@@ -1,0 +1,57 @@
+task: sr
+model:
+  name: svfocussrnet
+  scale: 4
+  dim: 32
+  n_resblocks: 8
+  use_advanced_rep: true
+data:
+  type: eo
+  train_root: /mnt/data_server/etc/jshong/SuperResolution/Experiment_Dataset/train/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Experiment_Dataset/val/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Experiment_Dataset/val/LRx4
+train:
+  epochs: 300
+  batch_size: 64
+  lr: 1e-4
+  num_workers: 4
+  gradient_accumulation_steps: 1
+  save_name: experiment_svfocussrnet_advanced_sr_x4_dim32_block8_epoch300_bs_64_lr_1e-4
+  patch_size: 256
+  save_interval: 20
+  pretrained_path: ''
+  optimizer:
+    type: AdamW
+    betas:
+    - 0.9
+    - 0.999
+  weight_decay: 1e-4
+  grad_clip: 1.0
+  early_stopping:
+    patience: 50
+    min_delta: -0.21
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 300
+    eta_min: 1e-7
+loss:
+  l1:
+    enabled: false
+    weight: 1.0
+  charbonnier:
+    enabled: true
+    weight: 1.0
+  edge:
+    enabled: false
+    weight: 0.5
+    mode: gray
+  ssim:
+    enabled: false
+    weight: 0.1
+  perceptual:
+    enabled: false
+    weight: 0.05
+  tv:
+    enabled: false
+    weight: 0.1
+export_onnx: false

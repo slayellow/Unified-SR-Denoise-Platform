@@ -1,0 +1,187 @@
+data:
+  train_root:
+  - /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
+  type: eo
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/LR
+data_config:
+  clean_prob: 0.2
+  crop_size: 256
+  dataset_type: sr
+  degradation:
+    stage1:
+      blur:
+        betag:
+        - 0.5
+        - 4.0
+        betap:
+        - 1.0
+        - 2.0
+        enabled: true
+        kernel_probs:
+        - 0.45
+        - 0.25
+        - 0.12
+        - 0.03
+        - 0.12
+        - 0.03
+        kernel_sizes:
+        - 7
+        - 9
+        - 11
+        - 13
+        - 15
+        - 17
+        - 19
+        - 21
+        prob: 0.5
+        sigma:
+        - 0.2
+        - 3.0
+      gaussian_noise:
+        enabled: true
+        prob: 0.5
+        sigma_max: 5
+        sigma_min: 1
+      jpeg:
+        enabled: true
+        prob: 0.5
+        quality_max: 95
+        quality_min: 85
+      poisson_noise:
+        enabled: true
+        prob: 0.5
+        scale_max: 3.0
+        scale_min: 0.05
+      resize:
+        enabled: true
+        interpolations:
+        - cv2.INTER_LINEAR
+        - cv2.INTER_CUBIC
+        - cv2.INTER_AREA
+        prob: 0.7
+        scale_max: 1.0
+        scale_min: 0.5
+      sinc:
+        enabled: false
+      unprocess_noise:
+        enabled: true
+        prob: 0.5
+        read_noise_max: 0.02
+        shot_noise_max: 10.0
+    stage2:
+      blur:
+        enabled: true
+        kernel_sizes:
+        - 7
+        - 9
+        - 11
+        - 13
+        - 15
+        - 17
+        - 19
+        - 21
+        prob: 0.5
+        sigma:
+        - 0.2
+        - 1.5
+      chroma_noise:
+        downscale: 4
+        enabled: true
+        prob: 0.5
+        sigma_max: 20
+        sigma_min: 5
+      common_noise:
+        enabled: true
+        prob: 0.5
+        sigma_max: 15
+        sigma_min: 2
+      final_jpeg:
+        enabled: true
+        prob: 0.8
+        quality_max: 85
+        quality_min: 30
+      hot_pixels:
+        blob_prob: 0.4
+        blob_radius_max: 8
+        blob_radius_min: 1
+        density_max: 0.003
+        density_min: 0.0005
+        enabled: true
+        prob: 0.5
+      ir_noise:
+        enabled: false
+        non_uniformity:
+          amp_max: 0.3
+          amp_min: 0.1
+          prob: 0.5
+        thermal_noise:
+          gray_prob: 0.9
+          sigma_max: 20
+          sigma_min: 5
+        vertical_line:
+          intensity_max: 10
+          intensity_min: 2
+          prob: 0.5
+      target_resize:
+        enabled: true
+        interpolations:
+        - cv2.INTER_LINEAR
+        - cv2.INTER_CUBIC
+  use_flip: true
+  use_rot: true
+data_config_path: configs/data/denoise.yaml
+export_onnx: false
+loss:
+  charbonnier:
+    enabled: true
+    weight: 1.0
+  edge:
+    enabled: true
+    mode: gray
+    weight: 0.05
+  l1:
+    enabled: false
+    weight: 1.0
+  perceptual:
+    enabled: false
+    weight: 0.05
+  ssim:
+    enabled: true
+    weight: 0.1
+  tv:
+    enabled: false
+    weight: 0.1
+model:
+  dim: 32
+  n_resblocks: 3
+  name: svfocussrnet
+  scale: 1
+  use_advanced_rep: true
+task: sr
+train:
+  batch_size: 128
+  early_stopping:
+    min_delta: 0.0001
+    mode: min
+    monitor: niqe
+    patience: 50
+  epochs: 300
+  grad_clip: 1.0
+  lr: 1e-4
+  num_workers: 4
+  optimizer:
+    betas:
+    - 0.9
+    - 0.999
+    type: AdamW
+  patch_size: 256
+  pretrained_path: null
+  radient_accumulation_steps: 1
+  save_interval: 20
+  save_name: train_svfocusdenoise_adv_x1_dim32_block3_epoch300_lr1e-4_charbonnier_edge_ssim_hotpixel_chroma_260413
+  scheduler:
+    T_max: 300
+    eta_min: 1e-7
+    type: CosineAnnealingLR
+  weight_decay: 1e-4

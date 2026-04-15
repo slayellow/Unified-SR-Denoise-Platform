@@ -1,0 +1,96 @@
+# SR Degradation Config
+dataset_type: sr
+
+# General Settings
+crop_size: 256
+use_flip: true
+use_rot: true
+
+# Degradation Pipeline Settings
+degradation:
+  # Stage 1: Pre-resize degradation (Simulate optics/atmosphere)
+  stage1:
+    blur:
+      enabled: true
+      prob: 0.5
+      kernel_probs: [0.45, 0.25, 0.12, 0.03, 0.12, 0.03]
+      kernel_sizes: [7, 9, 11, 13, 15, 17, 19, 21]
+      sigma: [0.2, 3.0]
+      betag: [0.5, 4.0]
+      betap: [1.0, 2.0]
+    
+    resize:
+      enabled: true
+      prob: 0.7
+      scale_min: 0.5
+      scale_max: 1.0
+      interpolations: ["cv2.INTER_LINEAR", "cv2.INTER_CUBIC", "cv2.INTER_AREA"]
+    
+    gaussian_noise:
+      enabled: true
+      prob: 0.5
+      sigma_min: 1
+      sigma_max: 5
+      gray_prob: 0.5 # For general matching, explicitly set if needed
+    
+    poisson_noise:
+      enabled: true
+      prob: 0.5
+      scale_min: 0.05
+      scale_max: 3.0
+      gray_prob: 0.5
+
+    jpeg:
+      enabled: true
+      prob: 0.5
+      quality_min: 85
+      quality_max: 95
+
+    sinc:
+      enabled: true
+      prob: 0.1
+      kernel_sizes: [7, 9, 11, 13, 15, 17, 19, 21]
+      
+  # Stage 2: Post-resize degradation (Simulate sensor/digital artifacts)
+  stage2:
+    blur:
+      enabled: true
+      prob: 0.5
+      kernel_probs: [0.45, 0.25, 0.12, 0.03, 0.12, 0.03]
+      kernel_sizes: [7, 9, 11, 13, 15, 17, 19, 21]
+      sigma: [0.2, 1.5]
+      betag: [0.5, 4.0]
+      betap: [1.0, 2.0]
+    
+    target_resize:
+      enabled: true
+      interpolations: ["cv2.INTER_CUBIC", "cv2.INTER_LINEAR", "cv2.INTER_LANCZOS4"]
+
+    # Sensor Specific Noise (IR or EO)
+    ir_noise:
+      enabled: false                 # Set to true for IR tasks
+      non_uniformity:               # 비네팅 효과 모사하기 위해 사용하며, 픽셀값을 빼는 연산 수행하기 때문에 전체적으로 이미지가 어두워짐
+        prob: 0.5 
+        amp_min: 0.1
+        amp_max: 0.3
+      vertical_line:                # 수직선 노이즈 효과 모사
+        prob: 0.5
+        intensity_min: 2
+        intensity_max: 10
+      thermal_noise:                # 열 노이즈 효과 모사
+        sigma_min: 5
+        sigma_max: 20
+        gray_prob: 0.9
+
+    common_noise:
+      enabled: true
+      prob: 0.0                     # If IR is enabled usually this is skipped or specific thermal noise is used. 
+      sigma_min: 1
+      sigma_max: 10
+      gray_prob: 0.2
+
+    final_jpeg:
+      enabled: true
+      prob: 0.8
+      quality_min: 50
+      quality_max: 90

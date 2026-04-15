@@ -1,0 +1,71 @@
+task: guide
+model:
+  name: corefusion
+  scale: 2
+  pretrained: false   # Stage 1 가중치를 pretrained_path로 직접 로드
+  contrastive: true
+  guided: true
+
+data:
+  type: ir
+  # Finetune: degradation 모드 — train_lr_root 없음 (HR에서 on-the-fly 열화 LR 생성)
+  train_hr_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/FLIR/HR_unified/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/HR/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/HR/train
+  train_guide_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/FLIR/RGB_unified/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/RGB/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/RGB/train
+
+  # Validation은 항상 Paired (bicubic LR 사용) — 일관된 비교 기준
+  val_hr_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/HR/val
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/HR/val
+  val_lr_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/LRx2/val
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/LRx2/val
+  val_guide_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/RGB/val
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/RGB/val
+
+train:
+  epochs: 100
+  batch_size: 64
+  lr: 5e-5
+  num_workers: 4
+  gradient_accumulation_steps: 2    # effective batch = 16
+  patch_size: 128
+  save_interval: 20
+  save_name: "finetune_gsr_corefusion_x2_epoch100"
+
+  # Stage 1 최고 성능 가중치로 초기화
+  pretrained_path: "checkpoints/train_gsr_corefusion_x2_epoch250/best.pth"
+
+  optimizer:
+    type: Adam
+    betas: [0.9, 0.999]
+  weight_decay: 0
+  grad_clip: 1.0
+
+  early_stopping:
+    patience: 15
+    min_delta: 0.0001
+
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 100
+    eta_min: 1e-7
+
+# Contrastive weight: Stage 1과 동일하게 유지 (thermal/RGB 구분 계속 강화)
+contrastive_weight: 0.1
+
+loss:
+  l1:
+    enabled: false
+  mse:
+    enabled: true
+    weight: 1.0
+  ssim:
+    enabled: true
+    weight: 0.1

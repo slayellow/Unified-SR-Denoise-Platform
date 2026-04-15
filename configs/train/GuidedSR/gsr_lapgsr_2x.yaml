@@ -1,0 +1,82 @@
+task: guide
+model:
+  name: lapgsr
+  scale: 2
+  num_high: 2
+  nrb_low: 3
+  nrb_high: 7
+  nrb_top: 5
+  guided: true
+
+# Discriminator config (triggers GANTrainer)
+discriminator:
+  name: lapgsr_disc
+  in_channels: 3
+
+data:
+  type: ir
+  train_hr_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/FLIR/HR_unified/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/HR/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/HR/train
+  train_lr_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/FLIR/LRx2/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/LRx2/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/LRx2/train
+  train_guide_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/FLIR/RGB_unified/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/RGB/train
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/RGB/train
+
+  val_hr_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/HR/val
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/HR/val
+  val_lr_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/LRx2/val
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/LRx2/val
+  val_guide_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/LLVIP/RGB/val
+    - /mnt/data_server/etc/jshong/SuperResolution/GSR_Dataset/M3FD/RGB/val
+
+# LapGSR paper: Adam lr=1e-4, betas=(0.9, 0.99), 300 epochs, batch=8
+train:
+  epochs: 300
+  batch_size: 8
+  lr: 1e-4
+  num_workers: 4
+  gradient_accumulation_steps: 1
+  patch_size: 256
+  save_interval: 20
+  save_name: "train_gsr_lapgsr_x2_epoch300"
+  pretrained_path: null
+
+  optimizer:
+    type: Adam
+    betas: [0.9, 0.99]
+  weight_decay: 0
+  grad_clip: 0
+
+  early_stopping:
+    patience: 50
+    min_delta: 0.0001
+
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 300
+    eta_min: 1e-7
+
+  # Discriminator optimizer (same as generator by default)
+  d_optimizer:
+    lr: 1e-4
+    betas: [0.9, 0.99]
+
+# LapGSR paper: MSE(weight=2000) + GANLoss + Gradient Penalty(100)
+gan_weight: 1.0
+gp_weight: 100.0
+
+loss:
+  l1:
+    enabled: false
+  mse:
+    enabled: true
+    weight: 2000.0

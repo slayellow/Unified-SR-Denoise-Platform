@@ -1,0 +1,83 @@
+task: sr
+model:
+  name: quicksrnet_medium
+  scale: 4
+  dim: 32
+
+data:
+  type: ir
+  train_root: /mnt/data_server/etc/jshong/SuperResolution/Experiment_Dataset/IR/train/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Experiment_Dataset/IR/val/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Experiment_Dataset/IR/val/LRx4
+  
+train:
+  epochs: 100
+  batch_size: 64
+  lr: 5e-5
+  num_workers: 4
+  gradient_accumulation_steps: 1
+  patch_size: 256
+  save_interval: 20
+  
+  # 저장 폴더 이름 지정 (옵션)
+  # 설정 시 checkpoints/{save_name} 폴더에 저장됩니다. (설정하지 않으면 날짜시간 자동생성)
+  save_name: "experiment_finetune_quicksrnet_medium_ir_sr_x4_dim32_epoch100_bs_64_ga_2_lr_5e-5" # 예: "experiment_v1"
+
+  # Finetuning 설정
+  # resume: 체크포인트에서 학습을 재개 (Epoch, Optimizer 상태 포함) -> 커맨드라인 인자 --resume 사용
+  # pretrained_path: 특정 모델 가중치만 불러와서 새로 학습 (Epoch 1부터 시작) -> 아래 경로 설정
+  pretrained_path: "checkpoints/experiment_quicksrnet_medium_sr_x4_ir_epoch300_bs_64_lr_1e-4/best.pth" # 예: "checkpoints/my_model/best.pth"
+  
+  # Optimizer 설정 (Adam, AdamW, SGD)
+  optimizer:
+    type: AdamW
+    betas: [0.9, 0.999]
+    # momentum: 0.9 # SGD 사용 시 필요
+    
+  weight_decay: 1e-4
+  grad_clip: 1.0
+
+  # Early Stopping (Optional)
+  early_stopping:
+    patience: 10      # 개선 없는 Epoch 허용 횟수
+    min_delta: 0.0001 # 최소 개선 폭 (Loss)
+
+  # Scheduler 설정 (ReduceLROnPlateau, StepLR, CosineAnnealingLR)
+  scheduler:
+    # 1. ReduceLROnPlateau (Loss 기반 감소)
+    # type: ReduceLROnPlateau
+    # patience: 20
+    # factor: 0.5
+    
+    # 2. StepLR (일정 Step 마다 감소)
+    # type: StepLR
+    # step_size: 50
+    # gamma: 0.5
+
+    # 3. CosineAnnealingLR (코사인 곡선 따라 감소)
+    type: CosineAnnealingLR
+    T_max: 100 # 보통 전체 Epoch 수와 맞춤
+    eta_min: 1e-7 # 최소 Learning Rate
+
+loss:
+  l1:
+    enabled: false
+    weight: 1.0
+  charbonnier:
+    enabled: true
+    weight: 1.0      # 픽셀 정확도 유지
+  perceptual:
+    enabled: false   # IR 특성상 VGG 피처맵과 이질적이므로 제외하는 것이 안전함
+    weight: 0.01
+  edge:
+    enabled: false
+    weight: 0.15     # 핵심 수정: 기존 0.5는 너무 강해서 진동을 유발함. 0.15~0.2 수준으로 안정화
+    mode: 'gray'
+  ssim:
+    enabled: false
+    weight: 0.1      # 열화상의 구조적 명암비(Contrast)를 유지하는 데 매우 중요
+  tv:
+    enabled: false
+    weight: 0.01     # 열화상 특유의 평탄한 배경(하늘, 바닥 등)에 생기는 자잘한 노이즈 억제
+
+export_onnx: false

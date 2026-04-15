@@ -1,0 +1,41 @@
+task: sr
+model:
+  name: ddrnet
+  scale: 4
+  dim: 48
+  dual_stream: true
+
+data:
+  type: eo
+  train_root: /mnt/data_server/etc/jshong/SuperResolution/8550/HR
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/8550/HR_val
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/8550/LR_val
+
+train:
+  epochs: 150
+  batch_size: 16
+  lr: 2e-4
+  num_workers: 8
+  patch_size: 128
+  save_interval: 10
+  step_size: 75 # Unused if using ReduceLROnPlateau
+  gamma: 0.5
+  weight_decay: 1e-4
+  grad_clip: 1.0
+  scheduler:
+    type: ReduceLROnPlateau
+    patience: 25
+    factor: 0.5
+
+loss:
+  charbonnier:
+    enabled: true
+    weight: 1.0
+  edge:
+    enabled: true
+    weight: 0.05
+  ssim:
+    enabled: true
+    weight: 0.05
+
+export_onnx: true

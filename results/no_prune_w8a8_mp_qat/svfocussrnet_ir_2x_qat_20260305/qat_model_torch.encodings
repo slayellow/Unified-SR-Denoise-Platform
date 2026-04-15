@@ -1,0 +1,3470 @@
+{
+    "activation_encodings": {
+        "base_upsampler.net": {
+            "input": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9999973177909851,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.003921558149158955
+                }
+            },
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9980815052986145,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.0039140451699495316
+                }
+            }
+        },
+        "body.0.act": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9471326470375061,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.003714245744049549
+                }
+            }
+        },
+        "body.0.branch_3x3": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 1.0058770179748535,
+                    "min": -0.5872822403907776,
+                    "offset": -94,
+                    "scale": 0.0062476834282279015
+                }
+            }
+        },
+        "body.1.act": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9968393445014954,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.003909173887223005
+                }
+            }
+        },
+        "body.1.branch_3x3": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9582523107528687,
+                    "min": -0.8652875423431396,
+                    "offset": -121,
+                    "scale": 0.007151136640459299
+                }
+            }
+        },
+        "body.2.act": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9971455931663513,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.003910374827682972
+                }
+            }
+        },
+        "body.2.branch_3x3": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 1.019575595855713,
+                    "min": -0.8781746029853821,
+                    "offset": -118,
+                    "scale": 0.007442157715559006
+                }
+            }
+        },
+        "body.3.act": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9980615973472595,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.003913966938853264
+                }
+            }
+        },
+        "body.3.branch_3x3": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 1.238218903541565,
+                    "min": -0.7229352593421936,
+                    "offset": -94,
+                    "scale": 0.007690800353884697
+                }
+            }
+        },
+        "body.4.act": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9973546862602234,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.003911194857209921
+                }
+            }
+        },
+        "body.4.branch_3x3": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 1.6261203289031982,
+                    "min": -1.1756410598754883,
+                    "offset": -107,
+                    "scale": 0.010987299494445324
+                }
+            }
+        },
+        "body.5.act": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.997567355632782,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.003912028856575489
+                }
+            }
+        },
+        "body.5.branch_3x3": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 2.514381170272827,
+                    "min": -0.8960826396942139,
+                    "offset": -67,
+                    "scale": 0.013374367728829384
+                }
+            }
+        },
+        "body.6.act": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9974486231803894,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.003911563195288181
+                }
+            }
+        },
+        "body.6.branch_3x3": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 2.2106540203094482,
+                    "min": -1.029097557067871,
+                    "offset": -81,
+                    "scale": 0.012704907916486263
+                }
+            }
+        },
+        "body.7.act": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9975003600120544,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.0039117662236094475
+                }
+            }
+        },
+        "body.7.branch_3x3": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 5.291088104248047,
+                    "min": -1.4214863777160645,
+                    "offset": -54,
+                    "scale": 0.026323821395635605
+                }
+            }
+        },
+        "body_tail": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.6148540377616882,
+                    "min": -0.8504523038864136,
+                    "offset": -148,
+                    "scale": 0.005746299400925636
+                }
+            }
+        },
+        "final_act": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9980330467224121,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.00391385518014431
+                }
+            }
+        },
+        "head.0": {
+            "input": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 1.0007911920547485,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.003924671560525894
+                }
+            },
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.8935900926589966,
+                    "min": -1.23599374294281,
+                    "offset": -148,
+                    "scale": 0.008351309224963188
+                }
+            }
+        },
+        "head.1": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.8924716711044312,
+                    "min": 0.0,
+                    "offset": 0,
+                    "scale": 0.003499888814985752
+                }
+            }
+        },
+        "module_add": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.9544299840927124,
+                    "min": -0.690027117729187,
+                    "offset": -107,
+                    "scale": 0.006448851432651281
+                }
+            }
+        },
+        "module_add_1": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 1.1002837419509888,
+                    "min": -0.1302967518568039,
+                    "offset": -27,
+                    "scale": 0.004825805779546499
+                }
+            }
+        },
+        "upsample.0": {
+            "output": {
+                "0": {
+                    "bitwidth": 8,
+                    "dtype": "int",
+                    "is_symmetric": "False",
+                    "max": 0.32492926716804504,
+                    "min": -0.3598390221595764,
+                    "offset": -134,
+                    "scale": 0.0026853657327592373
+                }
+            }
+        }
+    },
+    "excluded_layers": [],
+    "param_encodings": {
+        "base_upsampler.net.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0060725212097168,
+                "min": -1.0139943361282349,
+                "offset": -128,
+                "scale": 0.007921830751001835
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.006070852279663,
+                "min": -1.0139926671981812,
+                "offset": -128,
+                "scale": 0.00792181771248579
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.006036400794983,
+                "min": -1.0139579772949219,
+                "offset": -128,
+                "scale": 0.007921546697616577
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.006072759628296,
+                "min": -1.013994574546814,
+                "offset": -128,
+                "scale": 0.007921832613646984
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.006083369255066,
+                "min": -1.0140053033828735,
+                "offset": -128,
+                "scale": 0.0079219164326787
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0060644149780273,
+                "min": -1.0139862298965454,
+                "offset": -128,
+                "scale": 0.007921767421066761
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0060760974884033,
+                "min": -1.0139979124069214,
+                "offset": -128,
+                "scale": 0.007921858690679073
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0060392618179321,
+                "min": -1.013960838317871,
+                "offset": -128,
+                "scale": 0.007921569049358368
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0060454607009888,
+                "min": -1.0139670372009277,
+                "offset": -128,
+                "scale": 0.007921617478132248
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0060758590698242,
+                "min": -1.0139976739883423,
+                "offset": -128,
+                "scale": 0.007921856828033924
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0060653686523438,
+                "min": -1.0139871835708618,
+                "offset": -128,
+                "scale": 0.007921774871647358
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0060930252075195,
+                "min": -1.0140149593353271,
+                "offset": -128,
+                "scale": 0.007921991869807243
+            }
+        ],
+        "body.0.branch_3x3.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.827885091304779,
+                "min": -0.8344038724899292,
+                "offset": -128,
+                "scale": 0.006518780253827572
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9604367017745972,
+                "min": -0.9679992198944092,
+                "offset": -128,
+                "scale": 0.007562493905425072
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.5602366328239441,
+                "min": -0.5646479725837708,
+                "offset": -128,
+                "scale": 0.004411312285810709
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.951745867729187,
+                "min": -0.9592399597167969,
+                "offset": -128,
+                "scale": 0.007494062185287476
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1100082397460938,
+                "min": -1.118748426437378,
+                "offset": -128,
+                "scale": 0.008740222081542015
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.5481210947036743,
+                "min": -0.5524370074272156,
+                "offset": -128,
+                "scale": 0.004315914120525122
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7669757008552551,
+                "min": -0.7730149030685425,
+                "offset": -128,
+                "scale": 0.006039178930222988
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.6447692513465881,
+                "min": -0.6498461961746216,
+                "offset": -128,
+                "scale": 0.005076923407614231
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0363553762435913,
+                "min": -1.044515609741211,
+                "offset": -128,
+                "scale": 0.00816027820110321
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.6654136180877686,
+                "min": -0.6706531047821045,
+                "offset": -128,
+                "scale": 0.005239477381110191
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1579514741897583,
+                "min": -1.1670691967010498,
+                "offset": -128,
+                "scale": 0.009117728099226952
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.6075824499130249,
+                "min": -0.6123665571212769,
+                "offset": -128,
+                "scale": 0.004784113727509975
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.36104509234428406,
+                "min": -0.3638879656791687,
+                "offset": -128,
+                "scale": 0.0028428747318685055
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0858560800552368,
+                "min": -1.0944061279296875,
+                "offset": -128,
+                "scale": 0.008550047874450684
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8658003211021423,
+                "min": -0.8726176619529724,
+                "offset": -128,
+                "scale": 0.006817325484007597
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9656951427459717,
+                "min": -0.9732990264892578,
+                "offset": -128,
+                "scale": 0.007603898644447327
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1040456295013428,
+                "min": -1.112738847732544,
+                "offset": -128,
+                "scale": 0.0086932722479105
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9507821202278137,
+                "min": -0.9582685828208923,
+                "offset": -128,
+                "scale": 0.007486473303288221
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.5795546174049377,
+                "min": -0.5841180682182312,
+                "offset": -128,
+                "scale": 0.004563422407954931
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7052377462387085,
+                "min": -0.7107908129692078,
+                "offset": -128,
+                "scale": 0.005553053226321936
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9488757848739624,
+                "min": -0.9563472270965576,
+                "offset": -128,
+                "scale": 0.007471462711691856
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8502494692802429,
+                "min": -0.8569443225860596,
+                "offset": -128,
+                "scale": 0.00669487752020359
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1832387447357178,
+                "min": -1.192555546760559,
+                "offset": -128,
+                "scale": 0.009316840209066868
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.968284010887146,
+                "min": -0.9759082794189453,
+                "offset": -128,
+                "scale": 0.00762428343296051
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.49619725346565247,
+                "min": -0.5001043081283569,
+                "offset": -128,
+                "scale": 0.0039070649072527885
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7114021182060242,
+                "min": -0.7170037031173706,
+                "offset": -128,
+                "scale": 0.005601591430604458
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9373530745506287,
+                "min": -0.9447337985038757,
+                "offset": -128,
+                "scale": 0.007380732800811529
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8646196126937866,
+                "min": -0.8714276552200317,
+                "offset": -128,
+                "scale": 0.006808028556406498
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9958628416061401,
+                "min": -1.003704309463501,
+                "offset": -128,
+                "scale": 0.007841439917683601
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.5482000708580017,
+                "min": -0.5525165796279907,
+                "offset": -128,
+                "scale": 0.0043165357783436775
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.5236268043518066,
+                "min": -0.5277498364448547,
+                "offset": -128,
+                "scale": 0.004123045597225428
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1669533252716064,
+                "min": -1.1761419773101807,
+                "offset": -128,
+                "scale": 0.009188609197735786
+            }
+        ],
+        "body.1.branch_3x3.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.41917312145233154,
+                "min": -0.4224736988544464,
+                "offset": -128,
+                "scale": 0.0033005757723003626
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.4419851005077362,
+                "min": -0.4454652965068817,
+                "offset": -128,
+                "scale": 0.0034801976289600134
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.050502896308899,
+                "min": -1.0587745904922485,
+                "offset": -128,
+                "scale": 0.008271676488220692
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8710448145866394,
+                "min": -0.8779034614562988,
+                "offset": -128,
+                "scale": 0.006858620792627335
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9802456498146057,
+                "min": -0.9879640936851501,
+                "offset": -128,
+                "scale": 0.0077184694819152355
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8886507153511047,
+                "min": -0.8956479430198669,
+                "offset": -128,
+                "scale": 0.0069972495548427105
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9984337687492371,
+                "min": -1.0062954425811768,
+                "offset": -128,
+                "scale": 0.007861683145165443
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0877799987792969,
+                "min": -1.0963451862335205,
+                "offset": -128,
+                "scale": 0.008565196767449379
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9541109800338745,
+                "min": -0.9616236686706543,
+                "offset": -128,
+                "scale": 0.007512684911489487
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9980083107948303,
+                "min": -1.0058666467666626,
+                "offset": -128,
+                "scale": 0.007858333177864552
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1376640796661377,
+                "min": -1.1466220617294312,
+                "offset": -128,
+                "scale": 0.008957984857261181
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0448731184005737,
+                "min": -1.0531004667282104,
+                "offset": -128,
+                "scale": 0.008227347396314144
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8006789088249207,
+                "min": -0.806983470916748,
+                "offset": -128,
+                "scale": 0.006304558366537094
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8978392481803894,
+                "min": -0.9049088358879089,
+                "offset": -128,
+                "scale": 0.0070696002803742886
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0157550573349,
+                "min": -1.0237531661987305,
+                "offset": -128,
+                "scale": 0.007998071610927582
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1442697048187256,
+                "min": -1.1532796621322632,
+                "offset": -128,
+                "scale": 0.009009997360408306
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0445350408554077,
+                "min": -1.0527597665786743,
+                "offset": -128,
+                "scale": 0.008224685676395893
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8931780457496643,
+                "min": -0.9002109169960022,
+                "offset": -128,
+                "scale": 0.007032897789031267
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.074296474456787,
+                "min": -1.082755446434021,
+                "offset": -128,
+                "scale": 0.008459026925265789
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0359386205673218,
+                "min": -1.0440956354141235,
+                "offset": -128,
+                "scale": 0.00815699715167284
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7707111239433289,
+                "min": -0.7767797112464905,
+                "offset": -128,
+                "scale": 0.006068591494113207
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8669375777244568,
+                "min": -0.8737638592720032,
+                "offset": -128,
+                "scale": 0.006826280150562525
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0315262079238892,
+                "min": -1.039648413658142,
+                "offset": -128,
+                "scale": 0.008122253231704235
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8509532809257507,
+                "min": -0.8576536774635315,
+                "offset": -128,
+                "scale": 0.00670041935518384
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9772564768791199,
+                "min": -0.9849514365196228,
+                "offset": -128,
+                "scale": 0.007694933097809553
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.6445136666297913,
+                "min": -0.6495885848999023,
+                "offset": -128,
+                "scale": 0.005074910819530487
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8944264054298401,
+                "min": -0.9014691114425659,
+                "offset": -128,
+                "scale": 0.007042727433145046
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9806342720985413,
+                "min": -0.988355815410614,
+                "offset": -128,
+                "scale": 0.007721529807895422
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7297929525375366,
+                "min": -0.7355393767356873,
+                "offset": -128,
+                "scale": 0.005746401380747557
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.901177704334259,
+                "min": -0.9082735776901245,
+                "offset": -128,
+                "scale": 0.007095887325704098
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0835304260253906,
+                "min": -1.0920621156692505,
+                "offset": -128,
+                "scale": 0.00853173527866602
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0424277782440186,
+                "min": -1.050635814666748,
+                "offset": -128,
+                "scale": 0.008208092302083969
+            }
+        ],
+        "body.2.branch_3x3.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8947483897209167,
+                "min": -0.9017936587333679,
+                "offset": -128,
+                "scale": 0.007045262958854437
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1546835899353027,
+                "min": -1.1637755632400513,
+                "offset": -128,
+                "scale": 0.0090919965878129
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0151488780975342,
+                "min": -1.0231422185897827,
+                "offset": -128,
+                "scale": 0.007993298582732677
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7430304884910583,
+                "min": -0.7488811016082764,
+                "offset": -128,
+                "scale": 0.005850633606314659
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0556927919387817,
+                "min": -1.0640053749084473,
+                "offset": -128,
+                "scale": 0.008312541991472244
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7898677587509155,
+                "min": -0.7960872054100037,
+                "offset": -128,
+                "scale": 0.006219431292265654
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8370373249053955,
+                "min": -0.8436281681060791,
+                "offset": -128,
+                "scale": 0.006590845063328743
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8110331892967224,
+                "min": -0.8174192905426025,
+                "offset": -128,
+                "scale": 0.006386088207364082
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.30041149258613586,
+                "min": -0.30277693271636963,
+                "offset": -128,
+                "scale": 0.0023654447868466377
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7364774942398071,
+                "min": -0.7422765493392944,
+                "offset": -128,
+                "scale": 0.005799035541713238
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8650473952293396,
+                "min": -0.8718587756156921,
+                "offset": -128,
+                "scale": 0.006811396684497595
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.132941484451294,
+                "min": -1.1418622732162476,
+                "offset": -128,
+                "scale": 0.008920799009501934
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9444958567619324,
+                "min": -0.9519328474998474,
+                "offset": -128,
+                "scale": 0.007436975371092558
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7167060971260071,
+                "min": -0.7223494648933411,
+                "offset": -128,
+                "scale": 0.005643355194479227
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8041066527366638,
+                "min": -0.8104382157325745,
+                "offset": -128,
+                "scale": 0.006331548560410738
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9571475982666016,
+                "min": -0.9646841883659363,
+                "offset": -128,
+                "scale": 0.007536595221608877
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8468764424324036,
+                "min": -0.8535447716712952,
+                "offset": -128,
+                "scale": 0.0066683185286819935
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1857174634933472,
+                "min": -1.1950538158416748,
+                "offset": -128,
+                "scale": 0.009336357936263084
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1594592332839966,
+                "min": -1.1685888767242432,
+                "offset": -128,
+                "scale": 0.00912960059940815
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1233810186386108,
+                "min": -1.132226586341858,
+                "offset": -128,
+                "scale": 0.008845520205795765
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7262548208236694,
+                "min": -0.7319733500480652,
+                "offset": -128,
+                "scale": 0.005718541797250509
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0364110469818115,
+                "min": -1.0445717573165894,
+                "offset": -128,
+                "scale": 0.008160716854035854
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9758744835853577,
+                "min": -0.9835585355758667,
+                "offset": -128,
+                "scale": 0.007684051059186459
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0286065340042114,
+                "min": -1.0367058515548706,
+                "offset": -128,
+                "scale": 0.008099264465272427
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9435119032859802,
+                "min": -0.9509411454200745,
+                "offset": -128,
+                "scale": 0.007429227698594332
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8911339044570923,
+                "min": -0.8981506824493408,
+                "offset": -128,
+                "scale": 0.007016802206635475
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1201013326644897,
+                "min": -1.1289210319519043,
+                "offset": -128,
+                "scale": 0.008819695562124252
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8835026025772095,
+                "min": -0.8904592990875244,
+                "offset": -128,
+                "scale": 0.0069567132741212845
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0015065670013428,
+                "min": -1.009392499923706,
+                "offset": -128,
+                "scale": 0.007885878905653954
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8633081316947937,
+                "min": -0.8701058626174927,
+                "offset": -128,
+                "scale": 0.0067977020516991615
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0758119821548462,
+                "min": -1.0842829942703247,
+                "offset": -128,
+                "scale": 0.008470960892736912
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9701272249221802,
+                "min": -0.9777660369873047,
+                "offset": -128,
+                "scale": 0.007638797163963318
+            }
+        ],
+        "body.3.branch_3x3.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9804470539093018,
+                "min": -0.9881671071052551,
+                "offset": -128,
+                "scale": 0.007720055524259806
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8890125751495361,
+                "min": -0.8960126638412476,
+                "offset": -128,
+                "scale": 0.0070000989362597466
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7021331191062927,
+                "min": -0.7076617479324341,
+                "offset": -128,
+                "scale": 0.005528607405722141
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9741509556770325,
+                "min": -0.9818214178085327,
+                "offset": -128,
+                "scale": 0.007670479826629162
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0498789548873901,
+                "min": -1.0581457614898682,
+                "offset": -128,
+                "scale": 0.008266763761639595
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0494489669799805,
+                "min": -1.0577123165130615,
+                "offset": -128,
+                "scale": 0.008263377472758293
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8564230799674988,
+                "min": -0.8631665706634521,
+                "offset": -128,
+                "scale": 0.00674348883330822
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.6578923463821411,
+                "min": -0.6630725860595703,
+                "offset": -128,
+                "scale": 0.005180254578590393
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1488008499145508,
+                "min": -1.1578465700149536,
+                "offset": -128,
+                "scale": 0.009045676328241825
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0966460704803467,
+                "min": -1.105281114578247,
+                "offset": -128,
+                "scale": 0.008635008707642555
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7486916780471802,
+                "min": -0.7545868754386902,
+                "offset": -128,
+                "scale": 0.005895209964364767
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9686236381530762,
+                "min": -0.9762505888938904,
+                "offset": -128,
+                "scale": 0.007626957725733519
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8662142753601074,
+                "min": -0.8730348348617554,
+                "offset": -128,
+                "scale": 0.006820584647357464
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8727630972862244,
+                "min": -0.8796352744102478,
+                "offset": -128,
+                "scale": 0.006872150581330061
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1011143922805786,
+                "min": -1.1097846031188965,
+                "offset": -128,
+                "scale": 0.008670192211866379
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1106938123703003,
+                "min": -1.1194394826889038,
+                "offset": -128,
+                "scale": 0.008745620958507061
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0801544189453125,
+                "min": -1.0886595249176025,
+                "offset": -128,
+                "scale": 0.00850515253841877
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0966168642044067,
+                "min": -1.105251669883728,
+                "offset": -128,
+                "scale": 0.008634778670966625
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.20912103354930878,
+                "min": -0.21076765656471252,
+                "offset": -128,
+                "scale": 0.0016466223169118166
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.119248390197754,
+                "min": -1.1280614137649536,
+                "offset": -128,
+                "scale": 0.0088129797950387
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7333160638809204,
+                "min": -0.7390902042388916,
+                "offset": -128,
+                "scale": 0.005774142220616341
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9731876850128174,
+                "min": -0.9808505773544312,
+                "offset": -128,
+                "scale": 0.007662895135581493
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9820700883865356,
+                "min": -0.989802896976471,
+                "offset": -128,
+                "scale": 0.007732835132628679
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0424152612686157,
+                "min": -1.0506232976913452,
+                "offset": -128,
+                "scale": 0.008207994513213634
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.021329402923584,
+                "min": -1.0293713808059692,
+                "offset": -128,
+                "scale": 0.008041963912546635
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0298271179199219,
+                "min": -1.0379359722137451,
+                "offset": -128,
+                "scale": 0.008108874782919884
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9289628267288208,
+                "min": -0.9362775087356567,
+                "offset": -128,
+                "scale": 0.007314668036997318
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0595697164535522,
+                "min": -1.0679128170013428,
+                "offset": -128,
+                "scale": 0.00834306888282299
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1037366390228271,
+                "min": -1.1124274730682373,
+                "offset": -128,
+                "scale": 0.008690839633345604
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9712265133857727,
+                "min": -0.9788739681243896,
+                "offset": -128,
+                "scale": 0.007647452875971794
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0033836364746094,
+                "min": -1.011284351348877,
+                "offset": -128,
+                "scale": 0.007900658994913101
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8948395848274231,
+                "min": -0.9018855690956116,
+                "offset": -128,
+                "scale": 0.007045981008559465
+            }
+        ],
+        "body.4.branch_3x3.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9456021785736084,
+                "min": -0.9530478715896606,
+                "offset": -128,
+                "scale": 0.007445686496794224
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0942906141281128,
+                "min": -1.1029070615768433,
+                "offset": -128,
+                "scale": 0.008616461418569088
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0886191129684448,
+                "min": -1.0971909761428833,
+                "offset": -128,
+                "scale": 0.008571804501116276
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8714509010314941,
+                "min": -0.8783127069473267,
+                "offset": -128,
+                "scale": 0.0068618180230259895
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8446742296218872,
+                "min": -0.8513252139091492,
+                "offset": -128,
+                "scale": 0.006650978233665228
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.6901249289512634,
+                "min": -0.6955589652061462,
+                "offset": -128,
+                "scale": 0.0054340544156730175
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7797247171401978,
+                "min": -0.7858642935752869,
+                "offset": -128,
+                "scale": 0.006139564793556929
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.5455254912376404,
+                "min": -0.5498209595680237,
+                "offset": -128,
+                "scale": 0.004295476246625185
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1427520513534546,
+                "min": -1.151750087738037,
+                "offset": -128,
+                "scale": 0.008998047560453415
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9290782809257507,
+                "min": -0.9363938570022583,
+                "offset": -128,
+                "scale": 0.007315577007830143
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8595268130302429,
+                "min": -0.8662947416305542,
+                "offset": -128,
+                "scale": 0.006767927668988705
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8104121088981628,
+                "min": -0.8167933225631714,
+                "offset": -128,
+                "scale": 0.0063811978325247765
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8299797177314758,
+                "min": -0.8365150094032288,
+                "offset": -128,
+                "scale": 0.006535273510962725
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8756407499313354,
+                "min": -0.8825355768203735,
+                "offset": -128,
+                "scale": 0.006894809193909168
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8031725883483887,
+                "min": -0.8094967603683472,
+                "offset": -128,
+                "scale": 0.006324193440377712
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8272249102592468,
+                "min": -0.8337385058403015,
+                "offset": -128,
+                "scale": 0.006513582076877356
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9524192214012146,
+                "min": -0.9599185585975647,
+                "offset": -128,
+                "scale": 0.007499363739043474
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9483024477958679,
+                "min": -0.955769419670105,
+                "offset": -128,
+                "scale": 0.007466948591172695
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8868628740310669,
+                "min": -0.8938460350036621,
+                "offset": -128,
+                "scale": 0.00698317214846611
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.765494704246521,
+                "min": -0.7715222239494324,
+                "offset": -128,
+                "scale": 0.00602751737460494
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9054483771324158,
+                "min": -0.9125778675079346,
+                "offset": -128,
+                "scale": 0.007129514589905739
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8177494406700134,
+                "min": -0.8241884112358093,
+                "offset": -128,
+                "scale": 0.00643897196277976
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7934260964393616,
+                "min": -0.7996735572814941,
+                "offset": -128,
+                "scale": 0.006247449666261673
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1424071788787842,
+                "min": -1.151402473449707,
+                "offset": -128,
+                "scale": 0.008995331823825836
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9646511673927307,
+                "min": -0.9722468256950378,
+                "offset": -128,
+                "scale": 0.007595678325742483
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9764082431793213,
+                "min": -0.9840964674949646,
+                "offset": -128,
+                "scale": 0.007688253652304411
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0062110424041748,
+                "min": -1.0141339302062988,
+                "offset": -128,
+                "scale": 0.00792292132973671
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8727325797080994,
+                "min": -0.8796045184135437,
+                "offset": -128,
+                "scale": 0.00687191030010581
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8239467144012451,
+                "min": -0.8304345011711121,
+                "offset": -128,
+                "scale": 0.006487769540399313
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8893647789955139,
+                "min": -0.8963676691055298,
+                "offset": -128,
+                "scale": 0.0070028724148869514
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9869049787521362,
+                "min": -0.994675874710083,
+                "offset": -128,
+                "scale": 0.0077709052711725235
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9107556939125061,
+                "min": -0.9179270267486572,
+                "offset": -128,
+                "scale": 0.007171304896473885
+            }
+        ],
+        "body.5.branch_3x3.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8382282853126526,
+                "min": -0.8448284864425659,
+                "offset": -128,
+                "scale": 0.006600222550332546
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0912383794784546,
+                "min": -1.0998308658599854,
+                "offset": -128,
+                "scale": 0.008592428639531136
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9710258841514587,
+                "min": -0.9786717295646667,
+                "offset": -128,
+                "scale": 0.007645872887223959
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9973123669624329,
+                "min": -1.0051652193069458,
+                "offset": -128,
+                "scale": 0.007852853275835514
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.848055899143219,
+                "min": -0.8547335267066956,
+                "offset": -128,
+                "scale": 0.006677605677396059
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.985339343547821,
+                "min": -0.9930979013442993,
+                "offset": -128,
+                "scale": 0.007758577354252338
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0976821184158325,
+                "min": -1.1063252687454224,
+                "offset": -128,
+                "scale": 0.008643166162073612
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9593916535377502,
+                "min": -0.9669459462165833,
+                "offset": -128,
+                "scale": 0.007554265204817057
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0358318090438843,
+                "min": -1.0439879894256592,
+                "offset": -128,
+                "scale": 0.008156156167387962
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8138659596443176,
+                "min": -0.8202743530273438,
+                "offset": -128,
+                "scale": 0.006408393383026123
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8711662292480469,
+                "min": -0.8780258297920227,
+                "offset": -128,
+                "scale": 0.006859576795250177
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8277870416641235,
+                "min": -0.8343050479888916,
+                "offset": -128,
+                "scale": 0.006518008187413216
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.048171043395996,
+                "min": -1.0564243793487549,
+                "offset": -128,
+                "scale": 0.008253315463662148
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.020626425743103,
+                "min": -1.0286628007888794,
+                "offset": -128,
+                "scale": 0.00803642813116312
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9819461107254028,
+                "min": -0.9896779656410217,
+                "offset": -128,
+                "scale": 0.007731859106570482
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7925845980644226,
+                "min": -0.7988254427909851,
+                "offset": -128,
+                "scale": 0.006240823771804571
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8915489912033081,
+                "min": -0.8985690474510193,
+                "offset": -128,
+                "scale": 0.007020070683211088
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1194379329681396,
+                "min": -1.128252387046814,
+                "offset": -128,
+                "scale": 0.008814471773803234
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8444545865058899,
+                "min": -0.8511038422584534,
+                "offset": -128,
+                "scale": 0.006649248767644167
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9162534475326538,
+                "min": -0.9234680533409119,
+                "offset": -128,
+                "scale": 0.007214594166725874
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8118450045585632,
+                "min": -0.8182374835014343,
+                "offset": -128,
+                "scale": 0.006392480339854956
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7140871286392212,
+                "min": -0.7197098731994629,
+                "offset": -128,
+                "scale": 0.005622733384370804
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0258049964904785,
+                "min": -1.0338822603225708,
+                "offset": -128,
+                "scale": 0.008077205158770084
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9746623039245605,
+                "min": -0.9823368191719055,
+                "offset": -128,
+                "scale": 0.007674506399780512
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7202365398406982,
+                "min": -0.7259076833724976,
+                "offset": -128,
+                "scale": 0.005671153776347637
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7642908096313477,
+                "min": -0.7703088521957397,
+                "offset": -128,
+                "scale": 0.006018037907779217
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.88443922996521,
+                "min": -0.891403317451477,
+                "offset": -128,
+                "scale": 0.0069640884175896645
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9377872347831726,
+                "min": -0.9451714158058167,
+                "offset": -128,
+                "scale": 0.007384151685982943
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.056776762008667,
+                "min": -1.0650978088378906,
+                "offset": -128,
+                "scale": 0.00832107663154602
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8520888686180115,
+                "min": -0.8587982058525085,
+                "offset": -128,
+                "scale": 0.006709360983222723
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9339404702186584,
+                "min": -0.9412943124771118,
+                "offset": -128,
+                "scale": 0.007353861816227436
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.206390142440796,
+                "min": -1.21588933467865,
+                "offset": -128,
+                "scale": 0.009499135427176952
+            }
+        ],
+        "body.6.branch_3x3.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7891327738761902,
+                "min": -0.7953464388847351,
+                "offset": -128,
+                "scale": 0.006213644053786993
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9278232455253601,
+                "min": -0.935128927230835,
+                "offset": -128,
+                "scale": 0.007305694743990898
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8597902059555054,
+                "min": -0.8665602207183838,
+                "offset": -128,
+                "scale": 0.006770001724362373
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0478473901748657,
+                "min": -1.0560981035232544,
+                "offset": -128,
+                "scale": 0.008250766433775425
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9278892874717712,
+                "min": -0.9351955056190491,
+                "offset": -128,
+                "scale": 0.007306214887648821
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7768042683601379,
+                "min": -0.7829208374023438,
+                "offset": -128,
+                "scale": 0.0061165690422058105
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9652904868125916,
+                "min": -0.9728912115097046,
+                "offset": -128,
+                "scale": 0.007600712589919567
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9696593880653381,
+                "min": -0.9772945046424866,
+                "offset": -128,
+                "scale": 0.007635113317519426
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.850264847278595,
+                "min": -0.8569598197937012,
+                "offset": -128,
+                "scale": 0.00669499859213829
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.896575927734375,
+                "min": -0.903635561466217,
+                "offset": -128,
+                "scale": 0.007059652823954821
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8386290073394775,
+                "min": -0.845232367515564,
+                "offset": -128,
+                "scale": 0.0066033778712153435
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8265747427940369,
+                "min": -0.8330832123756409,
+                "offset": -128,
+                "scale": 0.006508462596684694
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9075053930282593,
+                "min": -0.914651095867157,
+                "offset": -128,
+                "scale": 0.007145711686462164
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1032218933105469,
+                "min": -1.1119086742401123,
+                "offset": -128,
+                "scale": 0.008686786517500877
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7654243111610413,
+                "min": -0.7714512944221497,
+                "offset": -128,
+                "scale": 0.006026963237673044
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.951652467250824,
+                "min": -0.9591457843780518,
+                "offset": -128,
+                "scale": 0.007493326440453529
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9529396295547485,
+                "min": -0.9604430794715881,
+                "offset": -128,
+                "scale": 0.007503461558371782
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.92165607213974,
+                "min": -0.9289132356643677,
+                "offset": -128,
+                "scale": 0.0072571346536278725
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9493308067321777,
+                "min": -0.9568058252334595,
+                "offset": -128,
+                "scale": 0.007475045509636402
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9317747950553894,
+                "min": -0.939111590385437,
+                "offset": -128,
+                "scale": 0.007336809299886227
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8209326267242432,
+                "min": -0.8273966908454895,
+                "offset": -128,
+                "scale": 0.006464036647230387
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9314696192741394,
+                "min": -0.938804030418396,
+                "offset": -128,
+                "scale": 0.007334406487643719
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.4236655533313751,
+                "min": -0.4270015060901642,
+                "offset": -128,
+                "scale": 0.0033359492663294077
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0783416032791138,
+                "min": -1.0868325233459473,
+                "offset": -128,
+                "scale": 0.008490879088640213
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0185827016830444,
+                "min": -1.0266029834747314,
+                "offset": -128,
+                "scale": 0.00802033580839634
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7990681529045105,
+                "min": -0.8053600192070007,
+                "offset": -128,
+                "scale": 0.006291875150054693
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1052345037460327,
+                "min": -1.1139371395111084,
+                "offset": -128,
+                "scale": 0.008702633902430534
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9415228366851807,
+                "min": -0.948936402797699,
+                "offset": -128,
+                "scale": 0.007413565646857023
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.5868107080459595,
+                "min": -0.5914312601089478,
+                "offset": -128,
+                "scale": 0.004620556719601154
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9909984469413757,
+                "min": -0.998801589012146,
+                "offset": -128,
+                "scale": 0.007803137414157391
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8783416748046875,
+                "min": -0.8852577805519104,
+                "offset": -128,
+                "scale": 0.0069160764105618
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.5127778649330139,
+                "min": -0.5168154835700989,
+                "offset": -128,
+                "scale": 0.0040376209653913975
+            }
+        ],
+        "body.7.branch_3x3.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0403621196746826,
+                "min": -1.0485539436340332,
+                "offset": -128,
+                "scale": 0.008191827684640884
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9315507411956787,
+                "min": -0.9388858079910278,
+                "offset": -128,
+                "scale": 0.007335045374929905
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8350110650062561,
+                "min": -0.8415859341621399,
+                "offset": -128,
+                "scale": 0.006574890110641718
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1034400463104248,
+                "min": -1.112128496170044,
+                "offset": -128,
+                "scale": 0.008688503876328468
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7577612996101379,
+                "min": -0.7637279033660889,
+                "offset": -128,
+                "scale": 0.005966624245047569
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0864766836166382,
+                "min": -1.0950316190719604,
+                "offset": -128,
+                "scale": 0.008554934523999691
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7461065053939819,
+                "min": -0.7519813776016235,
+                "offset": -128,
+                "scale": 0.005874854512512684
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8308274149894714,
+                "min": -0.8373693823814392,
+                "offset": -128,
+                "scale": 0.006541948299854994
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8653346300125122,
+                "min": -0.8721482753753662,
+                "offset": -128,
+                "scale": 0.0068136584013700485
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8853510618209839,
+                "min": -0.892322301864624,
+                "offset": -128,
+                "scale": 0.006971267983317375
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9248107671737671,
+                "min": -0.9320927262306213,
+                "offset": -128,
+                "scale": 0.007281974423676729
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.823323667049408,
+                "min": -0.8298065066337585,
+                "offset": -128,
+                "scale": 0.006482863333076239
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1044111251831055,
+                "min": -1.1131073236465454,
+                "offset": -128,
+                "scale": 0.008696150965988636
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0580315589904785,
+                "min": -1.0663625001907349,
+                "offset": -128,
+                "scale": 0.008330957032740116
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8802950978279114,
+                "min": -0.8872265815734863,
+                "offset": -128,
+                "scale": 0.006931457668542862
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.98104327917099,
+                "min": -0.9887680411338806,
+                "offset": -128,
+                "scale": 0.007724750321358442
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0843459367752075,
+                "min": -1.0928840637207031,
+                "offset": -128,
+                "scale": 0.008538156747817993
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0778727531433105,
+                "min": -1.086359977722168,
+                "offset": -128,
+                "scale": 0.008487187325954437
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.813176691532135,
+                "min": -0.8195796608924866,
+                "offset": -128,
+                "scale": 0.006402966100722551
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.963437557220459,
+                "min": -0.971023678779602,
+                "offset": -128,
+                "scale": 0.007586122490465641
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9920110702514648,
+                "min": -0.999822199344635,
+                "offset": -128,
+                "scale": 0.007811110932379961
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0423450469970703,
+                "min": -1.050552487373352,
+                "offset": -128,
+                "scale": 0.008207441307604313
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1151090860366821,
+                "min": -1.123889446258545,
+                "offset": -128,
+                "scale": 0.008780386298894882
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1168948411941528,
+                "min": -1.1256892681121826,
+                "offset": -128,
+                "scale": 0.008794447407126427
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.9186466932296753,
+                "min": -0.9258801341056824,
+                "offset": -128,
+                "scale": 0.0072334385477006435
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.7480249404907227,
+                "min": -0.7539148926734924,
+                "offset": -128,
+                "scale": 0.00588996009901166
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.1475145816802979,
+                "min": -1.1565501689910889,
+                "offset": -128,
+                "scale": 0.009035548195242882
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.851291298866272,
+                "min": -0.8579943776130676,
+                "offset": -128,
+                "scale": 0.006703081075102091
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.24091382324695587,
+                "min": -0.24281078577041626,
+                "offset": -128,
+                "scale": 0.001896959263831377
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 1.0118955373764038,
+                "min": -1.019863247871399,
+                "offset": -128,
+                "scale": 0.007967681623995304
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.8752756118774414,
+                "min": -0.8821675181388855,
+                "offset": -128,
+                "scale": 0.006891933735460043
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.735166072845459,
+                "min": -0.7409547567367554,
+                "offset": -128,
+                "scale": 0.005788709037005901
+            }
+        ],
+        "body_tail.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.16164225339889526,
+                "min": -0.16291502118110657,
+                "offset": -128,
+                "scale": 0.001272773602977395
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.10328731685876846,
+                "min": -0.10410059988498688,
+                "offset": -128,
+                "scale": 0.00081328593660146
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1467132568359375,
+                "min": -0.14786848425865173,
+                "offset": -128,
+                "scale": 0.0011552225332707167
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.154653400182724,
+                "min": -0.15587113797664642,
+                "offset": -128,
+                "scale": 0.0012177432654425502
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.17534643411636353,
+                "min": -0.17672711610794067,
+                "offset": -128,
+                "scale": 0.0013806805945932865
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.12380222976207733,
+                "min": -0.12477704882621765,
+                "offset": -128,
+                "scale": 0.0009748206939548254
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1724182814359665,
+                "min": -0.17377591133117676,
+                "offset": -128,
+                "scale": 0.0013576243072748184
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1397600919008255,
+                "min": -0.14086057245731354,
+                "offset": -128,
+                "scale": 0.001100473222322762
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.10422156751155853,
+                "min": -0.10504221171140671,
+                "offset": -128,
+                "scale": 0.0008206422789953649
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.16186799108982086,
+                "min": -0.16314254701137543,
+                "offset": -128,
+                "scale": 0.0012745511485263705
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.12258634716272354,
+                "min": -0.12355159223079681,
+                "offset": -128,
+                "scale": 0.0009652468143031001
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.13094832003116608,
+                "min": -0.13197940587997437,
+                "offset": -128,
+                "scale": 0.0010310891084372997
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.13631361722946167,
+                "min": -0.13738694787025452,
+                "offset": -128,
+                "scale": 0.0010733355302363634
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.11337756365537643,
+                "min": -0.11427029967308044,
+                "offset": -128,
+                "scale": 0.000892736716195941
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.12577499449253082,
+                "min": -0.12676535546779633,
+                "offset": -128,
+                "scale": 0.0009903543395921588
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.13046345114707947,
+                "min": -0.13149072229862213,
+                "offset": -128,
+                "scale": 0.0010272712679579854
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.13444778323173523,
+                "min": -0.13550642132759094,
+                "offset": -128,
+                "scale": 0.0010586439166218042
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1763080507516861,
+                "min": -0.17769630253314972,
+                "offset": -128,
+                "scale": 0.0013882523635402322
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.23699596524238586,
+                "min": -0.238862082362175,
+                "offset": -128,
+                "scale": 0.001866110018454492
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1445068120956421,
+                "min": -0.1456446647644043,
+                "offset": -128,
+                "scale": 0.0011378489434719086
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.15467409789562225,
+                "min": -0.1558919996023178,
+                "offset": -128,
+                "scale": 0.0012179062468931079
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1731589287519455,
+                "min": -0.17452238500118256,
+                "offset": -128,
+                "scale": 0.0013634561328217387
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1214485764503479,
+                "min": -0.12240486592054367,
+                "offset": -128,
+                "scale": 0.0009562880150042474
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.178126722574234,
+                "min": -0.17952929437160492,
+                "offset": -128,
+                "scale": 0.0014025726122781634
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.17470765113830566,
+                "min": -0.1760832965373993,
+                "offset": -128,
+                "scale": 0.001375650754198432
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1701665073633194,
+                "min": -0.17150640487670898,
+                "offset": -128,
+                "scale": 0.001339893788099289
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1727813482284546,
+                "min": -0.17414182424545288,
+                "offset": -128,
+                "scale": 0.0013604830019176006
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.14665305614471436,
+                "min": -0.14780780673027039,
+                "offset": -128,
+                "scale": 0.0011547484900802374
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.11081485450267792,
+                "min": -0.11168741434812546,
+                "offset": -128,
+                "scale": 0.0008725579245947301
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.11154402792453766,
+                "min": -0.11242232471704483,
+                "offset": -128,
+                "scale": 0.0008782994118519127
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.16044333577156067,
+                "min": -0.16170667111873627,
+                "offset": -128,
+                "scale": 0.001263333368115127
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.11488983035087585,
+                "min": -0.11579447239637375,
+                "offset": -128,
+                "scale": 0.0009046443155966699
+            }
+        ],
+        "head.0.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.25315093994140625,
+                "min": -0.25514426827430725,
+                "offset": -128,
+                "scale": 0.0019933145958930254
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.19080661237239838,
+                "min": -0.19230902194976807,
+                "offset": -128,
+                "scale": 0.001502414233982563
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.20333649218082428,
+                "min": -0.20493756234645844,
+                "offset": -128,
+                "scale": 0.0016010747058317065
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.18442615866661072,
+                "min": -0.18587833642959595,
+                "offset": -128,
+                "scale": 0.0014521745033562183
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.20995670557022095,
+                "min": -0.21160991489887238,
+                "offset": -128,
+                "scale": 0.0016532024601474404
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.28326794505119324,
+                "min": -0.28549841046333313,
+                "offset": -128,
+                "scale": 0.00223045633174479
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.20218224823474884,
+                "min": -0.20377422869205475,
+                "offset": -128,
+                "scale": 0.0015919861616566777
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.19629338383674622,
+                "min": -0.19783900678157806,
+                "offset": -128,
+                "scale": 0.0015456172404810786
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.23927398025989532,
+                "min": -0.24115802347660065,
+                "offset": -128,
+                "scale": 0.0018840470584109426
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.230108380317688,
+                "min": -0.2319202572107315,
+                "offset": -128,
+                "scale": 0.00181187700945884
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.18693211674690247,
+                "min": -0.18840402364730835,
+                "offset": -128,
+                "scale": 0.0014719064347445965
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.19195453822612762,
+                "min": -0.19346599280834198,
+                "offset": -128,
+                "scale": 0.0015114530688151717
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.23945051431655884,
+                "min": -0.24133595824241638,
+                "offset": -128,
+                "scale": 0.001885437173768878
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.21595366299152374,
+                "min": -0.21765407919883728,
+                "offset": -128,
+                "scale": 0.0017004224937409163
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.23173148930072784,
+                "min": -0.23355615139007568,
+                "offset": -128,
+                "scale": 0.0018246574327349663
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.19553768634796143,
+                "min": -0.19707734882831573,
+                "offset": -128,
+                "scale": 0.0015396667877212167
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.19617557525634766,
+                "min": -0.1977202594280243,
+                "offset": -128,
+                "scale": 0.0015446895267814398
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1985476166009903,
+                "min": -0.20011098682880402,
+                "offset": -128,
+                "scale": 0.0015633670846000314
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.19885827600955963,
+                "min": -0.20042409002780914,
+                "offset": -128,
+                "scale": 0.001565813203342259
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1899530291557312,
+                "min": -0.19144871830940247,
+                "offset": -128,
+                "scale": 0.0014956931117922068
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.1978374719619751,
+                "min": -0.19939525425434113,
+                "offset": -128,
+                "scale": 0.00155777542386204
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.18971624970436096,
+                "min": -0.191210076212883,
+                "offset": -128,
+                "scale": 0.0014938287204131484
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.19590990245342255,
+                "min": -0.19745250046253204,
+                "offset": -128,
+                "scale": 0.0015425976598635316
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.19225268065929413,
+                "min": -0.19376647472381592,
+                "offset": -128,
+                "scale": 0.0015138005837798119
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.269155889749527,
+                "min": -0.27127522230148315,
+                "offset": -128,
+                "scale": 0.002119337674230337
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.3126360774040222,
+                "min": -0.31509777903556824,
+                "offset": -128,
+                "scale": 0.002461701398715377
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.17970305681228638,
+                "min": -0.18111804127693176,
+                "offset": -128,
+                "scale": 0.0014149846974760294
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.20350967347621918,
+                "min": -0.20511211454868317,
+                "offset": -128,
+                "scale": 0.0016024383949115872
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.19215132296085358,
+                "min": -0.1936643272638321,
+                "offset": -128,
+                "scale": 0.0015130025567486882
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.18692724406719208,
+                "min": -0.18839910626411438,
+                "offset": -128,
+                "scale": 0.0014718680176883936
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.26938408613204956,
+                "min": -0.271505206823349,
+                "offset": -128,
+                "scale": 0.002121134428307414
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.26309946179389954,
+                "min": -0.2651711106300354,
+                "offset": -128,
+                "scale": 0.0020716493017971516
+            }
+        ],
+        "upsample.0.weight": [
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.10731133818626404,
+                "min": -0.10815630853176117,
+                "offset": -128,
+                "scale": 0.0008449711604043841
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.09145893901586533,
+                "min": -0.09217908978462219,
+                "offset": -128,
+                "scale": 0.0007201491389423609
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.10593996196985245,
+                "min": -0.10677413642406464,
+                "offset": -128,
+                "scale": 0.000834172940813005
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.09542063623666763,
+                "min": -0.09617198258638382,
+                "offset": -128,
+                "scale": 0.0007513436139561236
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.07836037874221802,
+                "min": -0.07897739112377167,
+                "offset": -128,
+                "scale": 0.0006170108681544662
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.08624156564474106,
+                "min": -0.08692063391208649,
+                "offset": -128,
+                "scale": 0.0006790674524381757
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.08076535910367966,
+                "min": -0.08140130341053009,
+                "offset": -128,
+                "scale": 0.0006359476828947663
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.08664830029010773,
+                "min": -0.08733057230710983,
+                "offset": -128,
+                "scale": 0.0006822700961492956
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.07855197042226791,
+                "min": -0.07917048782110214,
+                "offset": -128,
+                "scale": 0.0006185194361023605
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.06984167546033859,
+                "min": -0.07039161026477814,
+                "offset": -128,
+                "scale": 0.0005499344551935792
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.08626006543636322,
+                "min": -0.08693927526473999,
+                "offset": -128,
+                "scale": 0.0006792130880057812
+            },
+            {
+                "bitwidth": 8,
+                "dtype": "int",
+                "is_symmetric": "True",
+                "max": 0.09232398867607117,
+                "min": -0.09305094927549362,
+                "offset": -128,
+                "scale": 0.0007269605412147939
+            }
+        ]
+    },
+    "quantizer_args": {
+        "activation_bitwidth": 8,
+        "dtype": "int",
+        "is_symmetric": true,
+        "param_bitwidth": 8,
+        "per_channel_quantization": true,
+        "quant_scheme": "min_max"
+    },
+    "version": "1.0.0"
+}

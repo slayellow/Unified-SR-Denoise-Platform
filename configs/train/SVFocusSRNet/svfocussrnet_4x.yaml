@@ -1,0 +1,74 @@
+task: sr
+model:
+  name: svfocussrnet
+  scale: 4
+  dim: 32
+  n_resblocks: 8
+  use_advanced_rep: false
+
+data:
+  type: eo
+  train_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/tmp/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/LRx4
+
+train:
+  epochs: 300
+  batch_size: 64
+  lr: 1e-4
+  num_workers: 4
+  gradient_accumulation_steps: 1
+  # 저장 폴더 이름 지정 (옵션)
+  # 설정 시 checkpoints/{save_name} 폴더에 저장됩니다. (설정하지 않으면 날짜시간 자동생성)
+  save_name: "train_svfocussrnet_sr_x4_dim32_block8epoch300_bs64_lr1e-4_charbonnier_260414" 
+  
+  patch_size: 256
+  save_interval: 20
+  
+  # Finetuning 설정
+  pretrained_path: null 
+  
+  # Optimizer 설정 (Adam, AdamW, SGD)
+  optimizer:
+    type: AdamW
+    betas: [0.9, 0.999]
+    
+  weight_decay: 1e-4
+  grad_clip: 1.0
+
+  # Early Stopping (Optional)
+  early_stopping:
+    patience: 50      # 개선 없는 Epoch 허용 횟수
+    min_delta: 0.0001 # 최소 개선 폭 (Loss)
+    monitor: 'lpips'  # 관찰할 지표 이름 ('loss', 'psnr', 'ssim', 'lpips', 'niqe' 중 입력)
+    mode: 'min'       # 값이 높을수록 좋은 지표인지 설정 (PSNR, SSIM은 'max' / Loss, LPIPS은 'min')
+
+  # Scheduler 설정 (ReduceLROnPlateau, StepLR, CosineAnnealingLR)
+  scheduler:
+    # 3. CosineAnnealingLR (코사인 곡선 따라 감소)
+    type: CosineAnnealingLR
+    T_max: 300 # 보통 전체 Epoch 수와 맞춤
+    eta_min: 1e-7 # 최소 Learning Rate
+
+loss:
+  l1:
+    enabled: false
+    weight: 1.0
+  charbonnier:
+    enabled: true
+    weight: 1.0
+  edge:
+    enabled: false
+    weight: 0.5
+    mode: 'gray'
+  ssim:
+    enabled: false
+    weight: 0.1
+  perceptual:
+    enabled: false
+    weight: 0.05
+  tv:
+    enabled: false
+    weight: 0.1
+
+export_onnx: false

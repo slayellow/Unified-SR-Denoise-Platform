@@ -1,0 +1,88 @@
+task: sr
+model:
+  name: rrdbnet
+  scale: 2
+  # RRDBNet Specifics
+  num_in_ch: 3
+  num_out_ch: 3
+  num_feat: 32
+  num_block: 3
+  num_grow_ch: 16
+
+data:
+  type: eo
+  train_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/LRx2
+
+train:
+  epochs: 400
+  batch_size: 32
+  lr: 1e-4
+  num_workers: 2
+  
+  # 저장 폴더 이름 지정 (옵션)
+  # 설정 시 checkpoints/{save_name} 폴더에 저장됩니다. (설정하지 않으면 날짜시간 자동생성)
+  save_name: "finetune_rrdbnet_sr_x2_dim32_epoch400_bs_32_lr_1e-4" # 예: "experiment_v1"
+  
+  patch_size: 256
+  save_interval: 20
+  
+  # Finetuning 설정
+  # resume: 체크포인트에서 학습을 재개 (Epoch, Optimizer 상태 포함) -> 커맨드라인 인자 --resume 사용
+  # pretrained_path: 특정 모델 가중치만 불러와서 새로 학습 (Epoch 1부터 시작) -> 아래 경로 설정
+  pretrained_path: 'checkpoints/train_rrdbnet_sr_x2_dim32_epoch800_bs_32_lr_1e-4/best.pth' # 예: "checkpoints/my_model/best.pth"
+  
+  # Optimizer 설정 (Adam, AdamW, SGD)
+  optimizer:
+    type: AdamW
+    betas: [0.9, 0.999]
+    # momentum: 0.9 # SGD 사용 시 필요
+    
+  weight_decay: 1e-4
+  grad_clip: 1.0
+
+  # Early Stopping (Optional)
+  early_stopping:
+    patience: 10      # 개선 없는 Epoch 허용 횟수
+    min_delta: 0.0001 # 최소 개선 폭 (Loss)
+    
+  # Scheduler 설정 (ReduceLROnPlateau, StepLR, CosineAnnealingLR)
+  scheduler:
+    # 1. ReduceLROnPlateau (Loss 기반 감소)
+    # type: ReduceLROnPlateau
+    # patience: 20
+    # factor: 0.5
+    
+    # 2. StepLR (일정 Step 마다 감소)
+    # type: StepLR
+    # step_size: 50
+    # gamma: 0.5
+
+    # 3. CosineAnnealingLR (코사인 곡선 따라 감소)
+    type: CosineAnnealingLR
+    T_max: 400 # 보통 전체 Epoch 수와 맞춤
+    eta_min: 1e-7 # 최소 Learning Rate
+
+loss:
+  l1:
+    enabled: false
+    weight: 1.0
+  charbonnier:
+    enabled: true
+    weight: 1.0
+  edge:
+    enabled: true
+    weight: 0.1
+    mode: 'gray'
+  ssim:
+    enabled: true
+    weight: 0.1
+  perceptual:
+    enabled: true
+    weight: 1.0
+  tv:
+    enabled: true
+    weight: 0.1
+
+export_onnx: false

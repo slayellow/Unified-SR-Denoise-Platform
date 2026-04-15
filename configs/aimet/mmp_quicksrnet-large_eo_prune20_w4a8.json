@@ -1,0 +1,44 @@
+{
+    "layers": {
+        "cnn.0": {
+            "input_bw": 8,
+            "output_bw": 8,
+            "param_bw": 8
+        },
+        "cnn.14": {
+            "output_bw": 8,
+            "param_bw": 8
+        },
+        "cnn.16": {
+            "output_bw": 8,
+            "param_bw": 8
+        },
+        "cnn.18": {
+            "output_bw": 8,
+            "param_bw": 8
+        },
+        "cnn.20": {
+            "output_bw": 8,
+            "param_bw": 8
+        },
+        "cnn.22": {
+            "output_bw": 8,
+            "param_bw": 8
+        },
+        "clip_output": {
+            "output_bw": 8
+        },
+        "module_add": {
+            "output_bw": 8
+        },
+        "anchor.net": {
+            "input_bw": 8,
+            "output_bw": 8,
+            "param_bw": 8
+        },
+        "conv_last": {
+            "output_bw": 8,
+            "param_bw": 8
+        }
+    }
+}

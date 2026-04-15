@@ -1,0 +1,132 @@
+crop_size: 256
+dataset_type: sr
+degradation:
+  stage1:
+    blur:
+      betag:
+      - 0.5
+      - 4.0
+      betap:
+      - 1.0
+      - 2.0
+      enabled: true
+      kernel_probs:
+      - 0.45
+      - 0.25
+      - 0.12
+      - 0.03
+      - 0.12
+      - 0.03
+      kernel_sizes:
+      - 7
+      - 9
+      - 11
+      - 13
+      - 15
+      - 17
+      - 19
+      - 21
+      prob: 0.3
+      sigma:
+      - 0.2
+      - 1.5
+    gaussian_noise:
+      enabled: true
+      gray_prob: 1.0
+      prob: 0.2
+      sigma_max: 5
+      sigma_min: 1
+    jpeg:
+      enabled: true
+      prob: 0.5
+      quality_max: 95
+      quality_min: 85
+    poisson_noise:
+      enabled: true
+      gray_prob: 1.0
+      prob: 0.5
+      scale_max: 3.0
+      scale_min: 0.05
+    resize:
+      enabled: true
+      interpolations:
+      - cv2.INTER_LINEAR
+      - cv2.INTER_CUBIC
+      - cv2.INTER_AREA
+      prob: 0.7
+      scale_max: 1.0
+      scale_min: 0.5
+    sinc:
+      enabled: true
+      kernel_sizes:
+      - 7
+      - 9
+      - 11
+      - 13
+      - 15
+      - 17
+      - 19
+      - 21
+      prob: 0.1
+  stage2:
+    blur:
+      betag:
+      - 0.5
+      - 4.0
+      betap:
+      - 1.0
+      - 2.0
+      enabled: true
+      kernel_probs:
+      - 0.45
+      - 0.25
+      - 0.12
+      - 0.03
+      - 0.12
+      - 0.03
+      kernel_sizes:
+      - 7
+      - 9
+      - 11
+      - 13
+      - 15
+      - 17
+      - 19
+      - 21
+      prob: 0.5
+      sigma:
+      - 0.2
+      - 1.5
+    common_noise:
+      enabled: false
+      gray_prob: 1.0
+      prob: 0.0
+      sigma_max: 10
+      sigma_min: 1
+    final_jpeg:
+      enabled: true
+      prob: 0.8
+      quality_max: 90
+      quality_min: 50
+    ir_noise:
+      enabled: true
+      non_uniformity:
+        amp_max: 0.3
+        amp_min: 0.1
+        prob: 0.5
+      thermal_noise:
+        gray_prob: 1.0
+        sigma_max: 20
+        sigma_min: 5
+      vertical_line:
+        intensity_max: 10
+        intensity_min: 2
+        prob: 0.5
+    target_resize:
+      enabled: true
+      interpolations:
+      - cv2.INTER_CUBIC
+      - cv2.INTER_LINEAR
+      - cv2.INTER_LANCZOS4
+use_flip: true
+use_rot: true

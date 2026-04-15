@@ -1,0 +1,69 @@
+task: sr
+model:
+  name: mambairv2
+  scale: 2
+  in_chans: 3
+  img_size: 64
+  embed_dim: 180
+  d_state: 16
+  depths: [6, 6, 6, 6, 6, 6]
+  upsampler: 'pixelshuffle'
+
+data:
+  type: eo
+  train_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/tmp/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/LRx2
+
+train:
+  epochs: 300
+  batch_size: 2
+  lr: 5e-4
+  num_workers: 8
+  gradient_accumulation_steps: 8
+  save_name: "train_mambairv2_sr_x2"
+  patch_size: 128
+  save_interval: 20
+  
+  pretrained_path: null
+  
+  optimizer:
+    type: AdamW
+    betas: [0.9, 0.999]
+    
+  weight_decay: 1e-4
+  grad_clip: 1.0
+
+  early_stopping:
+    patience: 50
+    min_delta: 0.0001
+    monitor: 'psnr'   # 관찰할 지표 이름 ('loss', 'psnr', 'ssim', 'lpips', 'niqe' 중 입력)
+    mode: 'max'       # 값이 높을수록 좋은 지표인지 설정 (PSNR, SSIM은 'max' / Loss, LPIPS은 'min')
+  
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 300
+    eta_min: 1e-7
+
+loss:
+  l1:
+    enabled: false
+    weight: 1.0
+  charbonnier:
+    enabled: true
+    weight: 1.0
+  edge:
+    enabled: false
+    weight: 0.5
+    mode: 'gray'
+  ssim:
+    enabled: false
+    weight: 0.1
+  perceptual:
+    enabled: false
+    weight: 0.05
+  tv:
+    enabled: false
+    weight: 0.1
+
+export_onnx: false

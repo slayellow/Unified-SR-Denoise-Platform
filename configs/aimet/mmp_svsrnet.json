@@ -1,0 +1,12 @@
+{
+    "layers": {
+        "head": {"input_bw": 8, "output_bw": 8},
+        "body.4.act": {"output_bw": 8},
+        "body.5.act": {"output_bw": 8},
+        "body.6.act": {"output_bw": 8},
+        "body.10.act": {"output_bw": 8},
+        "upsample": {"output_bw": 8},
+        "final_act": {"output_bw": 8},
+        "module_add": {"output_bw": 8}
+    }
+}
