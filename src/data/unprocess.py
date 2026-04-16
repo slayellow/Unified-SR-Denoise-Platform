@@ -36,29 +36,29 @@ def add_unprocess_isp_noise(img, read_noise_max=0.02, shot_noise_max=10.0):
     img_float = img_pad.astype(np.float32) / 255.0
     img_linear = np.power(np.maximum(img_float, 1e-8), 2.2)
     
-    # 2. Mosaic to Bayer Pattern (RGGB)
-    bayer = np.zeros((H_p, W_p), dtype=np.float32)
-    bayer[0::2, 0::2] = img_linear[0::2, 0::2, 0] # R
-    bayer[0::2, 1::2] = img_linear[0::2, 1::2, 1] # G1
-    bayer[1::2, 0::2] = img_linear[1::2, 0::2, 1] # G2
-    bayer[1::2, 1::2] = img_linear[1::2, 1::2, 2] # B
-    
-    # 3. Add Heteroscedastic Noise (Shot noise + Read noise)
+    # 2 & 3. Add Heteroscedastic Noise Directly to RGB channels
+    # Instead of Bayer mosaicing (which causes irreversible edge color fringing via interpolation),
+    # we simulate the independent read/shot noise directly on the linear RGB channels.
     read_noise_std = random.uniform(0.001, read_noise_max)
     shot_noise_std = read_noise_std * random.uniform(1.0, shot_noise_max)
     
-    # Variance = (lambda_shot * signal) + lambda_read^2
-    variance = shot_noise_std * bayer + (read_noise_std ** 2)
+    # Calculate Variance = (lambda_shot * signal) + lambda_read^2 for all channels
+    variance = shot_noise_std * img_linear + (read_noise_std ** 2)
     variance = np.maximum(variance, 1e-10) # Avoid negative variance
-    noise = np.random.normal(0.0, np.sqrt(variance))
     
-    bayer_noisy = np.clip(bayer + noise, 0.0, 1.0)
+    # Independent Gaussian noise per pixel and per channel
+    noise = np.random.normal(0.0, np.sqrt(variance)).astype(np.float32)
     
-    # 4. Processing: Demosaicing (cv2 expects uint16 for 16-bit Bayer)
-    bayer_uint16 = (bayer_noisy * 65535.0).astype(np.uint16)
+    # Simulate ISP Demosaicing spatial correlation (Splotchy texture)
+    # Real ISPs demosaic Bayer patterns, which spatially correlates (blurs) the independent sensor noise.
+    # By applying a Gaussian blur to the NOISE layer only, we perfectly replicate this physical ISP texture
+    # without inducing chromatic aberration on high-contrast image edges.
+    noise = cv2.GaussianBlur(noise, (3, 3), sigmaX=0.8)
     
-    # Use cv2.COLOR_BayerRG2BGR instead of RGB because the input channel 0 (which mapped to bayer[0,0]) is Blue from OpenCV's BGR.
-    rgb_noisy = cv2.cvtColor(bayer_uint16, cv2.COLOR_BayerRG2BGR).astype(np.float32) / 65535.0
+    # We slightly amplify the noise back up because blurring reduces its total variance
+    noise = noise * 1.5 
+    
+    rgb_noisy = np.clip(img_linear + noise, 0.0, 1.0)
     
     # 5. Forward Color Correction Matrix (CCM)
     # Simulates random cross-talk and color space conversion, amplifying color noise

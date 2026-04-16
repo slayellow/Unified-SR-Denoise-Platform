@@ -21,7 +21,7 @@ train:
   gradient_accumulation_steps: 1
   patch_size: 256
   save_interval: 20
-  save_name: "train_svfocusdenoise_adv_x1_epoch300_lr5e-5_edge_ssim_perceptual_v3_260415"
+  save_name: "train_svfocusdenoise_adv_x1_epoch300_lr5e-5_chroma_nosie_update_edge_ssim_perceptual_v4_260416"
 
   pretrained_path: null
 
