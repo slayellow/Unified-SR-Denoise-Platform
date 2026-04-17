@@ -47,16 +47,9 @@ def add_unprocess_isp_noise(img, read_noise_max=0.02, shot_noise_max=10.0):
     variance = np.maximum(variance, 1e-10) # Avoid negative variance
     
     # Independent Gaussian noise per pixel and per channel
+    # AWGN preserves high-frequency 1-pixel spikes, preventing the model from confusing 
+    # noise blobs with thin physical structures (like tree branches or fine textures).
     noise = np.random.normal(0.0, np.sqrt(variance)).astype(np.float32)
-    
-    # Simulate ISP Demosaicing spatial correlation (Splotchy texture)
-    # Real ISPs demosaic Bayer patterns, which spatially correlates (blurs) the independent sensor noise.
-    # By applying a Gaussian blur to the NOISE layer only, we perfectly replicate this physical ISP texture
-    # without inducing chromatic aberration on high-contrast image edges.
-    noise = cv2.GaussianBlur(noise, (3, 3), sigmaX=0.8)
-    
-    # We slightly amplify the noise back up because blurring reduces its total variance
-    noise = noise * 1.5 
     
     rgb_noisy = np.clip(img_linear + noise, 0.0, 1.0)
     
