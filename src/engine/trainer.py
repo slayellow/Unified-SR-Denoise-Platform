@@ -60,7 +60,7 @@ class Validator(BaseEngine):
                 if isinstance(sr, tuple): sr = sr[0]
                 
                 # Loss
-                loss, _ = self.criterion(sr, hr) 
+                loss, _ = self.criterion(sr, hr, lr) 
                 val_loss += loss.item()
                 
                 # Metrics (Clamp 0-1 for safety)
@@ -261,7 +261,7 @@ class Trainer(BaseEngine):
                     extras = sr[1:]
                     sr = sr[0]
                 
-                loss, loss_components = self.criterion(sr, hr)
+                loss, loss_components = self.criterion(sr, hr, lr)
                 
                 # Contrastive loss (if model returned projection features)
                 if extras is not None and len(extras) >= 2:

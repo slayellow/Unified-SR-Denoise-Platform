@@ -96,7 +96,7 @@ class GANTrainer(Trainer):
                     sr = sr[0]
                 
                 # Reconstruction loss (from UnifiedLoss — typically MSE with weight)
-                recon_loss, loss_components = self.criterion(sr, hr)
+                recon_loss, loss_components = self.criterion(sr, hr, lr)
                 
                 # Adversarial loss
                 d_fake_for_g = self.discriminator(sr)

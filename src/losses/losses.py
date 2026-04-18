@@ -4,6 +4,17 @@ import torch.nn.functional as F
 import torchvision.models as models
 from math import exp
 
+
+def rgb_to_ycbcr(x):
+    """Convert RGB tensor in [0, 1] to YCbCr-like channels in [0, 1]."""
+    r = x[:, 0:1, :, :]
+    g = x[:, 1:2, :, :]
+    b = x[:, 2:3, :, :]
+    y = 0.299 * r + 0.587 * g + 0.114 * b
+    cb = 0.5 + (-0.168736 * r - 0.331264 * g + 0.5 * b)
+    cr = 0.5 + (0.5 * r - 0.418688 * g - 0.081312 * b)
+    return y, cb, cr
+
 # ==========================================
 # 1. Charbonnier Loss
 # ==========================================
@@ -159,6 +170,65 @@ class PerceptualLoss(nn.Module):
         
         return F.l1_loss(pred_feat, target_feat)
 
+
+# ==========================================
+# 5-1. Color Consistency Loss
+# ==========================================
+class ColorConsistencyLoss(nn.Module):
+    """
+    Penalize color cast drift by matching chroma channels.
+    Uses YCbCr-like conversion and compares only Cb/Cr channels.
+    """
+    def __init__(self, loss_type='l1'):
+        super(ColorConsistencyLoss, self).__init__()
+        self.loss_type = loss_type
+
+    def forward(self, pred, target):
+        _, pred_cb, pred_cr = rgb_to_ycbcr(pred)
+        _, target_cb, target_cr = rgb_to_ycbcr(target)
+
+        if self.loss_type == 'charbonnier':
+            diff_cb = torch.sqrt((pred_cb - target_cb) ** 2 + 1e-6)
+            diff_cr = torch.sqrt((pred_cr - target_cr) ** 2 + 1e-6)
+            return (diff_cb.mean() + diff_cr.mean()) / 2
+
+        return (F.l1_loss(pred_cb, target_cb) + F.l1_loss(pred_cr, target_cr)) / 2
+
+
+# ==========================================
+# 5-2. Hot Pixel Masked Loss
+# ==========================================
+class HotPixelMaskedLoss(nn.Module):
+    """
+    Focus the loss on sparse bright outliers detected from the input image.
+    This is meant for hot-pixel-like defects that are easy to miss in full-image averaging losses.
+    """
+    def __init__(self, threshold=0.15, base_loss='charbonnier', kernel_size=3):
+        super(HotPixelMaskedLoss, self).__init__()
+        self.threshold = threshold
+        self.base_loss = base_loss
+        self.kernel_size = kernel_size
+
+    def forward(self, pred, target, input_tensor):
+        if input_tensor is None:
+            return pred.new_tensor(0.0)
+
+        input_max = torch.max(input_tensor, dim=1, keepdim=True).values
+        local_mean = F.avg_pool2d(input_max, kernel_size=self.kernel_size, stride=1, padding=self.kernel_size // 2)
+        hot_mask = ((input_max - local_mean) > self.threshold).float()
+
+        if hot_mask.sum() < 1:
+            return pred.new_tensor(0.0)
+
+        diff = pred - target
+        if self.base_loss == 'l1':
+            loss_map = torch.abs(diff)
+        else:
+            loss_map = torch.sqrt(diff * diff + 1e-6)
+
+        masked_loss = loss_map * hot_mask
+        return masked_loss.sum() / (hot_mask.sum() * pred.shape[1] + 1e-8)
+
 # ==========================================
 # 5. TV Loss (Total Variation)
 # ==========================================
@@ -309,18 +379,39 @@ class UnifiedLoss(nn.Module):
 
             self.weights['perceptual'] = cfg_perc.get('weight', 0.01)
 
-        # 6. TV Loss
+        # 6. Color Consistency Loss
+        cfg_color = config.get('color_consistency', {})
+        if cfg_color.get('enabled', False):
+            self.loss_funcs['color_consistency'] = ColorConsistencyLoss(
+                loss_type=cfg_color.get('loss_type', 'l1')
+            )
+            self.weights['color_consistency'] = cfg_color.get('weight', 0.05)
+
+        # 7. Hot Pixel Masked Loss
+        cfg_hot = config.get('hot_pixel_masked', {})
+        if cfg_hot.get('enabled', False):
+            self.loss_funcs['hot_pixel_masked'] = HotPixelMaskedLoss(
+                threshold=cfg_hot.get('threshold', 0.15),
+                base_loss=cfg_hot.get('base_loss', 'charbonnier'),
+                kernel_size=cfg_hot.get('kernel_size', 3)
+            )
+            self.weights['hot_pixel_masked'] = cfg_hot.get('weight', 0.1)
+
+        # 8. TV Loss
         cfg_tv = config.get('tv', {})
         if cfg_tv.get('enabled', False):
             self.loss_funcs['tv'] = TVLoss(tv_loss_weight=1.0) # Weight handled in UnifiedLoss wrapper
             self.weights['tv'] = cfg_tv.get('weight', 0.1)
 
-    def forward(self, pred, target):
+    def forward(self, pred, target, input_tensor=None):
         total_loss = 0.0
         loss_dict = {}
         
         for name, loss_fn in self.loss_funcs.items():
-            l = loss_fn(pred, target)
+            if name == 'hot_pixel_masked':
+                l = loss_fn(pred, target, input_tensor)
+            else:
+                l = loss_fn(pred, target)
             w = self.weights[name]
             total_loss += w * l
             loss_dict[name] = l.item()

@@ -1,0 +1,140 @@
+# Checklist Log
+
+## Date: 2026-04-20 (Monday)
+## Goal
+MC-G105 + VISCA 환경의 실제 출력 특성을 분석하고,
+Denoise Degradation Profile 설계를 위한 근거를 확보하며,
+SVFocusDenoiseNet 경량/개선 버전 학습을 병렬로 진행한다.
+
+---
+
+## 1. Sensor Capture / Logging
+### 1-1. Capture scene setup
+- [ ] 회사 회의실에서 바깥을 바라보는 동일 구도 확보
+- [ ] 낮(day) / 밤(night) 각각 촬영
+- [ ] 광학 줌 1x ~ 7x 전 구간 촬영
+- [ ] 가능하면 같은 장면에서 Auto 안정화 전/후도 확인
+
+### 1-2. Frame extraction structure
+추천 폴더 구조:
+- [ ] `mc_g105_capture_frames/day/1x/`
+- [ ] `mc_g105_capture_frames/day/2x/`
+- [ ] `mc_g105_capture_frames/day/3x/`
+- [ ] `mc_g105_capture_frames/day/4x/`
+- [ ] `mc_g105_capture_frames/day/5x/`
+- [ ] `mc_g105_capture_frames/day/6x/`
+- [ ] `mc_g105_capture_frames/day/7x/`
+- [ ] `mc_g105_capture_frames/night/1x/`
+- [ ] `mc_g105_capture_frames/night/2x/`
+- [ ] `mc_g105_capture_frames/night/3x/`
+- [ ] `mc_g105_capture_frames/night/4x/`
+- [ ] `mc_g105_capture_frames/night/5x/`
+- [ ] `mc_g105_capture_frames/night/6x/`
+- [ ] `mc_g105_capture_frames/night/7x/`
+
+### 1-3. What to observe during capture
+- [ ] Hot pixel이 고정 위치로 보이는지
+- [ ] night + zoom에서 green/red tint가 심해지는지
+- [ ] wide 대비 tele에서 노이즈가 증가하는지
+- [ ] Auto 상태에서 brightness pumping이나 color drift가 있는지
+- [ ] 얇은 구조물(전선, 나뭇가지)이 잘 보이는지
+
+---
+
+## 2. Sensor Analysis Script Run
+### 2-1. Run analysis
+- [ ] `examples/analysis/analyze_mc_g105_sensor_capture.py` 실행
+- [ ] 입력 폴더: 실제 캡처 프레임 폴더
+- [ ] 출력 폴더: `results/mc_g105_analysis_20260420/`
+
+실행 예시:
+```bash
+# 주석: MC-G105 캡처 프레임을 분석한다.
+~/anaconda3/bin/python examples/analysis/analyze_mc_g105_sensor_capture.py \
+  --input_dir /path/to/mc_g105_capture_frames \
+  --output_dir results/mc_g105_analysis_20260420
+```
+
+### 2-2. Must-check outputs
+- [ ] `per_image_metrics.csv`
+- [ ] `group_summary.csv`
+- [ ] `summary.md`
+- [ ] `plots/brightness_vs_dark_noise.png`
+- [ ] `plots/edge_vs_hot_pixel.png`
+- [ ] `plots/tint_distribution.png`
+
+### 2-3. Questions to answer after analysis
+- [ ] night / tele에서 `dark_noise_std`가 확실히 높아지는가?
+- [ ] `hot_pixel_count`가 dark scene에서 일관되게 높게 나오는가?
+- [ ] `tint_rg`, `tint_bg`가 특정 방향으로 치우치는가?
+- [ ] zoom이 올라갈수록 구조 보존이 어려워지는가?
+- [ ] day/night를 분리한 profile이 필요한가?
+
+---
+
+## 3. Degradation Pipeline Design Decision
+### 3-1. Decide generic vs sensor-specific
+- [ ] Generic baseline은 유지
+- [ ] MC-G105 전용 profile 초안 필요 여부 결정
+
+### 3-2. Potential profile axes
+- [ ] day vs night profile 분리 필요 여부
+- [ ] zoom 1x~3x vs 4x~7x profile 분리 필요 여부
+- [ ] tint bias를 random이 아니라 fixed-direction bias로 줄지 여부
+- [ ] hot pixel density 범위를 실제 센서 통계에 맞춰 조정할지 여부
+
+### 3-3. If enough evidence is collected
+- [ ] `denoise_mc_g105_v1.yaml` 초안 설계 요청
+
+---
+
+## 4. Denoise Training Runs
+### 4-1. Run Track A
+- [ ] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml`
+- [ ] 목적: block2/basic + dim32 + new losses baseline 확인
+
+### 4-2. Run Track B
+- [ ] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml`
+- [ ] 목적: dim24 경량화가 품질/속도에 미치는 영향 확인
+
+### 4-3. What to compare after training
+- [ ] validation loss
+- [ ] PSNR / SSIM / LPIPS / NIQE
+- [ ] hot pixel 제거 체감
+- [ ] green/red tint 억제 체감
+- [ ] 얇은 구조물(전선, 나뭇가지) 보존
+- [ ] QCS8550 병렬 추론 시 latency 차이
+
+---
+
+## 5. Files to bring back / push to GitHub
+### Sensor analysis results
+- [ ] `results/mc_g105_analysis_20260420/per_image_metrics.csv`
+- [ ] `results/mc_g105_analysis_20260420/group_summary.csv`
+- [ ] `results/mc_g105_analysis_20260420/summary.md`
+- [ ] `results/mc_g105_analysis_20260420/plots/*.png`
+
+### Training / experiment results
+- [ ] 각 학습 run의 `training_log.csv`
+- [ ] best checkpoint 경로
+- [ ] 사용한 config 파일 경로
+- [ ] 간단한 메모: 어떤 결과가 좋았는지
+
+---
+
+## 6. Questions to ask Hermes after Monday work
+- [ ] MC-G105 분석 결과를 보고 sensor-specific degradation profile을 어떻게 짤까?
+- [ ] dim32 vs dim24 결과 중 어떤 쪽이 더 적절한가?
+- [ ] color consistency / hot-pixel masked loss가 실제로 도움이 됐나?
+- [ ] day/night 또는 zoom별 profile 분리가 필요한가?
+- [ ] 다음 finetuning 방향은 generic -> mc_g105 adaptation으로 어떻게 잡을까?
+
+---
+
+## Quick Priority
+최우선:
+1. 센서 프레임 수집
+2. 분석 스크립트 실행
+3. block2/basic 2트랙 학습
+4. 결과 push
+5. 결과 해석 및 degradation profile 설계
