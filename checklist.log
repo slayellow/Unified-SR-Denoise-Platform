@@ -89,13 +89,31 @@ SVFocusDenoiseNet 경량/개선 버전 학습을 병렬로 진행한다.
 ---
 
 ## 4. Denoise Training Runs
+주의:
+- 두 config 모두 `task: sr`이므로 `tools/train.py` 기본값에 맡기면 `configs/data/sr_train.yaml`가 붙을 수 있음
+- 월요일 비교 실험은 `--data_config configs/data/denoise_generic_baseline.yaml`를 명시해서 고정하는 편이 안전함
+
 ### 4-1. Run Track A
 - [ ] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml`
 - [ ] 목적: block2/basic + dim32 + new losses baseline 확인
+- [ ] 실행 명령:
+```bash
+# 주석: Track A를 범용 denoise baseline data_config로 학습한다.
+CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
+  --config configs/train/Denoise/svfocusdenoise_block2_basic.yaml \
+  --data_config configs/data/denoise_generic_baseline.yaml
+```
 
 ### 4-2. Run Track B
 - [ ] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml`
 - [ ] 목적: dim24 경량화가 품질/속도에 미치는 영향 확인
+- [ ] 실행 명령:
+```bash
+# 주석: Track B를 동일한 denoise baseline data_config로 학습한다.
+CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
+  --config configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml \
+  --data_config configs/data/denoise_generic_baseline.yaml
+```
 
 ### 4-3. What to compare after training
 - [ ] validation loss
