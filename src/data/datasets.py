@@ -9,6 +9,7 @@ from .degradations import random_mixed_kernels, circular_lowpass_kernel, random_
 from .unprocess import add_unprocess_isp_noise
 import math
 from typing import Any
+from copy import deepcopy
 
 # =========================================================
 #  Common Utils
@@ -176,12 +177,63 @@ def image_to_tensor(image_bgr: np.ndarray) -> torch.Tensor:
     return torch.from_numpy(np.ascontiguousarray(image_rgb.transpose(2, 0, 1))).float()
 
 
+def merge_nested_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge two dictionaries without mutating the inputs."""
+    result = deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = merge_nested_dict(result[key], value)
+        else:
+            result[key] = deepcopy(value)
+    return result
+
+
+def sample_weighted_profile(weight_map: dict[str, Any], fallback: str) -> str:
+    """Sample one profile label from a weight map."""
+    if not weight_map:
+        return fallback
+    labels = list(weight_map.keys())
+    weights = [float(weight_map[label]) for label in labels]
+    if sum(weights) <= 0:
+        return fallback
+    return random.choices(labels, weights=weights, k=1)[0]
+
+
+def resolve_conditional_cfg(cfg: dict[str, Any]) -> tuple[dict[str, Any], dict[str, str]]:
+    """Resolve conditional profile overrides for degradation config."""
+    conditional = cfg.get('conditional_profiles', {})
+    if not conditional.get('enabled', False):
+        return cfg, {}
+
+    resolved_cfg = deepcopy(cfg)
+    sampling = conditional.get('sampling', {})
+    resolved_labels: dict[str, str] = {}
+
+    time_label = sample_weighted_profile(sampling.get('time', {}), 'default')
+    if time_label in conditional.get('time_profiles', {}):
+        resolved_cfg = merge_nested_dict(resolved_cfg, conditional['time_profiles'][time_label])
+        resolved_labels['time'] = time_label
+
+    zoom_label = sample_weighted_profile(sampling.get('zoom', {}), 'default')
+    if zoom_label in conditional.get('zoom_profiles', {}):
+        resolved_cfg = merge_nested_dict(resolved_cfg, conditional['zoom_profiles'][zoom_label])
+        resolved_labels['zoom'] = zoom_label
+
+    combo_key = f"{resolved_labels.get('time', 'default')}__{resolved_labels.get('zoom', 'default')}"
+    if combo_key in conditional.get('combo_profiles', {}):
+        resolved_cfg = merge_nested_dict(resolved_cfg, conditional['combo_profiles'][combo_key])
+        resolved_labels['combo'] = combo_key
+
+    return resolved_cfg, resolved_labels
+
+
 def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_factor: int) -> np.ndarray:
     """Apply the shared on-the-fly degradation pipeline for SR/Denoise datasets."""
+    effective_cfg, _ = resolve_conditional_cfg(cfg)
     out = img_hr.copy()
     h_hr, w_hr = out.shape[:2]
 
-    d = cfg.get('degradation', {})
+    d = effective_cfg.get('degradation', {})
     s1 = d.get('stage1', {})
     s2 = d.get('stage2', {})
 

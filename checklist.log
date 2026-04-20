@@ -55,31 +55,45 @@ SVFocusDenoiseNet 경량/개선 버전 학습을 병렬로 진행한다.
 
 ## 3. Degradation Pipeline Design Decision
 ### 3-1. Decide generic vs sensor-specific
-- [ ] Define Noise/Tint profile based on results from step 2
-- [ ] 결정 사항 (Denoise V5/Baseline): AWGN 시뮬레이션 강도를 배율 정보에 비례하게 설정 고려 (7x에서 약 6배 더 강한 노지 주입 필요)
-- [ ] ColorConsistencyLoss의 가중치를 G-tint 편차(-6)에 맞춰 최적화
-- [ ] MC-G105 전용 profile 초안 필요 여부 결정
+- [x] Define Noise/Tint profile based on results from step 2
+- [x] MC-G105용 1차 finetune profile 초안 작성 완료
+- [x] generic baseline 성격을 유지하면서 sensor-specific profile을 조건별로 섞는 방향으로 정리
+- [x] 새 파일:
+  - `configs/finetune/Denoise/denoise_mc_g105_v1.yaml`
+  - `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml`
 
-### 3-2. Potential profile axes
-- [ ] day vs night profile 분리 필요 여부
-- [ ] zoom 1x~3x vs 4x~7x profile 분리 필요 여부
-- [ ] tint bias를 random이 아니라 fixed-direction bias로 줄지 여부
-- [ ] hot pixel density 범위를 실제 센서 통계에 맞춰 조정할지 여부
+### 3-2. Implemented profile axes
+- [x] day vs night profile 분리 구현 (`conditional_profiles.time_profiles`)
+- [x] zoom low/mid/high 분리 구현 (`conditional_profiles.zoom_profiles`)
+- [x] night-high / day-high 조합 profile 구현 (`conditional_profiles.combo_profiles`)
+- [x] tint bias를 fixed-direction bias 성격으로 구현 (`color_cast`)
+- [x] hot pixel density를 조건별로 다르게 반영
+- [x] weak temporal instability 구현 (`signal_instability`)
+- [x] zoom-aware detail collapse 구현 (`detail_attenuation`)
 
-### 3-3. If enough evidence is collected
-- [ ] `denoise_mc_g105_v1.yaml` 초안 설계 요청
+### 3-3. Tomorrow validation focus
+- [ ] generic baseline Track A 결과 확인
+- [ ] generic baseline Track B 결과 확인
+- [ ] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml` 학습 시작 또는 로그 확인
+- [ ] generic baseline 대비 MC-G105 finetune이
+  - hot pixel
+  - green/blue tint
+  - 야간 디테일 보존
+  - oversharpening 억제
+  에서 얼마나 개선되는지 확인
 
 ---
 
 ## 4. Denoise Training Runs
 주의:
-- 두 config 모두 `task: sr`이므로 `tools/train.py` 기본값에 맡기면 `configs/data/sr_train.yaml`가 붙을 수 있음
-- 월요일 비교 실험은 `--data_config configs/data/denoise_generic_baseline.yaml`를 명시해서 고정하는 편이 안전함
+- generic baseline 2트랙 결과 확인이 내일 1순위
+- finetune은 baseline 위에 MC-G105 profile을 붙이는 비교 실험으로 본다
 
-### 4-1. Run Track A (In Progress)
+### 4-1. Run Track A (Generic Baseline)
 - [x] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml`
-- [x] 목적: block2/basic + dim32 + new losses baseline 확인
-- [/] 실행 명령:
+- [x] 목적: block2/basic + dim32 + generic baseline 확인
+- [ ] 내일 확인 항목: best checkpoint, validation loss, 체감 품질
+- [ ] 실행 명령:
 ```bash
 # 주석: Track A를 범용 denoise baseline data_config로 학습한다.
 CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
@@ -87,10 +101,11 @@ CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
   --data_config configs/data/denoise_generic_baseline.yaml
 ```
 
-### 4-2. Run Track B (In Progress)
+### 4-2. Run Track B (Generic Baseline)
 - [x] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml`
 - [x] 목적: dim24 경량화가 품질/속도에 미치는 영향 확인
-- [/] 실행 명령:
+- [ ] 내일 확인 항목: best checkpoint, validation loss, 체감 품질
+- [ ] 실행 명령:
 ```bash
 # 주석: Track B를 동일한 denoise baseline data_config로 학습한다.
 CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
@@ -98,11 +113,25 @@ CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
   --data_config configs/data/denoise_generic_baseline.yaml
 ```
 
-### 4-3. What to compare after training
+### 4-3. Run Track C (MC-G105 Finetune)
+- [x] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml` 작성 완료
+- [x] `configs/finetune/Denoise/denoise_mc_g105_v1.yaml` 작성 완료
+- [ ] 내일 실행 또는 로그 확인 대상
+- [ ] 실행 명령:
+```bash
+# 주석: generic baseline best checkpoint 위에서 MC-G105 profile finetune을 수행한다.
+CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
+  --config configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml \
+  --data_config configs/finetune/Denoise/denoise_mc_g105_v1.yaml
+```
+
+### 4-4. What to compare after training
 - [ ] validation loss
 - [ ] PSNR / SSIM / LPIPS / NIQE
 - [ ] hot pixel 제거 체감
-- [ ] green/red tint 억제 체감
+- [ ] green tint / blue tint 억제 체감
+- [ ] 야간 디테일(HFE) 보존
+- [ ] oversharpening / fake-edge 감소
 - [ ] 얇은 구조물(전선, 나뭇가지) 보존
 - [ ] QCS8550 병렬 추론 시 latency 차이
 
@@ -134,8 +163,8 @@ CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
 
 ## Quick Priority
 최우선:
-1. 센서 프레임 수집
-2. 분석 스크립트 실행
-3. block2/basic 2트랙 학습
-4. 결과 push
-5. 결과 해석 및 degradation profile 설계
+1. Generic baseline Track A 결과 확인
+2. Generic baseline Track B 결과 확인
+3. MC-G105 finetune Track C 실행 또는 로그 확인
+4. baseline 대비 hot pixel / tint / night detail / oversharpening 개선 여부 비교
+5. 필요하면 v2 finetune profile 조정
