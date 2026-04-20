@@ -1,131 +1,69 @@
 # Checklist Log
 
-## Date: 2026-04-20 (Monday)
+## Date: 2026-04-21 (Tuesday)
 ## Goal
-MC-G105 + VISCA 환경의 실제 출력 특성을 분석하고,
-Denoise Degradation Profile 설계를 위한 근거를 확보하며,
-SVFocusDenoiseNet 경량/개선 버전 학습을 병렬로 진행한다.
+어제 수집한 MC-G105 낮/밤 데이터 기준으로
+1) generic baseline 2개 모델 결과를 확인하고,
+2) MC-G105 finetune 학습을 시작/확인하며,
+3) baseline 대비 sensor-specific profile의 개선 여부를 판단한다.
 
 ---
 
-## 1. Sensor Capture / Logging
-### 1-1. Capture scene setup
-- [x] 주간(day) / 야간(night) 각각 촬영 완료 (2026-04-20)
-- [x] 광학 줌 1x ~ 7x 전 구간 촬영 완료
-- [x] 배율별 연사(Burst) 5장씩 구성
-- [x] Raw / Deploy 모델 결과 별도 추출 완료
+## 1. Generic Baseline 결과 확인
+### Track A: dim32
+- [ ] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml` 결과 확인
+- [ ] best checkpoint 경로 기록
+- [ ] validation loss 확인
+- [ ] hot pixel / green-blue tint / 야간 디테일 / oversharpening 체감 메모 작성
 
-### 1-2. Frame extraction structure (완료)
-- [x] `mc_g105_capture_frames/day/1x~7x/` — 주간 Raw (5장/배율, 3 Scene)
-- [x] `mc_g105_capture_frames/night/1x~7x/` — 야간 Raw (5장/배율, 2 Scene)
-- [x] `mc_g105_capture_deploy/day|night/` — 배포 모델 추론 결과
-- [x] 캡처 이미지는 용량 문제로 `.gitignore` 처리 (로컬에만 보관)
+### Track B: dim24
+- [ ] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml` 결과 확인
+- [ ] best checkpoint 경로 기록
+- [ ] validation loss 확인
+- [ ] hot pixel / green-blue tint / 야간 디테일 / oversharpening 체감 메모 작성
 
-### 1-3. 관찰 결과 요약
-- [x] Hot Pixel: 야간에서 배율 낮을수록 최대 -48% 제거됨 (배포 모델)
-- [x] Green Tint: 전 배율 확인, 7x 주간에서 tint_rg = -5.96 최악
-- [x] 야간 고배율(7x)에서 Temporal Noise 최대, 선명도(HFE) 65% 손실 확인
-- [x] 야간 Edge Density 역설: 배포 모델이 HFE는 낮추면서 Edge 수 +41% → Oversharpening 확인
-
----
-
-## 2. Sensor Analysis Script Run
-- [x] `analyze_mc_g105_sensor_capture.py` 고도화 완료 (Burst 그룹화, Temporal Noise 추가)
-- [x] 주간 Raw 분석 완료 → `results/mc_g105_analysis_origin/`
-- [x] 야간 Raw 분석 완료 → `results/mc_g105_analysis_origin/` (통합)
-- [x] 배포 모델 분석 완료 → `results/mc_g105_analysis_deploy/`
-- [x] Raw vs Deploy 주야간 비교 분석 완료 (2026-04-20 저녁)
-
-### 2-2. Must-check outputs
-- [ ] `per_image_metrics.csv`
-- [ ] `group_summary.csv`
-- [ ] `summary.md`
-- [ ] `plots/brightness_vs_dark_noise.png`
-- [ ] `plots/edge_vs_hot_pixel.png`
-- [ ] `plots/tint_distribution.png`
-
-### 2-3. Questions to answer after analysis
-- [ ] night / tele에서 `dark_noise_std`가 확실히 높아지는가?
-- [ ] `hot_pixel_count`가 dark scene에서 일관되게 높게 나오는가?
-- [ ] `tint_rg`, `tint_bg`가 특정 방향으로 치우치는가?
-- [ ] zoom이 올라갈수록 구조 보존이 어려워지는가?
-- [ ] day/night를 분리한 profile이 필요한가?
+### Generic Baseline 비교 질문
+- [ ] dim32 vs dim24 중 어느 쪽이 더 안정적인가?
+- [ ] night high-zoom에서 어느 쪽이 덜 무너지는가?
+- [ ] QCS8550 병렬 추론 기준으로 어느 쪽이 더 현실적인가?
 
 ---
 
-## 3. Degradation Pipeline Design Decision
-### 3-1. Decide generic vs sensor-specific
-- [x] Define Noise/Tint profile based on results from step 2
-- [x] MC-G105용 1차 finetune profile 초안 작성 완료
-- [x] generic baseline 성격을 유지하면서 sensor-specific profile을 조건별로 섞는 방향으로 정리
-- [x] 새 파일:
-  - `configs/finetune/Denoise/denoise_mc_g105_v1.yaml`
-  - `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml`
+## 2. MC-G105 Finetune 실행 / 확인
+### Data config
+- [ ] `configs/data/denoise_mc_g105_v1.yaml` 사용 확인
 
-### 3-2. Implemented profile axes
-- [x] day vs night profile 분리 구현 (`conditional_profiles.time_profiles`)
-- [x] zoom low/mid/high 분리 구현 (`conditional_profiles.zoom_profiles`)
-- [x] night-high / day-high 조합 profile 구현 (`conditional_profiles.combo_profiles`)
-- [x] tint bias를 fixed-direction bias 성격으로 구현 (`color_cast`)
-- [x] hot pixel density를 조건별로 다르게 반영
-- [x] weak temporal instability 구현 (`signal_instability`)
-- [x] zoom-aware detail collapse 구현 (`detail_attenuation`)
-
-### 3-3. Tomorrow validation focus
-- [ ] generic baseline Track A 결과 확인
-- [ ] generic baseline Track B 결과 확인
-- [ ] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml` 학습 시작 또는 로그 확인
-- [ ] generic baseline 대비 MC-G105 finetune이
-  - hot pixel
-  - green/blue tint
-  - 야간 디테일 보존
-  - oversharpening 억제
-  에서 얼마나 개선되는지 확인
-
----
-
-## 4. Denoise Training Runs
-주의:
-- generic baseline 2트랙 결과 확인이 내일 1순위
-- finetune은 baseline 위에 MC-G105 profile을 붙이는 비교 실험으로 본다
-
-### 4-1. Run Track A (Generic Baseline)
-- [x] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml`
-- [x] 목적: block2/basic + dim32 + generic baseline 확인
-- [ ] 내일 확인 항목: best checkpoint, validation loss, 체감 품질
+### Train config A: dim32 finetune
+- [ ] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml` 실행 또는 로그 확인
 - [ ] 실행 명령:
 ```bash
-# 주석: Track A를 범용 denoise baseline data_config로 학습한다.
-CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
-  --config configs/train/Denoise/svfocusdenoise_block2_basic.yaml \
-  --data_config configs/data/denoise_generic_baseline.yaml
-```
-
-### 4-2. Run Track B (Generic Baseline)
-- [x] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml`
-- [x] 목적: dim24 경량화가 품질/속도에 미치는 영향 확인
-- [ ] 내일 확인 항목: best checkpoint, validation loss, 체감 품질
-- [ ] 실행 명령:
-```bash
-# 주석: Track B를 동일한 denoise baseline data_config로 학습한다.
-CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
-  --config configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml \
-  --data_config configs/data/denoise_generic_baseline.yaml
-```
-
-### 4-3. Run Track C (MC-G105 Finetune)
-- [x] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml` 작성 완료
-- [x] `configs/finetune/Denoise/denoise_mc_g105_v1.yaml` 작성 완료
-- [ ] 내일 실행 또는 로그 확인 대상
-- [ ] 실행 명령:
-```bash
-# 주석: generic baseline best checkpoint 위에서 MC-G105 profile finetune을 수행한다.
+# 주석: generic baseline dim32 best checkpoint 위에서 MC-G105 finetune을 수행한다.
 CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
   --config configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml \
-  --data_config configs/finetune/Denoise/denoise_mc_g105_v1.yaml
+  --data_config configs/data/denoise_mc_g105_v1.yaml
 ```
 
-### 4-4. What to compare after training
+### Train config B: dim24 finetune
+- [ ] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1_dim24.yaml` 실행 또는 로그 확인
+- [ ] 실행 명령:
+```bash
+# 주석: generic baseline dim24 best checkpoint 위에서 MC-G105 finetune을 수행한다.
+CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
+  --config configs/finetune/Denoise/svfocusdenoise_mc_g105_v1_dim24.yaml \
+  --data_config configs/data/denoise_mc_g105_v1.yaml
+```
+
+---
+
+## 3. Finetune profile 검증 포인트
+### 해결방안 5가지가 실제로 개선됐는지 확인
+- [ ] 1) day/night conditional profile이 결과 차이에 반영되는가?
+- [ ] 2) zoom-aware detail attenuation이 night high-zoom 품질 개선으로 이어지는가?
+- [ ] 3) color_cast가 green tint / blue tint를 줄이는가?
+- [ ] 4) signal_instability가 temporal instability / flicker 억제에 도움 되는가?
+- [ ] 5) sparse hot-pixel profile이 hot pixel 제거 개선으로 이어지는가?
+
+### 비교 기준
 - [ ] validation loss
 - [ ] PSNR / SSIM / LPIPS / NIQE
 - [ ] hot pixel 제거 체감
@@ -133,38 +71,21 @@ CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
 - [ ] 야간 디테일(HFE) 보존
 - [ ] oversharpening / fake-edge 감소
 - [ ] 얇은 구조물(전선, 나뭇가지) 보존
-- [ ] QCS8550 병렬 추론 시 latency 차이
+- [ ] QCS8550 병렬 추론 latency 비교
 
 ---
 
-## 5. Files to bring back / push to GitHub
-### Sensor analysis results
-- [ ] `results/mc_g105_analysis_20260420/per_image_metrics.csv`
-- [ ] `results/mc_g105_analysis_20260420/group_summary.csv`
-- [ ] `results/mc_g105_analysis_20260420/summary.md`
-- [ ] `results/mc_g105_analysis_20260420/plots/*.png`
-
-### Training / experiment results
-- [ ] 각 학습 run의 `training_log.csv`
-- [ ] best checkpoint 경로
-- [ ] 사용한 config 파일 경로
-- [ ] 간단한 메모: 어떤 결과가 좋았는지
-
----
-
-## 6. Questions to ask Hermes after Monday work
-- [ ] MC-G105 분석 결과를 보고 sensor-specific degradation profile을 어떻게 짤까?
-- [ ] dim32 vs dim24 결과 중 어떤 쪽이 더 적절한가?
-- [ ] color consistency / hot-pixel masked loss가 실제로 도움이 됐나?
-- [ ] day/night 또는 zoom별 profile 분리가 필요한가?
-- [ ] 다음 finetuning 방향은 generic -> mc_g105 adaptation으로 어떻게 잡을까?
+## 4. 내일 최종 판단
+- [ ] generic baseline만으로도 충분한가?
+- [ ] MC-G105 finetune이 실제로 개선되는가?
+- [ ] dim32 / dim24 중 어떤 축으로 계속 갈 것인가?
+- [ ] `denoise_mc_g105_v1`를 유지할지, v2로 더 조정할지 결정
 
 ---
 
 ## Quick Priority
-최우선:
-1. Generic baseline Track A 결과 확인
-2. Generic baseline Track B 결과 확인
-3. MC-G105 finetune Track C 실행 또는 로그 확인
-4. baseline 대비 hot pixel / tint / night detail / oversharpening 개선 여부 비교
-5. 필요하면 v2 finetune profile 조정
+1. Generic baseline dim32 결과 확인
+2. Generic baseline dim24 결과 확인
+3. MC-G105 finetune dim32 실행/확인
+4. MC-G105 finetune dim24 실행/확인
+5. baseline 대비 개선 여부 판단
