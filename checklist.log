@@ -10,50 +10,31 @@ SVFocusDenoiseNet 경량/개선 버전 학습을 병렬로 진행한다.
 
 ## 1. Sensor Capture / Logging
 ### 1-1. Capture scene setup
-- [ ] 회사 회의실에서 바깥을 바라보는 동일 구도 확보
-- [ ] 낮(day) / 밤(night) 각각 촬영
-- [ ] 광학 줌 1x ~ 7x 전 구간 촬영
-- [ ] 가능하면 같은 장면에서 Auto 안정화 전/후도 확인
+- [x] 주간(day) / 야간(night) 각각 촬영 완료 (2026-04-20)
+- [x] 광학 줌 1x ~ 7x 전 구간 촬영 완료
+- [x] 배율별 연사(Burst) 5장씩 구성
+- [x] Raw / Deploy 모델 결과 별도 추출 완료
 
-### 1-2. Frame extraction structure
-추천 폴더 구조:
-- [ ] `mc_g105_capture_frames/day/1x/`
-- [ ] `mc_g105_capture_frames/day/2x/`
-- [ ] `mc_g105_capture_frames/day/3x/`
-- [ ] `mc_g105_capture_frames/day/4x/`
-- [ ] `mc_g105_capture_frames/day/5x/`
-- [ ] `mc_g105_capture_frames/day/6x/`
-- [ ] `mc_g105_capture_frames/day/7x/`
-- [ ] `mc_g105_capture_frames/night/1x/`
-- [ ] `mc_g105_capture_frames/night/2x/`
-- [ ] `mc_g105_capture_frames/night/3x/`
-- [ ] `mc_g105_capture_frames/night/4x/`
-- [ ] `mc_g105_capture_frames/night/5x/`
-- [ ] `mc_g105_capture_frames/night/6x/`
-- [ ] `mc_g105_capture_frames/night/7x/`
+### 1-2. Frame extraction structure (완료)
+- [x] `mc_g105_capture_frames/day/1x~7x/` — 주간 Raw (5장/배율, 3 Scene)
+- [x] `mc_g105_capture_frames/night/1x~7x/` — 야간 Raw (5장/배율, 2 Scene)
+- [x] `mc_g105_capture_deploy/day|night/` — 배포 모델 추론 결과
+- [x] 캡처 이미지는 용량 문제로 `.gitignore` 처리 (로컬에만 보관)
 
-### 1-3. What to observe during capture
-- [ ] Hot pixel이 고정 위치로 보이는지
-- [ ] night + zoom에서 green/red tint가 심해지는지
-- [ ] wide 대비 tele에서 노이즈가 증가하는지
-- [ ] Auto 상태에서 brightness pumping이나 color drift가 있는지
-- [ ] 얇은 구조물(전선, 나뭇가지)이 잘 보이는지
+### 1-3. 관찰 결과 요약
+- [x] Hot Pixel: 야간에서 배율 낮을수록 최대 -48% 제거됨 (배포 모델)
+- [x] Green Tint: 전 배율 확인, 7x 주간에서 tint_rg = -5.96 최악
+- [x] 야간 고배율(7x)에서 Temporal Noise 최대, 선명도(HFE) 65% 손실 확인
+- [x] 야간 Edge Density 역설: 배포 모델이 HFE는 낮추면서 Edge 수 +41% → Oversharpening 확인
 
 ---
 
 ## 2. Sensor Analysis Script Run
-### 2-1. Run analysis
-- [ ] `examples/analysis/analyze_mc_g105_sensor_capture.py` 실행
-- [ ] 입력 폴더: 실제 캡처 프레임 폴더
-- [ ] 출력 폴더: `results/mc_g105_analysis_20260420/`
-
-실행 예시:
-```bash
-# 주석: MC-G105 캡처 프레임을 분석한다.
-~/anaconda3/bin/python examples/analysis/analyze_mc_g105_sensor_capture.py \
-  --input_dir /path/to/mc_g105_capture_frames \
-  --output_dir results/mc_g105_analysis_20260420
-```
+- [x] `analyze_mc_g105_sensor_capture.py` 고도화 완료 (Burst 그룹화, Temporal Noise 추가)
+- [x] 주간 Raw 분석 완료 → `results/mc_g105_analysis_origin/`
+- [x] 야간 Raw 분석 완료 → `results/mc_g105_analysis_origin/` (통합)
+- [x] 배포 모델 분석 완료 → `results/mc_g105_analysis_deploy/`
+- [x] Raw vs Deploy 주야간 비교 분석 완료 (2026-04-20 저녁)
 
 ### 2-2. Must-check outputs
 - [ ] `per_image_metrics.csv`
@@ -74,7 +55,9 @@ SVFocusDenoiseNet 경량/개선 버전 학습을 병렬로 진행한다.
 
 ## 3. Degradation Pipeline Design Decision
 ### 3-1. Decide generic vs sensor-specific
-- [ ] Generic baseline은 유지
+- [ ] Define Noise/Tint profile based on results from step 2
+- [ ] 결정 사항 (Denoise V5/Baseline): AWGN 시뮬레이션 강도를 배율 정보에 비례하게 설정 고려 (7x에서 약 6배 더 강한 노지 주입 필요)
+- [ ] ColorConsistencyLoss의 가중치를 G-tint 편차(-6)에 맞춰 최적화
 - [ ] MC-G105 전용 profile 초안 필요 여부 결정
 
 ### 3-2. Potential profile axes
@@ -93,10 +76,10 @@ SVFocusDenoiseNet 경량/개선 버전 학습을 병렬로 진행한다.
 - 두 config 모두 `task: sr`이므로 `tools/train.py` 기본값에 맡기면 `configs/data/sr_train.yaml`가 붙을 수 있음
 - 월요일 비교 실험은 `--data_config configs/data/denoise_generic_baseline.yaml`를 명시해서 고정하는 편이 안전함
 
-### 4-1. Run Track A
-- [ ] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml`
-- [ ] 목적: block2/basic + dim32 + new losses baseline 확인
-- [ ] 실행 명령:
+### 4-1. Run Track A (In Progress)
+- [x] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml`
+- [x] 목적: block2/basic + dim32 + new losses baseline 확인
+- [/] 실행 명령:
 ```bash
 # 주석: Track A를 범용 denoise baseline data_config로 학습한다.
 CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
@@ -104,10 +87,10 @@ CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
   --data_config configs/data/denoise_generic_baseline.yaml
 ```
 
-### 4-2. Run Track B
-- [ ] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml`
-- [ ] 목적: dim24 경량화가 품질/속도에 미치는 영향 확인
-- [ ] 실행 명령:
+### 4-2. Run Track B (In Progress)
+- [x] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml`
+- [x] 목적: dim24 경량화가 품질/속도에 미치는 영향 확인
+- [/] 실행 명령:
 ```bash
 # 주석: Track B를 동일한 denoise baseline data_config로 학습한다.
 CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \

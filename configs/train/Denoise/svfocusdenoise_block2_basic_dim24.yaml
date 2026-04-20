@@ -21,7 +21,7 @@ train:
   gradient_accumulation_steps: 1
   patch_size: 256
   save_interval: 20
-  save_name: "train_svfocusdenoise_basic_x1_dim24_block2_epoch300_lr5e-5_awgn_260417"
+  save_name: "train_svfocusdenoise_basic_x1_dim24_block2_epoch300_lr5e-5_awgn_260420"
 
   pretrained_path: null
 
