@@ -1,5 +1,5 @@
 dataset_type: denoise
-clean_prob: 0.12
+clean_prob: 0.10
 
 crop_size: 256
 use_flip: true
@@ -9,7 +9,7 @@ degradation:
   stage1:
     unprocess_noise:
       enabled: true
-      prob: 0.75
+      prob: 0.72
       read_noise_max: 0.012
       shot_noise_max: 8.0
 
@@ -19,12 +19,12 @@ degradation:
 
     blur:
       enabled: true
-      prob: 0.18
-      kernel_probs: [0.55, 0.20, 0.10, 0.03, 0.09, 0.03]
+      prob: 0.12
+      kernel_probs: [0.58, 0.18, 0.10, 0.02, 0.09, 0.03]
       kernel_sizes: [7, 9, 11, 13, 15]
-      sigma: [0.2, 1.4]
-      betag: [0.8, 3.0]
-      betap: [1.0, 1.8]
+      sigma: [0.2, 1.0]
+      betag: [0.8, 2.5]
+      betap: [1.0, 1.6]
 
     resize:
       enabled: false
@@ -35,23 +35,23 @@ degradation:
 
     gaussian_noise:
       enabled: true
-      prob: 0.42
+      prob: 0.36
       sigma_min: 1
-      sigma_max: 5
-      gray_prob: 0.35
+      sigma_max: 4
+      gray_prob: 0.30
 
     poisson_noise:
       enabled: true
-      prob: 0.35
+      prob: 0.30
       scale_min: 0.05
-      scale_max: 1.5
+      scale_max: 1.3
       gray_prob: 0.25
 
     jpeg:
       enabled: true
-      prob: 0.08
-      quality_min: 90
-      quality_max: 98
+      prob: 0.06
+      quality_min: 92
+      quality_max: 99
 
     sinc:
       enabled: false
@@ -61,22 +61,43 @@ degradation:
   stage2:
     blur:
       enabled: true
-      prob: 0.22
-      kernel_probs: [0.60, 0.18, 0.10, 0.02, 0.08, 0.02]
+      prob: 0.18
+      kernel_probs: [0.62, 0.18, 0.08, 0.02, 0.08, 0.02]
       kernel_sizes: [7, 9, 11, 13]
-      sigma: [0.2, 1.0]
-      betag: [0.8, 2.5]
-      betap: [1.0, 1.6]
+      sigma: [0.2, 0.8]
+      betag: [0.8, 2.0]
+      betap: [1.0, 1.5]
 
     target_resize:
       enabled: false
       interpolations: ["cv2.INTER_CUBIC", "cv2.INTER_LINEAR"]
 
+    detail_attenuation:
+      enabled: true
+      prob: 0.42
+      blur_sigma: [0.35, 1.35]
+      detail_blend: [0.18, 0.48]
+      contrast: [0.84, 0.97]
+
+    signal_instability:
+      enabled: true
+      prob: 0.20
+      gain: [0.94, 1.06]
+      gamma: [0.95, 1.08]
+      channel_gain: [0.97, 1.03]
+
+    color_cast:
+      enabled: true
+      prob: 0.36
+      rg_shift: [-7.0, -1.0]
+      bg_shift: [-6.5, 0.5]
+      global_gain: [0.98, 1.02]
+
     common_noise:
       enabled: true
-      prob: 0.28
+      prob: 0.24
       sigma_min: 1
-      sigma_max: 6
+      sigma_max: 5
       gray_prob: 0.2
 
     ir_noise:
@@ -84,14 +105,14 @@ degradation:
 
     chroma_noise:
       enabled: true
-      prob: 0.32
+      prob: 0.34
       sigma_min: 2.0
       sigma_max: 10.0
       downscale: 4
 
     hot_pixels:
       enabled: true
-      prob: 0.16
+      prob: 0.14
       density_min: 0.00003
       density_max: 0.00035
       blob_prob: 0.18
@@ -100,6 +121,6 @@ degradation:
 
     final_jpeg:
       enabled: true
-      prob: 0.06
-      quality_min: 92
+      prob: 0.04
+      quality_min: 94
       quality_max: 99

@@ -108,6 +108,46 @@ def apply_kernel(img, kernel):
     return cv2.filter2D(img, -1, kernel)
 
 
+def add_color_cast(img, rg_shift_range=(-8.0, -1.0), bg_shift_range=(-6.0, 1.0), global_gain_range=(0.98, 1.02)):
+    """Apply a global channel bias to simulate sensor/ISP color cast drift."""
+    out = img.astype(np.float32)
+    gain = random.uniform(global_gain_range[0], global_gain_range[1])
+    rg_shift = random.uniform(rg_shift_range[0], rg_shift_range[1])
+    bg_shift = random.uniform(bg_shift_range[0], bg_shift_range[1])
+
+    out[:, :, 1] *= gain
+    out[:, :, 0] += rg_shift
+    out[:, :, 2] += bg_shift
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
+def add_detail_attenuation(img, blur_sigma_range=(0.2, 1.2), detail_blend_range=(0.15, 0.45), contrast_range=(0.88, 0.98)):
+    """Simulate zoom/night detail collapse by mixing blurred image and reducing local contrast."""
+    out = img.astype(np.float32)
+    sigma = random.uniform(blur_sigma_range[0], blur_sigma_range[1])
+    blend = random.uniform(detail_blend_range[0], detail_blend_range[1])
+    contrast = random.uniform(contrast_range[0], contrast_range[1])
+
+    blurred = cv2.GaussianBlur(out, (0, 0), sigmaX=sigma, sigmaY=sigma)
+    out = out * (1.0 - blend) + blurred * blend
+    mean = out.mean(axis=(0, 1), keepdims=True)
+    out = (out - mean) * contrast + mean
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
+def add_signal_instability(img, gain_range=(0.95, 1.05), gamma_range=(0.95, 1.05), channel_gain_jitter=(0.97, 1.03)):
+    """Simulate frame-level exposure / ISP instability as weak gain and gamma drift."""
+    out = img.astype(np.float32) / 255.0
+    global_gain = random.uniform(gain_range[0], gain_range[1])
+    gamma = random.uniform(gamma_range[0], gamma_range[1])
+    channel_gains = np.array([random.uniform(channel_gain_jitter[0], channel_gain_jitter[1]) for _ in range(3)], dtype=np.float32)
+
+    out = np.clip(out * global_gain, 0.0, 1.0)
+    out = np.power(np.maximum(out, 1e-8), gamma)
+    out = out * channel_gains.reshape(1, 1, 3)
+    return np.clip(out * 255.0, 0, 255).astype(np.uint8)
+
+
 def collect_image_paths(dataset_root: Any) -> list[str]:
     """Collect image paths recursively from one or more dataset roots."""
     image_paths: list[str] = []
@@ -261,6 +301,33 @@ def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_
             out,
             sigma_range=(t_noise.get('sigma_min', 5), t_noise.get('sigma_max', 20)),
             gray_prob=t_noise.get('gray_prob', 0.9)
+        )
+
+    c_detail = s2.get('detail_attenuation', {})
+    if c_detail.get('enabled', False) and random.random() < c_detail.get('prob', 0.5):
+        out = add_detail_attenuation(
+            out,
+            blur_sigma_range=tuple(c_detail.get('blur_sigma', [0.2, 1.2])),
+            detail_blend_range=tuple(c_detail.get('detail_blend', [0.15, 0.45])),
+            contrast_range=tuple(c_detail.get('contrast', [0.88, 0.98]))
+        )
+
+    c_signal = s2.get('signal_instability', {})
+    if c_signal.get('enabled', False) and random.random() < c_signal.get('prob', 0.5):
+        out = add_signal_instability(
+            out,
+            gain_range=tuple(c_signal.get('gain', [0.95, 1.05])),
+            gamma_range=tuple(c_signal.get('gamma', [0.95, 1.05])),
+            channel_gain_jitter=tuple(c_signal.get('channel_gain', [0.97, 1.03]))
+        )
+
+    c_cast = s2.get('color_cast', {})
+    if c_cast.get('enabled', False) and random.random() < c_cast.get('prob', 0.5):
+        out = add_color_cast(
+            out,
+            rg_shift_range=tuple(c_cast.get('rg_shift', [-8.0, -1.0])),
+            bg_shift_range=tuple(c_cast.get('bg_shift', [-6.0, 1.0])),
+            global_gain_range=tuple(c_cast.get('global_gain', [0.98, 1.02]))
         )
 
     c_common = s2.get('common_noise', {})
