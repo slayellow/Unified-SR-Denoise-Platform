@@ -34,6 +34,40 @@ def get_args():
     parser.add_argument("--device", type=str, default="cuda", help="Device (cuda or cpu)")
     return parser.parse_args()
 
+def infer_default_data_config_path(config: dict, train_config_path: str) -> str | None:
+    """Infer the default data-config path from task and train-config location."""
+    task = config.get('task')
+    normalized_path = os.path.normpath(train_config_path).lower()
+
+    if task == 'guide':
+        return "configs/data/gsr_train.yaml"
+    if task == 'denoise':
+        return "configs/data/denoise.yaml"
+    if task == 'sr' and f"{os.sep}denoise{os.sep}" in normalized_path:
+        return "configs/data/denoise.yaml"
+    if task == 'sr':
+        return "configs/data/sr_train.yaml"
+    return None
+
+
+def resolve_dataset_kind(config: dict) -> str:
+    """Resolve which dataset class to instantiate from task and data_config."""
+    task = str(config.get('task', '')).lower()
+    dataset_type = str(config.get('data_config', {}).get('dataset_type', '')).lower()
+
+    if task == 'guide':
+        return 'guide'
+    if dataset_type in {'denoise', 'dn'}:
+        return 'denoise'
+    if dataset_type in {'guide', 'guided_sr'}:
+        return 'guide'
+    if dataset_type in {'sr', 'super_resolution'}:
+        return 'sr'
+    if task in {'denoise', 'guide', 'sr'}:
+        return task
+    return 'sr'
+
+
 def load_config(args):
     # 1. If Resuming, load config from the checkpoint directory
     if args.resume and os.path.exists(args.resume):
@@ -65,14 +99,8 @@ def load_config(args):
     # Load Data Config
     if args.data_config:
         data_cfg_path = args.data_config
-    elif config['task'] == 'sr':
-        data_cfg_path = "configs/data/sr_train.yaml"
-    elif config['task'] == 'denoise':
-        data_cfg_path = "configs/data/denoise.yaml"
-    elif config['task'] == 'guide':
-        data_cfg_path = "configs/data/gsr_train.yaml"
     else:
-        data_cfg_path = None
+        data_cfg_path = infer_default_data_config_path(config, args.config)
         
     if data_cfg_path and os.path.exists(data_cfg_path):
         with open(data_cfg_path, 'r') as f:
@@ -131,8 +159,10 @@ def main():
             print("Warning: No config found in checkpoint. Using command line/default config.")
     
     # 1. Dataset & Dataloader
-    print(f"Loading datasets for task: {config['task']}...")
-    if config['task'] == 'sr':
+    dataset_kind = resolve_dataset_kind(config)
+    dataset_type = config.get('data_config', {}).get('dataset_type', 'unset')
+    print(f"Loading datasets for task={config['task']} dataset_type={dataset_type} resolved={dataset_kind}...")
+    if dataset_kind == 'sr':
         train_ds = SRDataset(
             dataset_root=config['data']['train_root'],
             scale_factor=config['model']['scale'],
@@ -140,7 +170,9 @@ def main():
             is_train=True,
             config=config.get('data_config', {})
         )
-    elif config['task'] == 'denoise':
+    elif dataset_kind == 'denoise':
+        if config['model'].get('scale', 1) != 1:
+            print(f"Warning: dataset_type=denoise but model.scale={config['model'].get('scale')} (expected 1).")
         train_ds = DenoiseDataset(
             dataset_root=config['data']['train_root'],
             scale_factor=1,
@@ -148,7 +180,7 @@ def main():
             is_train=True,
             config=config.get('data_config', {})
         )
-    elif config['task'] == 'guide':
+    elif dataset_kind == 'guide':
         train_ds = GuidedSRDataset(
             hr_dirs=config['data']['train_hr_root'],
             lr_dirs=config['data'].get('train_lr_root'),
@@ -159,7 +191,7 @@ def main():
             config=config.get('data_config', {})
         )
     else:
-        raise ValueError(f"Unknown task: {config['task']}")
+        raise ValueError(f"Unknown dataset kind: {dataset_kind}")
         
     train_loader = DataLoader(
         train_ds, 

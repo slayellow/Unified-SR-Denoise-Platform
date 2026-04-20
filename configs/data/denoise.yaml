@@ -1,4 +1,4 @@
-dataset_type: sr
+dataset_type: denoise
 clean_prob: 0.2
 
 crop_size: 256

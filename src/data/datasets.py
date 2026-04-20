@@ -5,11 +5,10 @@ import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
 from .degradations import random_mixed_kernels, circular_lowpass_kernel, random_add_poisson_noise, random_add_atmospheric_turbulence
 from .unprocess import add_unprocess_isp_noise
 import math
+from typing import Any
 
 # =========================================================
 #  Common Utils
@@ -108,6 +107,212 @@ def apply_jpeg(img, quality_range=(30, 95)):
 def apply_kernel(img, kernel):
     return cv2.filter2D(img, -1, kernel)
 
+
+def collect_image_paths(dataset_root: Any) -> list[str]:
+    """Collect image paths recursively from one or more dataset roots."""
+    image_paths: list[str] = []
+    if isinstance(dataset_root, str):
+        dataset_root = [dataset_root]
+
+    for root_dir in dataset_root:
+        image_paths.extend(glob.glob(os.path.join(root_dir, '**', '*.png'), recursive=True))
+        image_paths.extend(glob.glob(os.path.join(root_dir, '**', '*.jpg'), recursive=True))
+        image_paths.extend(glob.glob(os.path.join(root_dir, '**', '*.jpeg'), recursive=True))
+
+    return image_paths
+
+
+def ensure_min_image_size(img: np.ndarray, min_h: int, min_w: int) -> np.ndarray:
+    """Resize an image if it is smaller than the requested spatial size."""
+    height, width = img.shape[:2]
+    if height >= min_h and width >= min_w:
+        return img
+    return cv2.resize(img, (max(width, min_w), max(height, min_h)), interpolation=cv2.INTER_CUBIC)
+
+
+def image_to_tensor(image_bgr: np.ndarray) -> torch.Tensor:
+    """Convert a BGR uint8 image into a float RGB tensor in [0, 1]."""
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+    return torch.from_numpy(np.ascontiguousarray(image_rgb.transpose(2, 0, 1))).float()
+
+
+def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_factor: int) -> np.ndarray:
+    """Apply the shared on-the-fly degradation pipeline for SR/Denoise datasets."""
+    out = img_hr.copy()
+    h_hr, w_hr = out.shape[:2]
+
+    d = cfg.get('degradation', {})
+    s1 = d.get('stage1', {})
+    s2 = d.get('stage2', {})
+
+    c_unprocess = s1.get('unprocess_noise', {})
+    if c_unprocess.get('enabled', False) and random.random() < c_unprocess.get('prob', 0.5):
+        out = add_unprocess_isp_noise(
+            out,
+            read_noise_max=c_unprocess.get('read_noise_max', 0.02),
+            shot_noise_max=c_unprocess.get('shot_noise_max', 10.0)
+        )
+
+    c_turb = s1.get('turbulence', {})
+    if c_turb.get('enabled', False) and random.random() < c_turb.get('prob', 0.5):
+        out = apply_float_op(
+            out,
+            random_add_atmospheric_turbulence,
+            alpha_range=tuple(c_turb.get('alpha', [5, 15])),
+            sigma_range=tuple(c_turb.get('sigma', [3, 7]))
+        )
+
+    c_blur = s1.get('blur', {})
+    if c_blur.get('enabled', True) and random.random() < c_blur.get('prob', 0.5):
+        kernel_probs = c_blur.get('kernel_probs', [0.45, 0.25, 0.12, 0.03, 0.12, 0.03])
+        kernel_sizes = c_blur.get('kernel_sizes', [7, 9, 11, 13, 15, 17, 19, 21])
+        sigma_range = c_blur.get('sigma', [0.2, 3.0])
+        betag_range = c_blur.get('betag', [0.5, 4.0])
+        betap_range = c_blur.get('betap', [1.0, 2.0])
+        kernel = random_mixed_kernels(
+            kernel_list=['iso', 'aniso', 'generalized_iso', 'generalized_aniso', 'plateau_iso', 'plateau_aniso'],
+            kernel_prob=kernel_probs,
+            kernel_size=random.choice(kernel_sizes),
+            sigma_x_range=tuple(sigma_range),
+            sigma_y_range=tuple(sigma_range),
+            rotation_range=(-math.pi, math.pi),
+            betag_range=tuple(betag_range),
+            betap_range=tuple(betap_range)
+        )
+        out = apply_float_op(out, apply_kernel, kernel=kernel)
+
+    c_resize = s1.get('resize', {})
+    if c_resize.get('enabled', True) and random.random() < c_resize.get('prob', 0.7):
+        scale = random.uniform(c_resize.get('scale_min', 0.5), c_resize.get('scale_max', 1.0))
+        h, w = out.shape[:2]
+        interps = c_resize.get('interpolations', ["cv2.INTER_LINEAR", "cv2.INTER_CUBIC", "cv2.INTER_AREA"])
+        interp_name = random.choice(interps)
+        out = cv2.resize(out, (int(w * scale), int(h * scale)), interpolation=get_interpolation(interp_name))
+
+    c_noise = s1.get('gaussian_noise', {})
+    if c_noise.get('enabled', True) and random.random() < c_noise.get('prob', 0.5):
+        out = add_gaussian_noise(
+            out,
+            sigma_range=(c_noise.get('sigma_min', 1), c_noise.get('sigma_max', 5)),
+            gray_prob=c_noise.get('gray_prob', 0.5)
+        )
+
+    c_pnoise = s1.get('poisson_noise', {})
+    if c_pnoise.get('enabled', True) and random.random() < c_pnoise.get('prob', 0.5):
+        out = apply_float_op(
+            out,
+            random_add_poisson_noise,
+            scale_range=(c_pnoise.get('scale_min', 0.05), c_pnoise.get('scale_max', 3.0)),
+            gray_prob=c_pnoise.get('gray_prob', 0.5),
+            clip=True,
+            rounds=False
+        )
+
+    c_jpeg = s1.get('jpeg', {})
+    if c_jpeg.get('enabled', True) and random.random() < c_jpeg.get('prob', 0.5):
+        out = apply_jpeg(out, quality_range=(c_jpeg.get('quality_min', 85), c_jpeg.get('quality_max', 95)))
+
+    c_sinc = s1.get('sinc', {})
+    if c_sinc.get('enabled', True) and random.random() < c_sinc.get('prob', 0.1):
+        kernel_size = random.choice(c_sinc.get('kernel_sizes', [7, 9, 11, 13, 15, 17, 19, 21]))
+        omega_c = np.random.uniform(np.pi / 3, np.pi)
+        sinc_kernel = circular_lowpass_kernel(omega_c, kernel_size, pad_to=0)
+        out = apply_float_op(out, apply_kernel, kernel=sinc_kernel)
+
+    c_blur2 = s2.get('blur', {})
+    if c_blur2.get('enabled', True) and random.random() < c_blur2.get('prob', 0.5):
+        kernel_probs = c_blur2.get('kernel_probs', [0.45, 0.25, 0.12, 0.03, 0.12, 0.03])
+        kernel_sizes = c_blur2.get('kernel_sizes', [7, 9, 11, 13, 15, 17, 19, 21])
+        sigma_range = c_blur2.get('sigma', [0.2, 1.5])
+        betag_range = c_blur2.get('betag', [0.5, 4.0])
+        betap_range = c_blur2.get('betap', [1.0, 2.0])
+        kernel = random_mixed_kernels(
+            kernel_list=['iso', 'aniso', 'generalized_iso', 'generalized_aniso', 'plateau_iso', 'plateau_aniso'],
+            kernel_prob=kernel_probs,
+            kernel_size=random.choice(kernel_sizes),
+            sigma_x_range=tuple(sigma_range),
+            sigma_y_range=tuple(sigma_range),
+            rotation_range=(-math.pi, math.pi),
+            betag_range=tuple(betag_range),
+            betap_range=tuple(betap_range)
+        )
+        out = apply_float_op(out, apply_kernel, kernel=kernel)
+
+    target_h, target_w = h_hr // scale_factor, w_hr // scale_factor
+    c_resize2 = s2.get('target_resize', {})
+    interps2 = c_resize2.get('interpolations', ["cv2.INTER_CUBIC", "cv2.INTER_LINEAR", "cv2.INTER_LANCZOS4"])
+    interp_name = random.choice(interps2)
+    out = cv2.resize(out, (target_w, target_h), interpolation=get_interpolation(interp_name))
+
+    c_ir = s2.get('ir_noise', {})
+    if c_ir.get('enabled', True):
+        non_uniformity_cfg = c_ir.get('non_uniformity', {})
+        if random.random() < non_uniformity_cfg.get('prob', 0.5):
+            amp = (non_uniformity_cfg.get('amp_min', 0.1), non_uniformity_cfg.get('amp_max', 0.3))
+            out = add_non_uniformity_noise(out, prob=1.0, amp_range=amp)
+
+        vertical_line_cfg = c_ir.get('vertical_line', {})
+        if random.random() < vertical_line_cfg.get('prob', 0.5):
+            ints = (vertical_line_cfg.get('intensity_min', 2), vertical_line_cfg.get('intensity_max', 10))
+            out = add_vertical_line_noise(out, prob=1.0, intensity_range=ints)
+
+        t_noise = c_ir.get('thermal_noise', {})
+        out = add_gaussian_noise(
+            out,
+            sigma_range=(t_noise.get('sigma_min', 5), t_noise.get('sigma_max', 20)),
+            gray_prob=t_noise.get('gray_prob', 0.9)
+        )
+
+    c_common = s2.get('common_noise', {})
+    if c_common.get('enabled', True) and random.random() < c_common.get('prob', 0.0):
+        out = add_gaussian_noise(
+            out,
+            sigma_range=(c_common.get('sigma_min', 1), c_common.get('sigma_max', 10)),
+            gray_prob=c_common.get('gray_prob', 0.2)
+        )
+
+    c_chroma = s2.get('chroma_noise', {})
+    if c_chroma.get('enabled', False) and random.random() < c_chroma.get('prob', 0.5):
+        out = add_chroma_noise(
+            out,
+            sigma_range=(c_chroma.get('sigma_min', 5), c_chroma.get('sigma_max', 20)),
+            downscale_factor=c_chroma.get('downscale', 4)
+        )
+
+    c_hot = s2.get('hot_pixels', {})
+    if c_hot.get('enabled', False) and random.random() < c_hot.get('prob', 0.5):
+        h_out, w_out, _ = out.shape
+        density = np.random.uniform(c_hot.get('density_min', 0.001), c_hot.get('density_max', 0.01))
+        total_defects = int(density * h_out * w_out)
+        y_coords = np.random.randint(0, h_out, total_defects)
+        x_coords = np.random.randint(0, w_out, total_defects)
+        for idx in range(total_defects):
+            val = np.random.randint(200, 256)
+            color = (val, val, val)
+            if np.random.random() < c_hot.get('blob_prob', 0.4):
+                radius = np.random.randint(c_hot.get('blob_radius_min', 1), c_hot.get('blob_radius_max', 8) + 1)
+                shape_type = np.random.choice(['circle', 'square', 'soft_circle'])
+                if shape_type == 'circle':
+                    cv2.circle(out, (x_coords[idx], y_coords[idx]), radius, color, -1)
+                elif shape_type == 'square':
+                    cv2.rectangle(out, (x_coords[idx] - radius, y_coords[idx] - radius), (x_coords[idx] + radius, y_coords[idx] + radius), color, -1)
+                else:
+                    temp = np.zeros_like(out, dtype=np.float32)
+                    cv2.circle(temp, (x_coords[idx], y_coords[idx]), radius, color, -1)
+                    if radius > 1:
+                        k_size = radius * 2 + 1
+                        temp = cv2.GaussianBlur(temp, (k_size, k_size), 0)
+                    mask = (temp > 0).astype(np.float32)
+                    out = (out * (1 - mask) + temp * mask).astype(np.uint8)
+            else:
+                out[y_coords[idx], x_coords[idx], :] = color
+
+    c_jpeg2 = s2.get('final_jpeg', {})
+    if c_jpeg2.get('enabled', True) and random.random() < c_jpeg2.get('prob', 0.8):
+        out = apply_jpeg(out, quality_range=(c_jpeg2.get('quality_min', 50), c_jpeg2.get('quality_max', 90)))
+
+    return out
+
 # =========================================================
 #  1. Super-Resolution Dataset (Degradation on-the-fly)
 # =========================================================
@@ -129,13 +334,8 @@ class SRDataset(Dataset):
             print("[SRDataset] Warning: No degradation config provided. Using defaults.")
             pass # Defaults are handled safely with .get() in pipeline
 
-        self.image_paths = []
-        if isinstance(dataset_root, str): dataset_root = [dataset_root]
-        for root_dir in dataset_root:
-             self.image_paths.extend(glob.glob(os.path.join(root_dir, '**', '*.png'), recursive=True))
-             self.image_paths.extend(glob.glob(os.path.join(root_dir, '**', '*.jpg'), recursive=True))
-             self.image_paths.extend(glob.glob(os.path.join(root_dir, '**', '*.jpeg'), recursive=True))
-        
+        self.image_paths = collect_image_paths(dataset_root)
+
         if not self.image_paths:
             print(f"[Warning] No images found in {dataset_root}")
 
@@ -143,206 +343,7 @@ class SRDataset(Dataset):
         return len(self.image_paths)
 
     def degradation_pipeline(self, img_hr):
-        out = img_hr.copy()
-        h_hr, w_hr = out.shape[:2]
-        
-        # Shortcuts for config sections
-        d = self.cfg.get('degradation', {})
-        s1 = d.get('stage1', {})
-        s2 = d.get('stage2', {})
-        
-        # --- Stage 1: Blur & Resize & Noise ---
-        
-        # 1-0-0. Unprocessing ISP Noise (Physical simulation of sensor noise and demosaicing)
-        c_unprocess = s1.get('unprocess_noise', {})
-        if c_unprocess.get('enabled', False) and random.random() < c_unprocess.get('prob', 0.5):
-            out = add_unprocess_isp_noise(
-                out,
-                read_noise_max=c_unprocess.get('read_noise_max', 0.02),
-                shot_noise_max=c_unprocess.get('shot_noise_max', 10.0)
-            )
-
-        # [여기에 추가] 1-0. Atmospheric Turbulence (아지랑이 효과)
-        c_turb = s1.get('turbulence', {})
-        if c_turb.get('enabled', False) and random.random() < c_turb.get('prob', 0.5):
-            out = apply_float_op(
-                out, 
-                random_add_atmospheric_turbulence,
-                alpha_range=tuple(c_turb.get('alpha', [5, 15])),
-                sigma_range=tuple(c_turb.get('sigma', [3, 7]))
-            )
-            
-        # 1-1. Blur
-        c_blur = s1.get('blur', {})
-        if c_blur.get('enabled', True) and random.random() < c_blur.get('prob', 0.5):
-            kernel_probs = c_blur.get('kernel_probs', [0.45, 0.25, 0.12, 0.03, 0.12, 0.03])
-            kernel_sizes = c_blur.get('kernel_sizes', [7, 9, 11, 13, 15, 17, 19, 21])
-            sigma_range = c_blur.get('sigma', [0.2, 3.0])
-            betag_range = c_blur.get('betag', [0.5, 4.0])
-            betap_range = c_blur.get('betap', [1.0, 2.0])
-
-            kernel = random_mixed_kernels(
-                kernel_list=['iso', 'aniso', 'generalized_iso', 'generalized_aniso', 'plateau_iso', 'plateau_aniso'],
-                kernel_prob=kernel_probs,
-                kernel_size=random.choice(kernel_sizes),
-                sigma_x_range=tuple(sigma_range),
-                sigma_y_range=tuple(sigma_range),
-                rotation_range=(-math.pi, math.pi),
-                betag_range=tuple(betag_range),
-                betap_range=tuple(betap_range)
-            )
-            # 생성된 커널을 이미지에 적용 (핵심!)
-            # out = cv2.filter2D(out, -1, kernel)
-            out = apply_float_op(out, apply_kernel, kernel=kernel)
-        
-        # 1-2. Resize (Scale Jittering)
-        c_resize = s1.get('resize', {})
-        if c_resize.get('enabled', True) and random.random() < c_resize.get('prob', 0.7):
-             scale = random.uniform(c_resize.get('scale_min', 0.5), c_resize.get('scale_max', 1.0))
-             h, w = out.shape[:2]
-             interps = c_resize.get('interpolations', ["cv2.INTER_LINEAR", "cv2.INTER_CUBIC", "cv2.INTER_AREA"])
-             interp_name = random.choice(interps)
-             interp = get_interpolation(interp_name)
-             out = cv2.resize(out, (int(w*scale), int(h*scale)), interpolation=interp)
-
-        # 1-3. Gaussian Noise
-        c_noise = s1.get('gaussian_noise', {})
-        if c_noise.get('enabled', True) and random.random() < c_noise.get('prob', 0.5):
-            out = add_gaussian_noise(out, 
-                                     sigma_range=(c_noise.get('sigma_min', 1), c_noise.get('sigma_max', 5)), 
-                                     gray_prob=c_noise.get('gray_prob', 0.5))
-
-        # 1-3-2. Poisson Noise
-        c_pnoise = s1.get('poisson_noise', {})
-        if c_pnoise.get('enabled', True) and random.random() < c_pnoise.get('prob', 0.5):
-            #  out = random_add_poisson_noise(out, 
-                #  scale_range=(c_pnoise.get('scale_min', 0.05), c_pnoise.get('scale_max', 3.0)), 
-                #  gray_prob=c_pnoise.get('gray_prob', 0.5))
-            out = apply_float_op(out, random_add_poisson_noise,
-                                  scale_range=(c_pnoise.get('scale_min', 0.05), c_pnoise.get('scale_max', 3.0)),
-                                  gray_prob=c_pnoise.get('gray_prob', 0.5),
-                                  clip=True, rounds=False)
-            
-        # 1-4. JPEG
-        c_jpeg = s1.get('jpeg', {})
-        if c_jpeg.get('enabled', True) and random.random() < c_jpeg.get('prob', 0.5):
-            out = apply_jpeg(out, quality_range=(c_jpeg.get('quality_min', 85), c_jpeg.get('quality_max', 95)))
-
-        # --- Stage 2: Final Resize & Sensor Noise ---
-        # 2-0. Sinc Filter
-        c_sinc = s1.get('sinc', {})
-        if c_sinc.get('enabled', True) and random.random() < c_sinc.get('prob', 0.1):
-            kernel_size = random.choice(c_sinc.get('kernel_sizes', [7, 9, 11, 13, 15, 17, 19, 21]))
-            omega_c = np.random.uniform(np.pi / 3, np.pi) # Cutoff frequency
-            
-            sinc_kernel = circular_lowpass_kernel(omega_c, kernel_size, pad_to=0)
-            # out = cv2.filter2D(out, -1, sinc_kernel)
-            out = apply_float_op(out, apply_kernel, kernel=sinc_kernel)
-
-        # 2-1. Blur
-        c_blur2 = s2.get('blur', {})
-        if c_blur2.get('enabled', True) and random.random() < c_blur2.get('prob', 0.5):
-            kernel_probs = c_blur2.get('kernel_probs', [0.45, 0.25, 0.12, 0.03, 0.12, 0.03])
-            kernel_sizes = c_blur2.get('kernel_sizes', [7, 9, 11, 13, 15, 17, 19, 21])
-            sigma_range = c_blur2.get('sigma', [0.2, 1.5])
-            betag_range = c_blur2.get('betag', [0.5, 4.0])
-            betap_range = c_blur2.get('betap', [1.0, 2.0])
-
-            kernel = random_mixed_kernels(
-                kernel_list=['iso', 'aniso', 'generalized_iso', 'generalized_aniso', 'plateau_iso', 'plateau_aniso'],
-                kernel_prob=kernel_probs,
-                kernel_size=random.choice(kernel_sizes),
-                sigma_x_range=tuple(sigma_range),
-                sigma_y_range=tuple(sigma_range),
-                rotation_range=(-math.pi, math.pi),
-                betag_range=tuple(betag_range),
-                betap_range=tuple(betap_range)
-            )
-            # 생성된 커널을 이미지에 적용 (핵심!)
-            # out = cv2.filter2D(out, -1, kernel)
-            out = apply_float_op(out, apply_kernel, kernel=kernel)
-
-        # 2-2. Target Resize
-        target_h, target_w = h_hr // self.scale_factor, w_hr // self.scale_factor
-        c_resize2 = s2.get('target_resize', {})
-        interps2 = c_resize2.get('interpolations', ["cv2.INTER_CUBIC", "cv2.INTER_LINEAR", "cv2.INTER_LANCZOS4"])
-        interp_name = random.choice(interps2)
-        out = cv2.resize(out, (target_w, target_h), interpolation=get_interpolation(interp_name))
-        
-        # 2-3. Sensor Specific Noise (IR or Common)
-        c_ir = s2.get('ir_noise', {})
-        if c_ir.get('enabled', True):
-            non_uniformity_cfg = c_ir.get('non_uniformity', {})
-            if random.random() < non_uniformity_cfg.get('prob', 0.5):
-                amp = (non_uniformity_cfg.get('amp_min', 0.1), non_uniformity_cfg.get('amp_max', 0.3))
-                out = add_non_uniformity_noise(out, prob=1.0, amp_range=amp) # prob handled by outer if
-
-            vertical_line_cfg = c_ir.get('vertical_line', {})
-            if random.random() < vertical_line_cfg.get('prob', 0.5):
-                ints = (vertical_line_cfg.get('intensity_min', 2), vertical_line_cfg.get('intensity_max', 10))
-                out = add_vertical_line_noise(out, prob=1.0, intensity_range=ints)
-
-            # Thermal Noise
-            t_noise = c_ir.get('thermal_noise', {})
-            out = add_gaussian_noise(out, 
-                                    sigma_range=(t_noise.get('sigma_min', 5), t_noise.get('sigma_max', 20)), 
-                                    gray_prob=t_noise.get('gray_prob', 0.9))
-        # Common/EO Mode
-        c_common = s2.get('common_noise', {})
-        if c_common.get('enabled', True) and random.random() < c_common.get('prob', 0.0): # Default 0 to skip if not set
-            out = add_gaussian_noise(out,
-                                    sigma_range=(c_common.get('sigma_min', 1), c_common.get('sigma_max', 10)),
-                                    gray_prob=c_common.get('gray_prob', 0.2))
-
-        # 2-3-1. Chroma Noise
-        c_chroma = s2.get('chroma_noise', {})
-        if c_chroma.get('enabled', False) and random.random() < c_chroma.get('prob', 0.5):
-            out = add_chroma_noise(out,
-                                   sigma_range=(c_chroma.get('sigma_min', 5), c_chroma.get('sigma_max', 20)),
-                                   downscale_factor=c_chroma.get('downscale', 4))
-
-
-        # 2-3-2. Hot Pixels & Blobs (White Artifact 학습용)
-        c_hot = s2.get('hot_pixels', {})
-        if c_hot.get('enabled', False) and random.random() < c_hot.get('prob', 0.5):
-            h_out, w_out, c_out = out.shape
-            density = np.random.uniform(c_hot.get('density_min', 0.001), c_hot.get('density_max', 0.01))
-            total_defects = int(density * h_out * w_out)
-            y_coords = np.random.randint(0, h_out, total_defects)
-            x_coords = np.random.randint(0, w_out, total_defects)
-            for idx in range(total_defects):
-                val = np.random.randint(200, 256)
-                color = (val, val, val)
-                if np.random.random() < c_hot.get('blob_prob', 0.4):
-                    radius = np.random.randint(c_hot.get('blob_radius_min', 1), c_hot.get('blob_radius_max', 8) + 1)
-                    
-                    # Randomly choose between soft circle and hard square for optical/digital zoom artifacts
-                    shape_type = np.random.choice(['circle', 'square', 'soft_circle'])
-                    if shape_type == 'circle':
-                        cv2.circle(out, (x_coords[idx], y_coords[idx]), radius, color, -1)
-                    elif shape_type == 'square':
-                        cv2.rectangle(out, 
-                                      (x_coords[idx]-radius, y_coords[idx]-radius), 
-                                      (x_coords[idx]+radius, y_coords[idx]+radius), 
-                                      color, -1)
-                    else: # soft_circle
-                        # Draw on a temp mask, blur, and blend
-                        temp = np.zeros_like(out, dtype=np.float32)
-                        cv2.circle(temp, (x_coords[idx], y_coords[idx]), radius, color, -1)
-                        if radius > 1:
-                            k_size = radius * 2 + 1
-                            temp = cv2.GaussianBlur(temp, (k_size, k_size), 0)
-                        mask = (temp > 0).astype(np.float32)
-                        out = (out * (1 - mask) + temp * mask).astype(np.uint8)
-                else:
-                    out[y_coords[idx], x_coords[idx], :] = color
-
-        # 2-4. Final JPEG
-        c_jpeg2 = s2.get('final_jpeg', {})
-        if c_jpeg2.get('enabled', True) and random.random() < c_jpeg2.get('prob', 0.8):
-             out = apply_jpeg(out, quality_range=(c_jpeg2.get('quality_min', 50), c_jpeg2.get('quality_max', 90)))
-            
-        return out
+        return apply_configured_degradation(img_hr=img_hr, cfg=self.cfg, scale_factor=self.scale_factor)
 
     def __getitem__(self, index):
         path = self.image_paths[index]
@@ -356,7 +357,7 @@ class SRDataset(Dataset):
         
         # Ensure image is large enough
         if H < hr_h or W < hr_w:
-            img_hr_raw = cv2.resize(img_hr_raw, (max(W, hr_w), max(H, hr_h)), interpolation=cv2.INTER_CUBIC)
+            img_hr_raw = ensure_min_image_size(img_hr_raw, min_h=hr_h, min_w=hr_w)
             H, W, C = img_hr_raw.shape
 
         rnd_h = random.randint(0, H - hr_h)
@@ -374,11 +375,8 @@ class SRDataset(Dataset):
             img_lr_patch = self.degradation_pipeline(img_hr_patch)
         
         # To Tensor
-        img_hr_final = cv2.cvtColor(img_hr_patch, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-        img_lr_final = cv2.cvtColor(img_lr_patch, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-        
-        img_hr = torch.from_numpy(np.ascontiguousarray(img_hr_final.transpose(2, 0, 1))).float()
-        img_lr = torch.from_numpy(np.ascontiguousarray(img_lr_final.transpose(2, 0, 1))).float()
+        img_hr = image_to_tensor(img_hr_patch)
+        img_lr = image_to_tensor(img_lr_patch)
         
         return {'lr': img_lr, 'hr': img_hr, 'path': path}
 
@@ -507,17 +505,57 @@ class RealisticNoiseGenerator:
                 noisy = func(noisy)
         return noisy
 
-class DenoiseDataset(SRDataset):
+class DenoiseDataset(Dataset):
     """
-    DenoiseDataset using the advanced degradation pipeline from SRDataset.
-    It expects scale_factor=1.
+    Independent denoise dataset with same-resolution clean/noisy pairs.
+    It reuses the same degradation config schema as SRDataset, but without
+    inheriting SR crop/scale semantics.
     """
     def __init__(self, dataset_root, scale_factor=1, patch_size=256, is_train=True, config=None):
-        super().__init__(dataset_root, scale_factor=1, patch_size=patch_size, is_train=is_train, config=config)
+        super().__init__()
+        self.scale_factor = 1
+        self.patch_size = patch_size
+        self.is_train = is_train
+        self.cfg = config if config else {}
+
+        if not self.cfg:
+            print("[DenoiseDataset] Warning: No degradation config provided. Using defaults.")
+
+        self.image_paths = collect_image_paths(dataset_root)
+        if not self.image_paths:
+            print(f"[Warning] No images found in {dataset_root}")
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def degradation_pipeline(self, img_hr):
+        return apply_configured_degradation(img_hr=img_hr, cfg=self.cfg, scale_factor=self.scale_factor)
 
     def __getitem__(self, index):
-        # We reuse __getitem__ from SRDataset directly, since it now handles degradation pipeline calling seamlessly.
-        return super().__getitem__(index)
+        path = self.image_paths[index]
+        img_hr_raw = cv2.imread(path, cv2.IMREAD_COLOR)
+        if img_hr_raw is None:
+            return self.__getitem__(random.randint(0, len(self) - 1))
+
+        crop_h = self.patch_size
+        crop_w = self.patch_size
+        img_hr_raw = ensure_min_image_size(img_hr_raw, min_h=crop_h, min_w=crop_w)
+        height, width, _ = img_hr_raw.shape
+
+        rnd_h = random.randint(0, height - crop_h)
+        rnd_w = random.randint(0, width - crop_w)
+        img_hr_patch = img_hr_raw[rnd_h:rnd_h + crop_h, rnd_w:rnd_w + crop_w, :]
+
+        clean_prob = self.cfg.get('clean_prob', 0.0)
+        if clean_prob > 0 and random.random() < clean_prob:
+            img_lr_patch = img_hr_patch.copy()
+        else:
+            img_lr_patch = self.degradation_pipeline(img_hr_patch)
+
+        img_hr = image_to_tensor(img_hr_patch)
+        img_lr = image_to_tensor(img_lr_patch)
+
+        return {'lr': img_lr, 'hr': img_hr, 'path': path}
 
 # =========================================================
 #  3. Guided Super-Resolution Dataset (Paired LR/HR/Guide)

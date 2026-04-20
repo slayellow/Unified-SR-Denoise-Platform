@@ -1,0 +1,105 @@
+dataset_type: denoise
+clean_prob: 0.12
+
+crop_size: 256
+use_flip: true
+use_rot: true
+
+degradation:
+  stage1:
+    unprocess_noise:
+      enabled: true
+      prob: 0.75
+      read_noise_max: 0.012
+      shot_noise_max: 8.0
+
+    turbulence:
+      enabled: false
+      prob: 0.0
+
+    blur:
+      enabled: true
+      prob: 0.18
+      kernel_probs: [0.55, 0.20, 0.10, 0.03, 0.09, 0.03]
+      kernel_sizes: [7, 9, 11, 13, 15]
+      sigma: [0.2, 1.4]
+      betag: [0.8, 3.0]
+      betap: [1.0, 1.8]
+
+    resize:
+      enabled: false
+      prob: 0.0
+      scale_min: 1.0
+      scale_max: 1.0
+      interpolations: ["cv2.INTER_LINEAR"]
+
+    gaussian_noise:
+      enabled: true
+      prob: 0.42
+      sigma_min: 1
+      sigma_max: 5
+      gray_prob: 0.35
+
+    poisson_noise:
+      enabled: true
+      prob: 0.35
+      scale_min: 0.05
+      scale_max: 1.5
+      gray_prob: 0.25
+
+    jpeg:
+      enabled: true
+      prob: 0.08
+      quality_min: 90
+      quality_max: 98
+
+    sinc:
+      enabled: false
+      prob: 0.0
+      kernel_sizes: [7, 9, 11, 13, 15]
+
+  stage2:
+    blur:
+      enabled: true
+      prob: 0.22
+      kernel_probs: [0.60, 0.18, 0.10, 0.02, 0.08, 0.02]
+      kernel_sizes: [7, 9, 11, 13]
+      sigma: [0.2, 1.0]
+      betag: [0.8, 2.5]
+      betap: [1.0, 1.6]
+
+    target_resize:
+      enabled: false
+      interpolations: ["cv2.INTER_CUBIC", "cv2.INTER_LINEAR"]
+
+    common_noise:
+      enabled: true
+      prob: 0.28
+      sigma_min: 1
+      sigma_max: 6
+      gray_prob: 0.2
+
+    ir_noise:
+      enabled: false
+
+    chroma_noise:
+      enabled: true
+      prob: 0.32
+      sigma_min: 2.0
+      sigma_max: 10.0
+      downscale: 4
+
+    hot_pixels:
+      enabled: true
+      prob: 0.16
+      density_min: 0.00003
+      density_max: 0.00035
+      blob_prob: 0.18
+      blob_radius_min: 1
+      blob_radius_max: 2
+
+    final_jpeg:
+      enabled: true
+      prob: 0.06
+      quality_min: 92
+      quality_max: 99
