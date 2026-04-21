@@ -21,7 +21,7 @@ train:
   gradient_accumulation_steps: 1
   patch_size: 256
   save_interval: 20
-  save_name: "finetune_svfocusdenoise_mc_g105_v1_x1_dim32_block2_260420"
+  save_name: "finetune_svfocusdenoise_mc_g105_v1_x1_dim32_block2_260421"
 
   pretrained_path: "checkpoints/train_svfocusdenoise_basic_x1_dim32_block2_epoch300_lr5e-5_awgn_260420/best.pth"
 
@@ -33,7 +33,7 @@ train:
 
   early_stopping:
     patience: 40
-    min_delta: 0.0001
+    min_delta: 0.0
     monitor: 'loss'
     mode: 'min'
 

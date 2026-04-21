@@ -1,91 +1,132 @@
 # Checklist Log
 
-## Date: 2026-04-21 (Tuesday)
+## Date: 2026-04-20 (Monday)
 ## Goal
-어제 수집한 MC-G105 낮/밤 데이터 기준으로
-1) generic baseline 2개 모델 결과를 확인하고,
-2) MC-G105 finetune 학습을 시작/확인하며,
-3) baseline 대비 sensor-specific profile의 개선 여부를 판단한다.
+MC-G105 + VISCA 환경의 실제 출력 특성을 분석하고,
+Denoise Degradation Profile 설계를 위한 근거를 확보하며,
+SVFocusDenoiseNet 경량/개선 버전 학습을 병렬로 진행한다.
 
 ---
 
-## 1. Generic Baseline 결과 확인
-### Track A: dim32
-- [ ] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml` 결과 확인
-- [ ] best checkpoint 경로 기록
-- [ ] validation loss 확인
-- [ ] hot pixel / green-blue tint / 야간 디테일 / oversharpening 체감 메모 작성
+## 1. Sensor Capture / Logging
+### 1-1. Capture scene setup
+- [x] 주간(day) / 야간(night) 각각 촬영 완료 (2026-04-20)
+- [x] 광학 줌 1x ~ 7x 전 구간 촬영 완료
+- [x] 배율별 연사(Burst) 5장씩 구성
+- [x] Raw / Deploy 모델 결과 별도 추출 완료
 
-### Track B: dim24
-- [ ] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml` 결과 확인
-- [ ] best checkpoint 경로 기록
-- [ ] validation loss 확인
-- [ ] hot pixel / green-blue tint / 야간 디테일 / oversharpening 체감 메모 작성
+### 1-2. Frame extraction structure (완료)
+- [x] `mc_g105_capture_frames/day/1x~7x/` — 주간 Raw (5장/배율, 3 Scene)
+- [x] `mc_g105_capture_frames/night/1x~7x/` — 야간 Raw (5장/배율, 2 Scene)
+- [x] `mc_g105_capture_deploy/day|night/` — 배포 모델 추론 결과
+- [x] 캡처 이미지는 용량 문제로 `.gitignore` 처리 (로컬에만 보관)
 
-### Generic Baseline 비교 질문
-- [ ] dim32 vs dim24 중 어느 쪽이 더 안정적인가?
-- [ ] night high-zoom에서 어느 쪽이 덜 무너지는가?
-- [ ] QCS8550 병렬 추론 기준으로 어느 쪽이 더 현실적인가?
-
----
-
-## 2. MC-G105 Finetune 실행 / 확인
-### Data config
-- [ ] `configs/data/denoise_mc_g105_v1.yaml` 사용 확인
-
-### Train config A: dim32 finetune
-- [ ] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml` 실행 또는 로그 확인
-- [ ] 실행 명령:
-```bash
-# 주석: generic baseline dim32 best checkpoint 위에서 MC-G105 finetune을 수행한다.
-CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
-  --config configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml \
-  --data_config configs/data/denoise_mc_g105_v1.yaml
-```
-
-### Train config B: dim24 finetune
-- [ ] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1_dim24.yaml` 실행 또는 로그 확인
-- [ ] 실행 명령:
-```bash
-# 주석: generic baseline dim24 best checkpoint 위에서 MC-G105 finetune을 수행한다.
-CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
-  --config configs/finetune/Denoise/svfocusdenoise_mc_g105_v1_dim24.yaml \
-  --data_config configs/data/denoise_mc_g105_v1.yaml
-```
+### 1-3. 관찰 결과 요약
+- [x] Hot Pixel: 야간에서 배율 낮을수록 최대 -48% 제거됨 (배포 모델)
+- [x] Green Tint: 전 배율 확인, 7x 주간에서 tint_rg = -5.96 최악
+- [x] 야간 고배율(7x)에서 Temporal Noise 최대, 선명도(HFE) 65% 손실 확인
+- [x] 야간 Edge Density 역설: 배포 모델이 HFE는 낮추면서 Edge 수 +41% → Oversharpening 확인
 
 ---
 
-## 3. Finetune profile 검증 포인트
-### 해결방안 5가지가 실제로 개선됐는지 확인
-- [ ] 1) day/night conditional profile이 결과 차이에 반영되는가?
-- [ ] 2) zoom-aware detail attenuation이 night high-zoom 품질 개선으로 이어지는가?
-- [ ] 3) color_cast가 green tint / blue tint를 줄이는가?
-- [ ] 4) signal_instability가 temporal instability / flicker 억제에 도움 되는가?
-- [ ] 5) sparse hot-pixel profile이 hot pixel 제거 개선으로 이어지는가?
+## 2. Sensor Analysis Script Run
+- [x] `analyze_mc_g105_sensor_capture.py` 고도화 완료 (Burst 그룹화, Temporal Noise 추가)
+- [x] 주간 Raw 분석 완료 → `results/mc_g105_analysis_origin/`
+- [x] 야간 Raw 분석 완료 → `results/mc_g105_analysis_origin/` (통합)
+- [x] 배포 모델 분석 완료 → `results/mc_g105_analysis_deploy/`
+- [x] Raw vs Deploy 주야간 비교 분석 완료 (2026-04-20 저녁)
 
-### 비교 기준
-- [ ] validation loss
-- [ ] PSNR / SSIM / LPIPS / NIQE
-- [ ] hot pixel 제거 체감
-- [ ] green tint / blue tint 억제 체감
-- [ ] 야간 디테일(HFE) 보존
-- [ ] oversharpening / fake-edge 감소
-- [ ] 얇은 구조물(전선, 나뭇가지) 보존
-- [ ] QCS8550 병렬 추론 latency 비교
+### 2-2. Must-check outputs
+- [ ] `per_image_metrics.csv`
+- [ ] `group_summary.csv`
+- [ ] `summary.md`
+- [ ] `plots/brightness_vs_dark_noise.png`
+- [ ] `plots/edge_vs_hot_pixel.png`
+- [ ] `plots/tint_distribution.png`
+
+### 2-3. Questions to answer after analysis
+- [ ] night / tele에서 `dark_noise_std`가 확실히 높아지는가?
+- [ ] `hot_pixel_count`가 dark scene에서 일관되게 높게 나오는가?
+- [ ] `tint_rg`, `tint_bg`가 특정 방향으로 치우치는가?
+- [ ] zoom이 올라갈수록 구조 보존이 어려워지는가?
+- [ ] day/night를 분리한 profile이 필요한가?
 
 ---
 
-## 4. 내일 최종 판단
-- [ ] generic baseline만으로도 충분한가?
-- [ ] MC-G105 finetune이 실제로 개선되는가?
-- [ ] dim32 / dim24 중 어떤 축으로 계속 갈 것인가?
-- [ ] `denoise_mc_g105_v1`를 유지할지, v2로 더 조정할지 결정
+## 3. Degradation Pipeline Design Decision
+### 3-1. Decide generic vs sensor-specific
+- [ ] Define Noise/Tint profile based on results from step 2
+- [ ] 결정 사항 (Denoise V5/Baseline): AWGN 시뮬레이션 강도를 배율 정보에 비례하게 설정 고려 (7x에서 약 6배 더 강한 노지 주입 필요)
+- [ ] ColorConsistencyLoss의 가중치를 G-tint 편차(-6)에 맞춰 최적화
+- [ ] MC-G105 전용 profile 초안 필요 여부 결정
+
+### 3-2. Potential profile axes
+- [ ] day vs night profile 분리 필요 여부
+- [ ] zoom 1x~3x vs 4x~7x profile 분리 필요 여부
+- [ ] tint bias를 random이 아니라 fixed-direction bias로 줄지 여부
+- [ ] hot pixel density 범위를 실제 센서 통계에 맞춰 조정할지 여부
+
+### 3-3. If enough evidence is collected
+- [ ] `denoise_mc_g105_v1.yaml` 초안 설계 요청
+
+---
+
+## 4. Denoise Training Runs
+주의:
+- 두 config 모두 `task: sr`이므로 `tools/train.py` 기본값에 맡기면 `configs/data/sr_train.yaml`가 붙을 수 있음
+- 월요일 비교 실험은 `--data_config configs/data/denoise_generic_baseline.yaml`를 명시해서 고정하는 편이 안전함
+
+### 4-1. Run Track A (In Progress/Done)
+- [x] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml`
+- [x] 목적: block2/basic + dim32 + new losses baseline 확인
+- [x] 베이스라인 확보 완료 및 진행 중 센서 분석 완료
+
+### 4-2. Run Track B (In Progress/Done)
+- [x] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml`
+- [x] 목적: dim24 경량화가 품질/속도에 미치는 영향 확인
+- [x] 베이스라인 확보 완료 및 진행 중 센서 분석 완료
+
+---
+
+## 5. Files to bring back / push to GitHub
+### Sensor analysis results
+- [x] `results/mc_g105_analysis_20260420/per_image_metrics.csv`
+- [x] `results/mc_g105_analysis_20260420/group_summary.csv`
+- [x] `results/mc_g105_analysis_20260420/summary.md`
+- [x] `results/mc_g105_analysis_20260420/plots/*.png`
+
+### Training / experiment results
+- [x] 각 학습 run의 `training_log.csv`
+- [x] best checkpoint 경로
+- [x] 사용한 config 파일 경로
+- [x] 간단한 메모: 어떤 결과가 좋았는지
+
+---
+
+## 6. Questions to ask Hermes after Monday work
+- [x] MC-G105 분석 결과를 보고 sensor-specific degradation profile을 어떻게 짤까? (Color Cast 주입 등 반영됨)
+- [x] dim32 vs dim24 결과 중 어떤 쪽이 더 적절한가? (선명도는 Dim32, 경량화는 Dim24 계속 테스트 요망)
+- [x] color consistency / hot-pixel masked loss가 실제로 도움이 됐나? (결정적 도움 됨. Tint 교정 압도적)
+- [x] day/night 또는 zoom별 profile 분리가 필요한가? (일단 통합, 단 Zoom 배율에 따른 가중치 적용됨)
+- [x] 다음 finetuning 방향은 generic -> mc_g105 adaptation으로 어떻게 잡을까? (Finetune 착수 완료)
+
+---
+
+## Date: 2026-04-21 (Tuesday)
+## 7. MC-G105 Denoise Finetuning & Analysis
+- [x] 센서 결과 비교 분석 (`results/mc_g105_analysis_*` - Deploy, Base, Finetune)
+- [x] Generic Baseline의 한계 규명 (Tint 악화, 센서 특이적 대형 크로마 노이즈 해결 불가)
+- [x] MC-G105 맞춤형 파이프라인(Color Cast 등) 적용하여 `Dim24` Finetuning 수행
+- [x] Finetune 모델 분석: 배포 모델 대비 탁월한 Color Tint 교정 확인
+- [x] `early_stopping` 버그 수정 (`min_delta: 0.0` 적용) 및 재학습 돌입
+- [ ] Chroma Noise 멀티스케일 시뮬레이션 적용 판단 대기 (대형 보라/초록 얼룩 대응용)
 
 ---
 
 ## Quick Priority
-1. Generic baseline dim32 결과 확인
-2. Generic baseline dim24 결과 확인
-3. MC-G105 finetune dim32 실행/확인
-4. MC-G105 finetune dim24 실행/확인
-5. baseline 대비 개선 여부 판단
+최우선:
+1. 센서 프레임 수집
+2. 분석 스크립트 실행
+3. block2/basic 2트랙 학습
+4. 결과 push
+5. 결과 해석 및 degradation profile 설계

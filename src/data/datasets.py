@@ -117,8 +117,8 @@ def add_color_cast(img, rg_shift_range=(-8.0, -1.0), bg_shift_range=(-6.0, 1.0),
     bg_shift = random.uniform(bg_shift_range[0], bg_shift_range[1])
 
     out[:, :, 1] *= gain
-    out[:, :, 0] += rg_shift
-    out[:, :, 2] += bg_shift
+    out[:, :, 0] += bg_shift        # B-G
+    out[:, :, 2] += rg_shift        # R-G
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
@@ -330,11 +330,12 @@ def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_
         )
         out = apply_float_op(out, apply_kernel, kernel=kernel)
 
-    target_h, target_w = h_hr // scale_factor, w_hr // scale_factor
     c_resize2 = s2.get('target_resize', {})
-    interps2 = c_resize2.get('interpolations', ["cv2.INTER_CUBIC", "cv2.INTER_LINEAR", "cv2.INTER_LANCZOS4"])
-    interp_name = random.choice(interps2)
-    out = cv2.resize(out, (target_w, target_h), interpolation=get_interpolation(interp_name))
+    if c_resize2.get('enabled', True):
+        target_h, target_w = h_hr // scale_factor, w_hr // scale_factor
+        interps2 = c_resize2.get('interpolations', ["cv2.INTER_CUBIC", "cv2.INTER_LINEAR", "cv2.INTER_LANCZOS4"])
+        interp_name = random.choice(interps2)
+        out = cv2.resize(out, (target_w, target_h), interpolation=get_interpolation(interp_name))
 
     c_ir = s2.get('ir_noise', {})
     if c_ir.get('enabled', True):
