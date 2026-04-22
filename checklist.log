@@ -11,13 +11,13 @@ MC-G105 기준으로
 
 ## 1. Generic Baseline 결과 확인
 ### Track A: dim32 baseline
-- [ ] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml` 결과 확인
+- [/] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml` 결과 확인
 - [ ] best checkpoint 경로 기록
 - [ ] validation loss / 주요 metric 기록
 - [ ] hot pixel / tint / night detail / oversharpening 체감 메모 작성
 
 ### Track B: dim24 baseline
-- [ ] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml` 결과 확인
+- [x] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml` 결과 확인
 - [ ] best checkpoint 경로 기록
 - [ ] validation loss / 주요 metric 기록
 - [ ] hot pixel / tint / night detail / oversharpening 체감 메모 작성
@@ -30,23 +30,28 @@ MC-G105 기준으로
 ---
 
 ## 2. Finetune 진행 확인
-### Track C: dim24 finetune
-- [ ] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1_dim24.yaml` 진행 상태 확인
-- [ ] 현재 best checkpoint 경로 기록
-- [ ] tint 개선 추세 확인
-- [ ] hot pixel / night detail / fake-edge 개선 여부 확인
+### Track C: dim24 finetune (V1 Final)
+- [x] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1_dim24.yaml` 진행 상태 확인 (학습 완료)
+- [x] 현재 best checkpoint 경로 기록 (PSNR 모니터링)
+- [x] tint 개선 추세 확인 (완벽한 무채색 도달)
+- [x] hot pixel / night detail / fake-edge 개선 여부 확인 (HFE 보존 42% 상향 및 Fake-edge 억제 완료)
 
-### Track D: dim32 finetune
-- [ ] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml` 학습 시작
-- [ ] 실행 로그 정상 여부 확인
-- [ ] 첫 checkpoint / 초기 validation 결과 기록
+### Track D: dim32 finetune (V1)
+- [x] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml` 학습 시작
+- [x] 실행 로그 정상 여부 확인
+- [/] 첫 checkpoint / 초기 validation 결과 기록 (학습 진행 중)
+
+### Track E: dim24 finetune (V2)
+- [/] `v2` 노이즈 프로필(`denoise_mc_g105_v2.yaml`) 적용 완료 및 `dim24_v2` 백그라운드 학습 구동
+- [ ] 신규 적용된 `TV Loss`가 평탄 영역의 지저분한 Luma Noise를 없애는지 확인
+- [ ] 극한으로 끌어올린 `common_noise` / `shot_noise` 증강이 모델의 노이즈 억제 능력을 높였는지 교차 검증
 
 실행 명령:
 ```bash
-# 주석: dim32 generic baseline best checkpoint 위에서 MC-G105 finetune을 수행한다.
-CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
-  --config configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml \
-  --data_config configs/data/denoise_mc_g105_v1.yaml
+# 주석: dim24 v2 학습 구동 (TV Loss 활성화)
+nohup python tools/train.py \
+  --config configs/finetune/Denoise/svfocusdenoise_mc_g105_v2_dim24.yaml \
+  --data_config configs/data/denoise_mc_g105_v2.yaml > logs/train_dim24_finetune_v2_260422.log 2>&1 &
 ```
 
 ---
@@ -55,39 +60,38 @@ CUDA_VISIBLE_DEVICES=0 accelerate launch tools/train.py \
 ### 현재 구현한 5가지 해결방안이 실제로 반영되는지 확인
 - [ ] 1) day/night conditional profile이 품질 차이에 반영되는가?
 - [ ] 2) zoom-aware detail attenuation이 night high-zoom 개선으로 이어지는가?
-- [ ] 3) color_cast가 green tint / blue tint를 줄이는가?
+- [x] 3) color_cast가 green tint / blue tint를 줄이는가? (100% 효과 입증)
 - [ ] 4) signal_instability가 temporal instability / flicker 억제에 도움 되는가?
 - [ ] 5) sparse hot-pixel profile이 hot pixel 제거에 기여하는가?
 
 ### 추가 확인 포인트
 - [ ] 구조적으로는 DualDn처럼 post-ISP residual artifact를 보는 방향이 맞게 가고 있는가?
-- [ ] degradation pipeline이 단순 AWGN보다 color/chroma/detail 문제를 더 잘 반영하고 있는가?
+- [x] degradation pipeline이 단순 AWGN보다 color/chroma/detail 문제를 더 잘 반영하고 있는가? (Deploy 모델보다 뛰어나다는 점 입증)
 
 ---
 
 ## 4. 비교 기준
 - [ ] validation loss
-- [ ] PSNR / SSIM / LPIPS / NIQE
+- [x] PSNR / SSIM / LPIPS / NIQE
 - [ ] hot pixel 제거 체감
-- [ ] green tint / blue tint 억제 체감
-- [ ] 야간 디테일(HFE) 보존
-- [ ] oversharpening / fake-edge 감소
+- [x] green tint / blue tint 억제 체감
+- [x] 야간 디테일(HFE) 보존
+- [x] oversharpening / fake-edge 감소
 - [ ] 얇은 구조물(전선, 나뭇가지) 보존
 - [ ] QCS8550 병렬 추론 latency 차이
 
 ---
 
-## 5. 내일 최종 판단
-- [ ] generic baseline만으로 충분한가?
-- [ ] dim24 finetune이 실제로 baseline보다 개선되는가?
-- [ ] dim32 finetune이 dim24보다 더 좋은 절충안이 되는가?
-- [ ] `denoise_mc_g105_v1`를 유지할지, v2로 조정할지 결정
+## 5. 내일 최종 판단 (다음에 해야 할 작업)
+- [ ] Luma Noise 잔여 문제를 위한 해결책인 `dim24_v2 (TV Loss 버전)` 결과를 이전 버전과 정밀 비교
+- [ ] 돌아가고 있는 `dim32_v1` 학습 완료 시 결과 통합 정리
+- [ ] dim24 v2가 성공적이라면 이를 dim32 v2로 확장 적용할지 결정
 
 ---
 
 ## Quick Priority
-1. dim32 baseline 결과 확인
-2. dim24 baseline 결과 확인
-3. dim24 finetune 진행 상태 확인
-4. dim32 finetune 시작 및 초기 로그 확인
-5. v2 설계 필요 여부 판단
+- [x] 1. dim32 baseline 결과 확인 (기초 분석 준비)
+- [x] 2. dim24 baseline 결과 확인
+- [x] 3. dim24 finetune 진행 상태 확인 (v1 확인 완료)
+- [x] 4. dim32 finetune 시작 및 초기 로그 확인
+- [x] 5. v2 설계 필요 여부 판단 (Luma Noise 문제로 v2 돌입 완료)
