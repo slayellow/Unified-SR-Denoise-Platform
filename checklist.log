@@ -46,7 +46,7 @@ MC-G105 배포(Deploy) 모델과 Finetune 모델들(dim24_v1, dim24_v2, dim32_v1
 
 ## 3. 내일 해야 할 작업 (Next Action)
 - [ ] **dim32 최적화 도입 검토**: 성능이 가장 뛰어난 `dim32_finetune` 모델의 실제 QCS8550 NPU 병렬 추론 latency 측정 및 배포 여부 판단
-- [ ] **v2 (TV Loss) 재설계**: TV Loss로 인한 디테일 손실 최소화를 위해 weight를 대폭 낮추거나(0.01 이하), TV Loss를 제외하고 노이즈 증강만 유지하는 새로운 `dim32_v2` 실험 세팅
+- [/] **v2 (TV Loss) 재설계**: TV Loss로 인한 디테일 손실 최소화를 위해 weight를 대폭 낮추거나(0.01 이하), TV Loss를 제외하고 노이즈 증강만 유지하는 새로운 `dim32_v2` 실험 세팅 및 학습 시작
 - [ ] **최종 결과 보고**: 결정된 배포 모델 후보의 주/야간 캡처 이미지 결과물 시각화 및 팀 공유 자료 준비
 
 ---
@@ -54,4 +54,4 @@ MC-G105 배포(Deploy) 모델과 Finetune 모델들(dim24_v1, dim24_v2, dim32_v1
 ## Quick Priority
 - [x] 1. dim32_v1 및 dim24_v2 모델 분석 및 지표 추출 완료
 - [x] 2. 모델간 HFE, Tint, Edge Density 종합 성능 비교 문서화
-- [ ] 3. 내일 출근 후 NPU 추론 Latency 측정 및 v2 Loss Weight 조정 실험 진행
+- [/] 3. v2 Loss Weight 조정 실험 시작 및 주말 간 학습 모니터링

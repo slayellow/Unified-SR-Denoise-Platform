@@ -1,21 +1,21 @@
 # 📈 실험 로그 (Experiment Log)
 
-## 📅 작성일: 2026-04-23 (목)
-**주제:** MC-G105 배포(Deploy) 모델과 Finetune 모델들(dim24_v1, dim24_v2, dim32_v1) 성능 분석 비교
-**목표:** 각 모델들의 디테일 보존력(HFE), 색상 틴트, 가짜 윤곽선 억제 및 Luma 노이즈 감소 효과 비교 검증
+## 📅 작성일: 2026-04-24 (금)
+**주제:** MC-G105 V2 파이프라인 (TV Loss Weight 조정 및 Dim32 확장) 실험 시작
+**목표:** TV Loss 부작용(디테일 손실)을 최소화하면서 노이즈 억제력을 유지하는 최적 가중치 탐색 및 Dim32 모델로의 확장 적용
 
 ---
 
-### 🔬 분석 결과 요약
-1. **디테일 보존력 (HFE): `dim32_finetune` 압승**
-   - 야간 및 고배율(Night 3x~7x) 환경에서 Deploy 모델은 물론 dim24 모델들보다 HFE 수치가 압도적으로 높음. 원본(Origin) 텍스처를 최대한 살려내는 우수한 성능을 입증함.
-2. **색상 교정 (Green Tint 억제): `dim24_finetune_v2` 우수**
-   - 모든 Finetune 모델이 Deploy 모델의 Green Tint 문제를 해결함. 특히 `dim24_finetune_v2`가 `tint_rg` 지표에서 0에 가장 근접한 무채색을 구현.
-3. **가짜 엣지 억제 (Edge Density): 모든 Finetune 모델 성공적**
-   - Deploy 모델 특유의 야간 Oversharpening 문제가 Finetune 모델들에서 모두 해결됨.
-4. **TV Loss (v2 파이프라인) 부작용 확인**
-   - Luma Noise 억제를 위해 도입한 `dim24_finetune_v2`의 TV Loss(`weight: 0.05`)가 디테일(HFE)을 가장 많이 깎아먹는 역효과를 냄. 통계적 분산치(`dark_noise_std`) 수치도 낮아지지 않음.
+### 🔬 금일 진행 내역
+1. **저장소 동기화 완료**
+   - Github(개인)에서 작업한 V2 설정 파일들을 GitLab(회사) 서버로 동기화 완료.
+2. **신규 실험 세팅 및 구동**
+   - **Track F: `dim32_v2_finetune`**: Dim32 모델에 V2 파이프라인(노이즈 증강 및 조정된 TV Loss) 적용 실험 시작.
+   - **Track G: `dim24_v2_re-calibration`**: 기존 TV Loss 가중치가 너무 높아 디테일이 손실되었던 점을 반영하여 가중치를 하향 조정한 재실험 준비.
+3. **체크포인트 생성 확인**
+   - `finetune_svfocusdenoise_mc_g105_v2_x1_dim24_block2_260424` 및 `dim32_block2_260424` 경로 생성 확인.
 
 ### 💡 인사이트 및 향후 계획 (Next Action)
-- **성능 우선:** 연산량 제약이 없다면 압도적인 디테일을 제공하는 **`dim32_finetune` 채택**이 타당함.
-- **TV Loss 재고:** 만약 `dim32_v2` 모델을 구동한다면 TV Loss 적용을 배제하거나 가중치를 대폭 낮추어(ex. 0.01 이하) 디테일 손실을 막아야 함.
+- **NPU Latency 측정**: `dim32` 모델의 실기기 추론 속도가 배포 가능 수준인지 우선 확인 필요.
+- **TV Loss 가중치 모니터링**: 훈련 초기 HFE 지표 하락 폭을 모니터링하여 가중치 추가 조정 여부 결정.
+- **최종 모델 후보군 압축**: 주말 간 학습 진행 후 월요일 오전 결과 취합 및 보고 예정.
