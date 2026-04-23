@@ -3,7 +3,7 @@ model:
   name: svfocussrnet
   use_advanced_rep: false
   scale: 1
-  dim: 24
+  dim: 32
   n_resblocks: 2
 
 data:
@@ -21,9 +21,9 @@ train:
   gradient_accumulation_steps: 1
   patch_size: 256
   save_interval: 20
-  save_name: "finetune_svfocusdenoise_mc_g105_v2_x1_dim24_block2_260423"
+  save_name: "finetune_svfocusdenoise_mc_g105_v2_x1_dim32_block2_260423"
 
-  pretrained_path: "checkpoints/train_svfocusdenoise_basic_x1_dim24_block2_epoch300_lr5e-5_awgn_260420/best.pth"
+  pretrained_path: "checkpoints/train_svfocusdenoise_basic_x1_dim32_block2_epoch300_lr5e-5_awgn_260420/best.pth"
 
   optimizer:
     type: AdamW
