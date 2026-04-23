@@ -1,30 +1,21 @@
 # 📈 실험 로그 (Experiment Log)
 
-## 📅 작성일: 2026-04-22 (수)
-**주제:** 조기 종료(Early Stopping) 수정 후의 MC-G105 Denoise 모델 비교 및 V2 증강 파이프라인 (Luma 노이즈/TV Loss) 설계 도입
-**목표:** PSNR을 기준으로 재학습된 `dim24_finetune` 모델의 디테일(HFE) 보존력을 구형 배포(Deploy) 모델과 비교 검증하고, 새롭게 발견된 평탄 영역의 Luma 잔여 노이즈 문제를 해결하기 위해 강력한 노이즈 강도와 TV Loss를 도입한 V2 파이프라인의 실효성을 타진한다.
+## 📅 작성일: 2026-04-23 (목)
+**주제:** MC-G105 배포(Deploy) 모델과 Finetune 모델들(dim24_v1, dim24_v2, dim32_v1) 성능 분석 비교
+**목표:** 각 모델들의 디테일 보존력(HFE), 색상 틴트, 가짜 윤곽선 억제 및 Luma 노이즈 감소 효과 비교 검증
 
 ---
 
-### 🔬 1. dim24_finetune (PSNR 기준) 모델 실측 데이터 검증 결과
-| 분석 지표 | Deploy (배포 버전) | dim24 Finetune_final (수정본) | 결론 및 평가 |
-|:---|:---|:---|:---|
-| **Color Cast (Tint)** | 교정 안 됨 (`tint_rg` -2 ~ -5 수준 지속) | **압도적 개선** (`tint_rg` -1.2 ~ -3.6) | V1의 `color_cast` 증강 효과가 실측 평가에서도 완벽히 동작함을 증명. 시계 바탕 등이 무채색으로 정돈됨. |
-| **디테일 보존력 (HFE)**| 심한 텍스처 붕괴 (고배율 야간 HFE 22.5) | **HFE 27.39 회복 (이전 Loss 기준 대비 +42%)** | 조기 종료 기준을 `monitor: psnr`로 변경한 것이 디테일(HFE) 유지 능력에 막대한 이득을 가져옴. |
-| **Fake Edge 억제력** | HFE는 죽이고 테두리만 강화 (Edge 밀도 폭증) | **윤곽선 밸런스 유지** | Oversharpening 없이 부드럽게 윤곽 보존 성공. |
+### 🔬 분석 결과 요약
+1. **디테일 보존력 (HFE): `dim32_finetune` 압승**
+   - 야간 및 고배율(Night 3x~7x) 환경에서 Deploy 모델은 물론 dim24 모델들보다 HFE 수치가 압도적으로 높음. 원본(Origin) 텍스처를 최대한 살려내는 우수한 성능을 입증함.
+2. **색상 교정 (Green Tint 억제): `dim24_finetune_v2` 우수**
+   - 모든 Finetune 모델이 Deploy 모델의 Green Tint 문제를 해결함. 특히 `dim24_finetune_v2`가 `tint_rg` 지표에서 0에 가장 근접한 무채색을 구현.
+3. **가짜 엣지 억제 (Edge Density): 모든 Finetune 모델 성공적**
+   - Deploy 모델 특유의 야간 Oversharpening 문제가 Finetune 모델들에서 모두 해결됨.
+4. **TV Loss (v2 파이프라인) 부작용 확인**
+   - Luma Noise 억제를 위해 도입한 `dim24_finetune_v2`의 TV Loss(`weight: 0.05`)가 디테일(HFE)을 가장 많이 깎아먹는 역효과를 냄. 통계적 분산치(`dark_noise_std`) 수치도 낮아지지 않음.
 
-* **Insight**: Early Stopping 타겟을 복합 Loss에서 PSNR로 변경한 것이 '적절한 텍스처 보존'이라는 엄청난 긍정적 효과를 가져왔습니다. 주간/야간 전반에서 Deploy 버전을 상회하는 색상 교정 및 엣지 유지율을 확보했습니다.
-
----
-
-### 💡 2. 새로운 문제점(Luma 노이즈 잔여) 발굴 및 V2 아키텍처 설계
-1. **문제 현상 (Visual Artifacts)**: Tint(색상 편차)는 사라졌으나, 시계면 등 **평평한 표면에 자글자글한 입자 노이즈(Luma Noise / Grain)가 제대로 지워지지 않고 남아있는 현상** 목격. 분석 스크립트 데이터에서도 1x 저배율부터 7x 고배율까지 전반적으로 기초 센서의 `dark_noise_std`가 10~12에 달할 정도로 높게 도출됨.
-2. **V2 조치 사항 (`denoise_mc_g105_v2.yaml` 적용)**:
-   - 전 대역(Global) `common_noise` 확률 및 강도를 극단적으로 상향 (`prob`: 0.50, `sigma_max`: 8.0)
-   - 센서 태생 노이즈폭의 근원인 `shot_noise_max`를 12.0으로 확대.
-3. **학습 아키텍처 강력 보완 (TV Loss 처방)**:
-   - `configs/finetune/Denoise/svfocusdenoise_mc_g105_v2_dim24.yaml`에 평탄 영역의 잡음을 다림질하는 데 특효약인 **`TV Loss (weight: 0.05)` 활성화 처방**.
-
-* **Next Action**: 
-   - `v1` 데이터와 설정으로 돌아가고 있는 묵직한 `dim32_v1` 학습 완료 후 결과 확인.
-   - "TV Loss + 노이즈 증강" 조합의 날렵한 `dim24_v2`의 학습을 백그라운드로 스폰(Spawn). 학습 완료 후 Luma 노이즈 제거 능력을 정면 대조 시연.
+### 💡 인사이트 및 향후 계획 (Next Action)
+- **성능 우선:** 연산량 제약이 없다면 압도적인 디테일을 제공하는 **`dim32_finetune` 채택**이 타당함.
+- **TV Loss 재고:** 만약 `dim32_v2` 모델을 구동한다면 TV Loss 적용을 배제하거나 가중치를 대폭 낮추어(ex. 0.01 이하) 디테일 손실을 막아야 함.
