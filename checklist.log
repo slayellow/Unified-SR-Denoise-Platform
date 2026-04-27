@@ -1,57 +1,34 @@
 # Checklist Log
 
-## Date: 2026-04-23 (Thursday)
+## Date: 2026-04-27 (Monday)
 ## Goal
-MC-G105 배포(Deploy) 모델과 Finetune 모델들(dim24_v1, dim24_v2, dim32_v1) 간의 성능 비교 분석을 완료하고, 최종 도입 모델 및 v2 설계 방향성을 확정한다.
+MC-G105 V2 모델의 시각적 성능 우수성 검증을 완료하고, 배포 모델 확정을 위한 최종 최적화(V2.1) 및 실기기 NPU 성능 측정을 진행한다.
 
 ---
 
-## 1. Generic Baseline 결과 확인 (완료)
-### Track A: dim32 baseline
-- [x] `configs/train/Denoise/svfocusdenoise_block2_basic.yaml` 결과 확인
-- [x] best checkpoint 경로 기록
-- [x] validation loss / 주요 metric 기록
-- [x] hot pixel / tint / night detail / oversharpening 체감 메모 작성
-
-### Track B: dim24 baseline
-- [x] `configs/train/Denoise/svfocusdenoise_block2_basic_dim24.yaml` 결과 확인
-- [x] best checkpoint 경로 기록
-- [x] validation loss / 주요 metric 기록
-- [x] hot pixel / tint / night detail / oversharpening 체감 메모 작성
-
-### Baseline 비교 질문
-- [x] dim32 vs dim24 중 어느 쪽이 더 안정적인가? -> dim32 압승 확인
-- [x] dim24 경량화 대가가 감수 가능한 수준인가? -> 디테일 뭉개짐 있음
-- [x] QCS8550 병렬 추론 기준으로 어느 쪽이 더 현실적인가? -> 연산량 고려 판단 필요
+## 1. V2 모델 성능 분석 및 ONNX 변환 (완료)
+- [x] `dim32_v2` 및 `dim24_v2` 주말 학습 결과 지표 추출
+- [x] RAW/Deploy/V2 모델 간의 시각적 품질 비교 분석 (Color Tint, Noise, Detail)
+- [x] 1280x720 해상도 기반 ONNX 변환 성공 (Opset 18)
+- [x] `onnxslim` 및 `numpy<2` 환경 최적화 완료
 
 ---
 
-## 2. Finetune 진행 및 결과 비교 확인
-### Track C: dim24 finetune (V1 Final)
-- [x] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1_dim24.yaml` 진행 상태 확인 (학습 완료)
-- [x] 현재 best checkpoint 경로 기록 (PSNR 모니터링)
-- [x] tint 개선 추세 확인 (완벽한 무채색 도달)
-- [x] hot pixel / night detail / fake-edge 개선 여부 확인
-
-### Track D: dim32 finetune (V1)
-- [x] `configs/finetune/Denoise/svfocusdenoise_mc_g105_v1.yaml` 학습 완료 및 성능 분석
-- [x] 압도적인 HFE (디테일 보존) 수치 확인 및 Deploy 대비 월등함 검증 완료
-
-### Track E: dim24 finetune (V2)
-- [x] `dim24_v2` (TV Loss 포함) 결과 분석 완료
-- [x] 신규 적용된 `TV Loss`가 평탄 영역의 지저분한 Luma Noise를 수치적으로 완전히 낮추지 못함을 확인
-- [x] 디테일(HFE) 손실 부작용이 크다는 점 확인 완료
+## 2. 차세대 V2.1 개선 사항 설계
+- [ ] **Hot Pixel 제거 로직**: 합성 데이터 증강(Augmentation) 및 Outlier Penalty Loss 검토
+- [ ] **TV Loss 최적화**: 가중치 스케줄링(Weight Scheduling)을 통한 디테일(HFE) 재확보
+- [ ] **Color Neutrality**: Gray World 기반 Local Loss 도입으로 저조도 크로마 노이즈 억제
 
 ---
 
 ## 3. 내일 해야 할 작업 (Next Action)
-- [ ] **dim32 최적화 도입 검토**: 성능이 가장 뛰어난 `dim32_finetune` 모델의 실제 QCS8550 NPU 병렬 추론 latency 측정 및 배포 여부 판단
-- [/] **v2 (TV Loss) 재설계**: TV Loss로 인한 디테일 손실 최소화를 위해 weight를 대폭 낮추거나(0.01 이하), TV Loss를 제외하고 노이즈 증강만 유지하는 새로운 `dim32_v2` 실험 세팅 및 학습 시작
-- [ ] **최종 결과 보고**: 결정된 배포 모델 후보의 주/야간 캡처 이미지 결과물 시각화 및 팀 공유 자료 준비
+- [/] **NPU Latency 측정**: QCS8550 실기기에서 `dim32_v2` 모델의 추론 속도 및 전력 소모량 측정
+- [ ] **V2.1 실험 시작**: Hot Pixel 및 디테일 보존 강화 세팅으로 신규 학습 구동
+- [ ] **최종 결과 보고서 작성**: 팀 공유용 시각화 자료 및 성능 비교 데이터 취합
 
 ---
 
 ## Quick Priority
-- [x] 1. dim32_v1 및 dim24_v2 모델 분석 및 지표 추출 완료
-- [x] 2. 모델간 HFE, Tint, Edge Density 종합 성능 비교 문서화
-- [/] 3. v2 Loss Weight 조정 실험 시작 및 주말 간 학습 모니터링
+- [x] 1. V2 모델 지표 및 시각적 품질 분석 완료
+- [x] 2. ONNX 변환 및 경량화 모델 확보
+- [/] 3. NPU 성능 검증 및 V2.1 세팅 준비
