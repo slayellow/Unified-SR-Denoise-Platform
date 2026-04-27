@@ -1,0 +1,66 @@
+task: sr
+model:
+  name: svfocussrnet
+  scale: 2
+  dim: 32
+  n_resblocks: 4
+  use_advanced_rep: false
+
+data:
+  type: eo
+  train_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/LRx2
+
+train:
+  epochs: 300
+  batch_size: 64
+  lr: 1e-4
+  num_workers: 4
+  gradient_accumulation_steps: 1
+  patch_size: 256
+  save_interval: 20
+  save_name: "train_svfocussrnet_sr_x2_dim32_block4_epoch300_bs64_lr1e-4_charbonnier_260428"
+
+  pretrained_path: null
+
+  optimizer:
+    type: AdamW
+    betas: [0.9, 0.999]
+
+  weight_decay: 1e-4
+  grad_clip: 1.0
+
+  early_stopping:
+    patience: 50
+    min_delta: 0.0001
+    monitor: 'lpips'
+    mode: 'min'
+
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 300
+    eta_min: 1e-7
+
+loss:
+  l1:
+    enabled: false
+    weight: 1.0
+  charbonnier:
+    enabled: true
+    weight: 1.0
+  edge:
+    enabled: false
+    weight: 0.5
+    mode: 'gray'
+  ssim:
+    enabled: false
+    weight: 0.1
+  perceptual:
+    enabled: false
+    weight: 0.05
+  tv:
+    enabled: false
+    weight: 0.1
+
+export_onnx: false

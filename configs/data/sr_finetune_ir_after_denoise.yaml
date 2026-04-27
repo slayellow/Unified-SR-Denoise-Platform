@@ -1,0 +1,100 @@
+# SR Finetune Config: IR input after denoise
+dataset_type: sr
+clean_prob: 0.10
+
+crop_size: 256
+use_flip: true
+use_rot: true
+
+# Use this only if an upstream IR denoise/restoration stage is added before SR.
+# It keeps thermal/line artifacts weak and focuses on resampling/detail recovery.
+degradation:
+  stage1:
+    blur:
+      enabled: true
+      prob: 0.30
+      kernel_probs: [0.45, 0.25, 0.12, 0.03, 0.12, 0.03]
+      kernel_sizes: [7, 9, 11, 13, 15]
+      sigma: [0.2, 1.2]
+      betag: [0.8, 3.0]
+      betap: [1.0, 1.6]
+
+    resize:
+      enabled: true
+      prob: 0.70
+      scale_min: 0.5
+      scale_max: 1.0
+      interpolations: ["cv2.INTER_LINEAR", "cv2.INTER_CUBIC", "cv2.INTER_AREA"]
+
+    gaussian_noise:
+      enabled: true
+      prob: 0.10
+      sigma_min: 1
+      sigma_max: 3
+      gray_prob: 1.0
+
+    poisson_noise:
+      enabled: true
+      prob: 0.10
+      scale_min: 0.05
+      scale_max: 1.0
+      gray_prob: 1.0
+
+    jpeg:
+      enabled: true
+      prob: 0.25
+      quality_min: 88
+      quality_max: 98
+
+    sinc:
+      enabled: true
+      prob: 0.30
+      kernel_sizes: [7, 9, 11, 13, 15, 17, 19, 21]
+
+  stage2:
+    blur:
+      enabled: true
+      prob: 0.30
+      kernel_probs: [0.45, 0.25, 0.12, 0.03, 0.12, 0.03]
+      kernel_sizes: [7, 9, 11, 13, 15]
+      sigma: [0.2, 1.0]
+      betag: [0.8, 3.0]
+      betap: [1.0, 1.6]
+
+    target_resize:
+      enabled: true
+      interpolations: ["cv2.INTER_CUBIC", "cv2.INTER_LINEAR", "cv2.INTER_LANCZOS4"]
+
+    ir_noise:
+      enabled: true
+      non_uniformity:
+        prob: 0.10
+        amp_min: 0.04
+        amp_max: 0.12
+      vertical_line:
+        prob: 0.10
+        intensity_min: 1
+        intensity_max: 4
+      thermal_noise:
+        sigma_min: 1
+        sigma_max: 5
+        gray_prob: 1.0
+
+    common_noise:
+      enabled: false
+      prob: 0.0
+
+    final_jpeg:
+      enabled: true
+      prob: 0.25
+      quality_min: 85
+      quality_max: 98
+
+    hot_pixels:
+      enabled: true
+      prob: 0.10
+      density_min: 0.0001
+      density_max: 0.0008
+      blob_prob: 0.20
+      blob_radius_min: 1
+      blob_radius_max: 2
