@@ -1,21 +1,21 @@
 # 📈 실험 로그 (Experiment Log)
 
-## 📅 작성일: 2026-04-27 (월)
-**주제:** MC-G105 V2 모델 Edge 스트리밍 시각적 검증 및 분석 완료
-**현황:** ONNX 변환 성공 (Dim32, Opset 18) 및 시각적 품질 우수성 확인
+## 📅 작성일: 2026-04-28 (화)
+**주제:** SVFocusSRNet Block4 1-Stage Baseline 학습 개시
+**현황:** x2 및 x4 배율 경량화 모델(Dim32, Block4) 학습 안정적 진입
 
 ---
 
 ### 🔬 금일 진행 내역
-1. **V2 모델 성능 분석 완료**
-   - **시각적 품질**: Deploy 대비 노이즈 뭉개짐(Mushing) 현상이 크게 개선되었으며, RAW 수준의 디테일과 중립적인 색감(Color Tint) 확보.
-   - **지표 요약 (Dim32 V2)**: Luma Noise 46.96 (우수), HFE 136.39 (양호), Tint 개선 확인.
-2. **ONNX 변환 및 최적화**
-   - `dim32_v2` 모델 1280x720 해상도 ONNX 변환 완료.
-   - **GFLOPs**: 27.07, **Params**: 0.0295 M (매우 경량).
-   - `onnxslim` + `numpy<2` 환경에서 모델 최적화 프로세스 정립.
+1. **SR Block4 경량화 모델 학습 시작**
+   - **대상**: SVFocusSRNet (Dim32, Block4) x2, x4 배율.
+   - **목적**: 기존 Block8 대비 품질 하락폭을 최소화하면서 연산량(GFLOPs) 및 Latency 개선 가능성 확인.
+   - **설정**: Charbonnier Loss, Epoch 300, Batch Size 64, Learning Rate 1e-4.
+2. **학습 모니터링 및 안정성 확인**
+   - `train_svfocussrnet_sr_x2_dim32_block4_*` 및 `train_svfocussrnet_sr_x4_dim32_block4_*` 체크포인트 생성 완료.
+   - 초기 Epoch에서 Loss 발산 없이 정상적으로 수렴 시작 확인.
 
 ### 💡 인사이트 및 향후 계획 (Next Action)
-- **V2.1 방향성**: TV Loss 가중치 스케줄링 도입 및 Hot Pixel 제거를 위한 합성 데이터 증강(Augmentation) 검토.
-- **NPU 검증**: 변환된 ONNX 모델의 QCS8550 실기기 추론 속도 최종 확인 필요.
-- **컬러 틴트**: Gray World 기반 Local Loss 도입을 통한 저조도 크로마 노이즈 억제 강화.
+- **품질 비교**: Epoch 100~200 시점에서 기존 Block8 Baseline과 PSNR/SSIM 지표 비교 수행 예정.
+- **경량화 검증**: 학습 완료 후 ONNX 변환 및 QCS8550 실기기 Latency 측정 (목표: Block8 대비 40% 이상 속도 향상).
+- **MTKD 적용 검토**: 품질 하락이 예상보다 클 경우, 기존 Block8 모델을 Teacher로 하는 Multi-Task Knowledge Distillation(MTKD) 적용 준비.
