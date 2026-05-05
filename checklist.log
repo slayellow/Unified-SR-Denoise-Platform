@@ -1,111 +1,77 @@
 # Checklist Log
 
-## Date: 2026-04-27 (Monday)
+## Date: 2026-05-06 (Wednesday)
 ## Goal
-MC-G105 V2 모델의 시각적 성능 우수성 검증을 완료하고, 배포 모델 확정을 위한 최종 최적화(V2.1) 및 실기기 NPU 성능 측정을 진행한다.
+SVFocusSRNet `dim32 block4` Stage-1 학습 결과를 확인하고, EO/IR 기준 Stage-2 finetuning 실행 여부를 결정한다. 동시에 EO 센서(MC-G105) 색감 이슈 원인을 펌웨어/ISP 설정 관점에서 분석한다.
 
 ---
 
-## 1. V2 모델 성능 분석 및 ONNX 변환 (완료)
-- [x] `dim32_v2` 및 `dim24_v2` 주말 학습 결과 지표 추출
-- [x] RAW/Deploy/V2 모델 간의 시각적 품질 비교 분석 (Color Tint, Noise, Detail)
-- [x] 1280x720 해상도 기반 ONNX 변환 성공 (Opset 18)
-- [x] `onnxslim` 및 `numpy<2` 환경 최적화 완료
-
----
-
-## 2. 차세대 V2.1 개선 사항 설계
-- [ ] **Hot Pixel 제거 로직**: 합성 데이터 증강(Augmentation) 및 Outlier Penalty Loss 검토
-- [ ] **TV Loss 최적화**: 가중치 스케줄링(Weight Scheduling)을 통한 디테일(HFE) 재확보
-- [ ] **Color Neutrality**: Gray World 기반 Local Loss 도입으로 저조도 크로마 노이즈 억제
-
----
-
-## 3. 다음 해야 할 작업 (Next Action)
-- [ ] **EO 센서 Baseline 세팅 확정**: MC-G105 초기화 후 Auto/Manual 기준 설정값을 선정하고 Inquiry 로그 확보
-- [ ] **Baseline 영상 재촬영 및 센서 분석**: 확정된 세팅으로 주/야간 및 Zoom 조건별 RAW/영상 데이터를 재수집하고 센서 특성 분석 수행
-- [ ] **Deploy vs `dim32_v2` 비교 추론**: 동일 baseline 입력에 대해 기존 deploy 모델과 `dim32_v2` 결과를 생성하여 품질/지표 비교
-- [/] **NPU Latency 측정**: QCS8550 실기기에서 `dim32_v2` 모델의 추론 속도 및 전력 소모량 측정
-- [ ] **V2.1 실험 보류 기준 적용**: baseline 재촬영 및 deploy/`dim32_v2` 비교 분석 전까지 신규 학습은 보류
-- [ ] **최종 결과 보고서 작성**: 팀 공유용 시각화 자료 및 성능 비교 데이터 취합
-
----
-
-## 4. Denoise 진행 기준 업데이트
-- [x] 현재 Denoise 모델 개발은 `dim32_v2`를 기준 후보로 두고 일시 정지
-- [ ] MC-G105 Factory 세팅 불확실성을 제거하기 위해 센서 초기화 후 baseline profile 재정의
-- [ ] AWB/Exposure/Focus/Day-Night/DWDR 등 Auto 적용 후보 선정
-- [ ] DNR/Sharpness/AGC/DSS/Defect Detection 등 화질 영향 항목은 profile별로 분리 기록
-- [ ] VISCA Inquiry Packet으로 reset 전/후 및 baseline 적용 후 설정값 로그화
-- [ ] 확정 baseline 영상에서 원본 센서 분석, deploy 추론, `dim32_v2` 추론을 동일 조건으로 수행
-- [ ] 비교 분석 결과를 기반으로 V2.1 개선 항목 확정
-
-### V2.1 후보 개선 항목
-- [ ] **Hot Pixel/Outlier**: hot pixel augmentation, outlier penalty, defect mask 기반 loss 검토
-- [ ] **Green/Chroma Bias**: Gray World local loss 및 야간 chroma noise degradation range 재조정
-- [ ] **Detail Preservation**: TV loss scheduling으로 HFE/edge density 균형 재조정
-
----
-
-## Quick Priority
-- [x] 1. V2 모델 지표 및 시각적 품질 분석 완료
-- [x] 2. ONNX 변환 및 경량화 모델 확보
-- [x] 3. EO 센서 baseline profile 확정 및 재촬영 준비
-- [ ] 4. Baseline 기준 deploy/`dim32_v2` 비교 분석
-
----
-
-## Date: 2026-04-28 (Tuesday)
-## Goal
-SVFocusSRNet `dim32 block4` x2/x4 1-stage 학습을 시작하고, 기존 `dim32 block8` 배포 기준 대비 품질/latency trade-off를 평가할 준비를 한다.
-
----
-
-## 1. SR Block4 1-Stage 학습 시작
-- [x] `configs/train/SVFocusSRNet/svfocussrnet_2x_dim32_block4.yaml` 학습 시작
-- [x] `configs/train/SVFocusSRNet/svfocussrnet_4x_dim32_block4.yaml` 학습 시작
-- [x] 두 학습 모두 1-stage baseline 비교 목적이므로 data config는 기본 `configs/data/sr_train.yaml` 사용
-- [x] 실행 로그에서 `data_config_path: configs/data/sr_train.yaml`로 저장되는지 확인
-- [x] checkpoint save path 확인
+## 1. SR Stage-1 학습 결과 확인
+- [ ] x2 block4 Stage-1 학습 완료 여부 확인
+- [ ] x4 block4 Stage-1 학습 완료 여부 확인
+- [ ] `best.pth` 및 `last.pth` 생성 여부 확인
   - x2: `checkpoints/train_svfocussrnet_sr_x2_dim32_block4_epoch300_bs64_lr1e-4_charbonnier_260428`
   - x4: `checkpoints/train_svfocussrnet_sr_x4_dim32_block4_epoch300_bs64_lr1e-4_charbonnier_260428`
+- [ ] `training_log.csv`에서 PSNR/SSIM/LPIPS/val_loss 최종 추세 확인
+- [ ] 기존 block8 baseline 대비 품질 하락폭 기록
+  - x2 block8 best: PSNR `26.3889`, val_loss `0.034031`
+  - x4 block8 best: PSNR `24.0603`, val_loss `0.043077`
+- [ ] block4가 Stage-2 진입 가능한 수준인지 판단
 
-### 실행 명령
+---
+
+## 2. SR Stage-2 Finetuning 준비
+- [ ] block4 전용 EO/IR Stage-2 train config 4개 확인
+  - `configs/finetune/SVFocusSRNet/svfocussrnet_2x_dim32_block4_eo.yaml`
+  - `configs/finetune/SVFocusSRNet/svfocussrnet_4x_dim32_block4_eo.yaml`
+  - `configs/finetune/SVFocusSRNet/svfocussrnet_2x_dim32_block4_ir.yaml`
+  - `configs/finetune/SVFocusSRNet/svfocussrnet_4x_dim32_block4_ir.yaml`
+- [ ] 각 config의 `pretrained_path`가 Stage-1 block4 `best.pth`를 가리키는지 확인
+- [ ] EO Stage-2는 Denoise 이후 SR 입력 분포 기준으로 `configs/data/sr_finetune_eo_after_denoise.yaml` 사용
+- [ ] IR Stage-2 입력 조건 결정
+  - [ ] SR 앞에 IR Denoise가 없으면 `configs/data/sr_finetune_ir_sensor.yaml` 사용
+  - [ ] SR 앞에 IR Denoise가 있으면 `configs/data/sr_finetune_ir_after_denoise.yaml` 사용
+
+### EO Stage-2 실행 후보
 ```bash
 CUDA_VISIBLE_DEVICES=0 accelerate launch --num_processes=1 tools/train.py \
-  --config configs/train/SVFocusSRNet/svfocussrnet_2x_dim32_block4.yaml
+  --config configs/finetune/SVFocusSRNet/svfocussrnet_2x_dim32_block4_eo.yaml \
+  --data_config configs/data/sr_finetune_eo_after_denoise.yaml
 ```
 
 ```bash
 CUDA_VISIBLE_DEVICES=1 accelerate launch --num_processes=1 tools/train.py \
-  --config configs/train/SVFocusSRNet/svfocussrnet_4x_dim32_block4.yaml
+  --config configs/finetune/SVFocusSRNet/svfocussrnet_4x_dim32_block4_eo.yaml \
+  --data_config configs/data/sr_finetune_eo_after_denoise.yaml
+```
+
+### IR Stage-2 실행 후보
+```bash
+CUDA_VISIBLE_DEVICES=0 accelerate launch --num_processes=1 tools/train.py \
+  --config configs/finetune/SVFocusSRNet/svfocussrnet_2x_dim32_block4_ir.yaml \
+  --data_config configs/data/sr_finetune_ir_sensor.yaml
+```
+
+```bash
+CUDA_VISIBLE_DEVICES=1 accelerate launch --num_processes=1 tools/train.py \
+  --config configs/finetune/SVFocusSRNet/svfocussrnet_4x_dim32_block4_ir.yaml \
+  --data_config configs/data/sr_finetune_ir_sensor.yaml
 ```
 
 ---
 
-## 2. 중간 모니터링 기준
-- [x] x2/x4 각각 epoch 1~5에서 loss 발산 여부 확인
-- [/] validation metric이 기존 block8 baseline과 같은 scale의 범위에 들어오는지 확인
-- [/] early stopping monitor가 `lpips` / `mode: min`으로 정상 동작하는지 확인
-- [x] TensorBoard 또는 `training_log.csv` 생성 여부 확인
-
-### 기존 block8 비교 기준
-- x2 block8 best: PSNR `26.3889`, val_loss `0.034031`
-- x4 block8 best: PSNR `24.0603`, val_loss `0.043077`
-
----
-
-## 3. 다음 단계 준비
-- [ ] 학습이 안정적으로 진행되면 ONNX export / GFLOPs / params 측정 준비
-- [ ] block4 품질 하락폭이 크면 MTKD recovery 후보로 기록
-- [ ] block4 품질 하락폭이 작으면 QCS8550 latency 측정 후보로 기록
-- [ ] EO SR finetune은 1-stage 결과 확인 후 `sr_finetune_eo_after_denoise.yaml` 사용 여부 결정
-- [ ] IR SR finetune은 입력 조건에 따라 `sr_finetune_ir_sensor.yaml` 또는 `sr_finetune_ir_after_denoise.yaml` 중 선택
+## 3. EO 센서(MC-G105) 색감 이슈 분석
+- [ ] 펌웨어 버전 확인 (`CAM_ModeInq`)
+- [ ] `CAM_GAMMA` 설정 변경에 의한 영향인지 확인
+- [ ] Chroma, Hue 튜닝 작업 및 개선 여부 확인
+- [ ] AWB off -> Manual 변경 및 `CAM_RGain` / `CAM_BGain` 튜닝 작업 및 개선 여부 확인
+- [ ] 변경 전/후 영상 또는 frame sample을 동일 조건으로 저장
+- [ ] 색감 이슈가 센서/ISP 설정 문제인지, Denoise 모델 출력 분포 문제인지 분리 기록
 
 ---
 
 ## Quick Priority
-- [x] 1. x2 block4 1-stage 학습 시작
-- [x] 2. x4 block4 1-stage 학습 시작
-- [x] 3. 초기 epoch 안정성 확인
-- [/] 4. 기존 block8 baseline 대비 중간 metric 비교
+- [ ] 1. x2/x4 block4 Stage-1 완료 및 metric 확인
+- [ ] 2. block4 Stage-2 진입 여부 결정
+- [ ] 3. EO Stage-2 실행 시 `sr_finetune_eo_after_denoise.yaml` 사용
+- [ ] 4. MC-G105 색감 이슈 원인 후보를 펌웨어/Gamma/Chroma/Hue/AWB 순서로 확인
