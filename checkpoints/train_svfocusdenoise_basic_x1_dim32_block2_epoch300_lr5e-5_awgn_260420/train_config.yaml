@@ -1,0 +1,120 @@
+data:
+  train_root:
+  - /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
+  type: eo
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/LR
+data_config:
+  clean_prob: 0.2
+  crop_size: 256
+  dataset_type: denoise
+  degradation:
+    stage1:
+      gaussian_noise:
+        enabled: true
+        prob: 0.5
+        sigma_max: 6
+        sigma_min: 1
+      jpeg:
+        enabled: true
+        prob: 0.15
+        quality_max: 98
+        quality_min: 88
+      poisson_noise:
+        enabled: true
+        prob: 0.4
+        scale_max: 2.0
+        scale_min: 0.05
+      unprocess_noise:
+        enabled: true
+        prob: 0.7
+        read_noise_max: 0.01
+        shot_noise_max: 6.0
+    stage2:
+      blur:
+        enabled: false
+      chroma_noise:
+        enabled: false
+      common_noise:
+        enabled: true
+        prob: 0.3
+        sigma_max: 8
+        sigma_min: 1
+      final_jpeg:
+        enabled: true
+        prob: 0.1
+        quality_max: 98
+        quality_min: 90
+      hot_pixels:
+        enabled: false
+      ir_noise:
+        enabled: false
+      target_resize:
+        enabled: false
+  use_flip: true
+  use_rot: true
+data_config_path: configs/data/denoise_generic_baseline.yaml
+export_onnx: false
+loss:
+  charbonnier:
+    enabled: true
+    weight: 1.0
+  color_consistency:
+    enabled: true
+    loss_type: l1
+    weight: 0.08
+  edge:
+    enabled: true
+    mode: gray
+    weight: 0.08
+  hot_pixel_masked:
+    base_loss: charbonnier
+    enabled: true
+    kernel_size: 3
+    threshold: 0.15
+    weight: 0.15
+  l1:
+    enabled: false
+    weight: 1.0
+  perceptual:
+    enabled: false
+    weight: 0.0
+  ssim:
+    enabled: true
+    weight: 0.15
+  tv:
+    enabled: false
+    weight: 0.1
+model:
+  dim: 32
+  n_resblocks: 2
+  name: svfocussrnet
+  scale: 1
+  use_advanced_rep: false
+task: sr
+train:
+  batch_size: 128
+  early_stopping:
+    min_delta: 0.0001
+    mode: min
+    monitor: loss
+    patience: 50
+  epochs: 300
+  grad_clip: 1.0
+  gradient_accumulation_steps: 1
+  lr: 5e-5
+  num_workers: 4
+  optimizer:
+    betas:
+    - 0.9
+    - 0.999
+    type: AdamW
+  patch_size: 256
+  pretrained_path: null
+  save_interval: 20
+  save_name: train_svfocusdenoise_basic_x1_dim32_block2_epoch300_lr5e-5_awgn_260420
+  scheduler:
+    T_max: 300
+    eta_min: 1e-7
+    type: CosineAnnealingLR
+  weight_decay: 1e-4
