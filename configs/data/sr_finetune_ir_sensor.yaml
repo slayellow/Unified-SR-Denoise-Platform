@@ -41,13 +41,13 @@ degradation:
 
     jpeg:
       enabled: true
-      prob: 0.45
+      prob: 0.10
       quality_min: 85
       quality_max: 95
 
     sinc:
       enabled: true
-      prob: 0.30
+      prob: 0.10
       kernel_sizes: [7, 9, 11, 13, 15, 17, 19, 21]
 
   stage2:
@@ -85,8 +85,8 @@ degradation:
 
     final_jpeg:
       enabled: true
-      prob: 0.60
-      quality_min: 60
+      prob: 0.10
+      quality_min: 80
       quality_max: 92
 
     hot_pixels:

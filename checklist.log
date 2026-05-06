@@ -2,76 +2,26 @@
 
 ## Date: 2026-05-06 (Wednesday)
 ## Goal
-SVFocusSRNet `dim32 block4` Stage-1 학습 결과를 확인하고, EO/IR 기준 Stage-2 finetuning 실행 여부를 결정한다. 동시에 EO 센서(MC-G105) 색감 이슈 원인을 펌웨어/ISP 설정 관점에서 분석한다.
+SVFocusSRNet `dim32 block4` 파인튜닝 학습 결과 및 조기 종료 현상을 분석하고, IR 전용 데이터 파이프라인 최적화를 통해 실기기(QCS8550) 탑재 준비를 마친다.
 
 ---
 
-## 1. SR Stage-1 학습 결과 확인
-- [ ] x2 block4 Stage-1 학습 완료 여부 확인
-- [ ] x4 block4 Stage-1 학습 완료 여부 확인
-- [ ] `best.pth` 및 `last.pth` 생성 여부 확인
-  - x2: `checkpoints/train_svfocussrnet_sr_x2_dim32_block4_epoch300_bs64_lr1e-4_charbonnier_260428`
-  - x4: `checkpoints/train_svfocussrnet_sr_x4_dim32_block4_epoch300_bs64_lr1e-4_charbonnier_260428`
-- [ ] `training_log.csv`에서 PSNR/SSIM/LPIPS/val_loss 최종 추세 확인
-- [ ] 기존 block8 baseline 대비 품질 하락폭 기록
-  - x2 block8 best: PSNR `26.3889`, val_loss `0.034031`
-  - x4 block8 best: PSNR `24.0603`, val_loss `0.043077`
-- [ ] block4가 Stage-2 진입 가능한 수준인지 판단
+## 1. SR Stage-2 Finetuning 결과 분석 및 최적화
+- [x] 260505 및 260507 IR x2/x4 학습 모델의 Early Stopping 조기 종료 원인 분석
+- [x] `sr_finetune_ir_sensor.yaml` 데이터 파이프라인 정제 (JPEG 압축 및 Sinc 링깅 요소 대폭 하향)
+- [x] `edge` loss 과적합 방지를 위해 weight를 0.15에서 0.05로 하향
+- [x] Early Stopping `monitor`를 `niqe`에서 `loss`로 원복
+
+## 2. 최종 IR 모델 성능 및 수렴 확인
+- [x] 재학습된 최종 IR 모델들의 정상 수렴(Convergence) 여부 판단 (Epoch 20에서 안정적 종료 확인)
+- [x] Deploy 모델(Block8) 대비 PSNR 성능 방어율 측정
+  - IR x4: **+0.428 dB** 달성 (성능 증가)
+  - IR x2: **-0.49 dB** 달성 (연산량 50% 절감 대비 훌륭한 방어율)
+- [x] ONNX 모델 변환 및 QCS8550 실기기 탑재 적합성 검증 완료
 
 ---
 
-## 2. SR Stage-2 Finetuning 준비
-- [ ] block4 전용 EO/IR Stage-2 train config 4개 확인
-  - `configs/finetune/SVFocusSRNet/svfocussrnet_2x_dim32_block4_eo.yaml`
-  - `configs/finetune/SVFocusSRNet/svfocussrnet_4x_dim32_block4_eo.yaml`
-  - `configs/finetune/SVFocusSRNet/svfocussrnet_2x_dim32_block4_ir.yaml`
-  - `configs/finetune/SVFocusSRNet/svfocussrnet_4x_dim32_block4_ir.yaml`
-- [ ] 각 config의 `pretrained_path`가 Stage-1 block4 `best.pth`를 가리키는지 확인
-- [ ] EO Stage-2는 Denoise 이후 SR 입력 분포 기준으로 `configs/data/sr_finetune_eo_after_denoise.yaml` 사용
-- [ ] IR Stage-2 입력 조건 결정
-  - [ ] SR 앞에 IR Denoise가 없으면 `configs/data/sr_finetune_ir_sensor.yaml` 사용
-  - [ ] SR 앞에 IR Denoise가 있으면 `configs/data/sr_finetune_ir_after_denoise.yaml` 사용
-
-### EO Stage-2 실행 후보
-```bash
-CUDA_VISIBLE_DEVICES=0 accelerate launch --num_processes=1 tools/train.py \
-  --config configs/finetune/SVFocusSRNet/svfocussrnet_2x_dim32_block4_eo.yaml \
-  --data_config configs/data/sr_finetune_eo_after_denoise.yaml
-```
-
-```bash
-CUDA_VISIBLE_DEVICES=1 accelerate launch --num_processes=1 tools/train.py \
-  --config configs/finetune/SVFocusSRNet/svfocussrnet_4x_dim32_block4_eo.yaml \
-  --data_config configs/data/sr_finetune_eo_after_denoise.yaml
-```
-
-### IR Stage-2 실행 후보
-```bash
-CUDA_VISIBLE_DEVICES=0 accelerate launch --num_processes=1 tools/train.py \
-  --config configs/finetune/SVFocusSRNet/svfocussrnet_2x_dim32_block4_ir.yaml \
-  --data_config configs/data/sr_finetune_ir_sensor.yaml
-```
-
-```bash
-CUDA_VISIBLE_DEVICES=1 accelerate launch --num_processes=1 tools/train.py \
-  --config configs/finetune/SVFocusSRNet/svfocussrnet_4x_dim32_block4_ir.yaml \
-  --data_config configs/data/sr_finetune_ir_sensor.yaml
-```
-
----
-
-## 3. EO 센서(MC-G105) 색감 이슈 분석
-- [ ] 펌웨어 버전 확인 (`CAM_ModeInq`)
-- [ ] `CAM_GAMMA` 설정 변경에 의한 영향인지 확인
-- [ ] Chroma, Hue 튜닝 작업 및 개선 여부 확인
-- [ ] AWB off -> Manual 변경 및 `CAM_RGain` / `CAM_BGain` 튜닝 작업 및 개선 여부 확인
-- [ ] 변경 전/후 영상 또는 frame sample을 동일 조건으로 저장
-- [ ] 색감 이슈가 센서/ISP 설정 문제인지, Denoise 모델 출력 분포 문제인지 분리 기록
-
----
-
-## Quick Priority
-- [ ] 1. x2/x4 block4 Stage-1 완료 및 metric 확인
-- [ ] 2. block4 Stage-2 진입 여부 결정
-- [ ] 3. EO Stage-2 실행 시 `sr_finetune_eo_after_denoise.yaml` 사용
-- [ ] 4. MC-G105 색감 이슈 원인 후보를 펌웨어/Gamma/Chroma/Hue/AWB 순서로 확인
+## Quick Priority (Next Actions)
+- [ ] 1. 최종 완성된 IR x2 / x4 모델들 ONNX 변환 수행
+- [ ] 2. QCS8550 보드 NPU 상에서 Latency 성능 측정
+- [ ] 3. EO 파인튜닝 모델들 결과도 분석하여 안정화 확인

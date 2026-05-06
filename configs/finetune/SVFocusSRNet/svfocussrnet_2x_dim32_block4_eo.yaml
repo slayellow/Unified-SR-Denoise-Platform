@@ -15,12 +15,12 @@ data:
 train:
   epochs: 100
   batch_size: 16
-  lr: 5e-5
+  lr: 1e-5
   num_workers: 4
   gradient_accumulation_steps: 2
   patch_size: 256
   save_interval: 20
-  save_name: "finetune_svfocussrnet_eo_sr_x2_dim32_block4_epoch100_bs16_ga2_lr5e-5_charbonnier_perceptual_edge_ssim_tv_260505"
+  save_name: "finetune_svfocussrnet_eo_sr_x2_dim32_block4_epoch100_bs16_ga2_lr1e-5_charbonnier_perceptual_edge_ssim_tv_260507"
 
   pretrained_path: "checkpoints/train_svfocussrnet_sr_x2_dim32_block4_epoch300_bs64_lr1e-4_charbonnier_260428/best.pth"
 
@@ -32,6 +32,8 @@ train:
   grad_clip: 1.0
 
   early_stopping:
+    monitor: niqe
+    mode: min
     patience: 10
     min_delta: 0.0001
 

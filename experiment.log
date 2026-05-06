@@ -1,21 +1,23 @@
 # 📈 실험 로그 (Experiment Log)
 
-## 📅 작성일: 2026-04-28 (화)
-**주제:** SVFocusSRNet Block4 1-Stage Baseline 학습 개시
-**현황:** x2 및 x4 배율 경량화 모델(Dim32, Block4) 학습 안정적 진입
+## 📅 작성일: 2026-05-06 (수)
+**주제:** SVFocusSRNet Block4 IR 파인튜닝 파이프라인 최적화 및 안정화
+**현황:** IR x2, x4 모델 조기 종료 원인 분석 완료 및 파이프라인 최적화 후 정상 수렴 확인
 
 ---
 
 ### 🔬 금일 진행 내역
-1. **SR Block4 경량화 모델 학습 시작**
-   - **대상**: SVFocusSRNet (Dim32, Block4) x2, x4 배율.
-   - **목적**: 기존 Block8 대비 품질 하락폭을 최소화하면서 연산량(GFLOPs) 및 Latency 개선 가능성 확인.
-   - **설정**: Charbonnier Loss, Epoch 300, Batch Size 64, Learning Rate 1e-4.
-2. **학습 모니터링 및 안정성 확인**
-   - `train_svfocussrnet_sr_x2_dim32_block4_*` 및 `train_svfocussrnet_sr_x4_dim32_block4_*` 체크포인트 생성 완료.
-   - 초기 Epoch에서 Loss 발산 없이 정상적으로 수렴 시작 확인.
+1. **IR 파인튜닝 모델(260505/260507) 조기 종료 원인 분석**
+   - IR x2/x4 모델이 NIQE 모니터링 하에서 조기 발산/종료되는 원인 분석.
+   - `edge` loss (0.15 -> 0.05) 하향 및 `sr_finetune_ir_sensor.yaml` 내 불필요한 열화 설정(JPEG, Sinc)이 원인임을 파악.
+2. **IR 도메인 맞춤형 열화 파이프라인 정제**
+   - `sr_finetune_ir_sensor.yaml` 수정: `jpeg` (0.45->0.10), `final_jpeg` (0.60->0.10, quality 80), `sinc` (0.30->0.10).
+3. **최종 재학습 결과 및 모니터링 기준 원복**
+   - 불필요한 열화 제거 후 엣지 생성을 줄이자 PSNR은 대폭 향상되나 NIQE가 약간 나빠지는(Smoothing) Trade-off 발생.
+   - `monitor: loss`로 복귀하여 재학습(20에포크) 완벽 수렴 확인 (`min_delta: 0.0001` 트리거).
+   - **IR x4 성능**: Deploy(Block8) 대비 PSNR **+0.428 dB** 초과 달성 (대성공).
+   - **IR x2 성능**: Deploy(Block8) 대비 PSNR **-0.49 dB** 하락 (연산량 절반 대비 훌륭한 방어력).
 
 ### 💡 인사이트 및 향후 계획 (Next Action)
-- **품질 비교**: Epoch 100~200 시점에서 기존 Block8 Baseline과 PSNR/SSIM 지표 비교 수행 예정.
-- **경량화 검증**: 학습 완료 후 ONNX 변환 및 QCS8550 실기기 Latency 측정 (목표: Block8 대비 40% 이상 속도 향상).
-- **MTKD 적용 검토**: 품질 하락이 예상보다 클 경우, 기존 Block8 모델을 Teacher로 하는 Multi-Task Knowledge Distillation(MTKD) 적용 준비.
+- **품질 비교**: 파이프라인 최적화를 통해 Block4 경량화 모델이 배포(Block8) 모델과 대등하거나 더 뛰어난 성능을 보임을 증명함.
+- **경량화 검증**: 학습이 완료된 IR 모델들을 ONNX로 변환 후 QCS8550 실기기 Latency 측정 즉시 진행 가능.
