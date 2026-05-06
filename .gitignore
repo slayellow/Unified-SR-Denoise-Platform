@@ -12,4 +12,3 @@ md/
 
 # 센서 캡처 원본 이미지 (용량이 크고 GitHub/GitLab에서 제외)
 results/mc_g105_capture_*/
-*.mp4
