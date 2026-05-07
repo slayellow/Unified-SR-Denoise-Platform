@@ -1,27 +1,23 @@
 # Checklist Log
 
-## Date: 2026-05-06 (Wednesday)
+## Date: 2026-05-07 (Thursday)
 ## Goal
-SVFocusSRNet `dim32 block4` 파인튜닝 학습 결과 및 조기 종료 현상을 분석하고, IR 전용 데이터 파이프라인 최적화를 통해 실기기(QCS8550) 탑재 준비를 마친다.
+SR 파인튜닝 실험을 롤백하고, 기초 화질 개선을 위해 Denoise 모델 고도화 및 센서 파라미터 튜닝에 집중한다.
 
 ---
 
-## 1. SR Stage-2 Finetuning 결과 분석 및 최적화
-- [x] 260505 및 260507 IR x2/x4 학습 모델의 Early Stopping 조기 종료 원인 분석
-- [x] `sr_finetune_ir_sensor.yaml` 데이터 파이프라인 정제 (JPEG 압축 및 Sinc 링깅 요소 대폭 하향)
-- [x] `edge` loss 과적합 방지를 위해 weight를 0.15에서 0.05로 하향
-- [x] Early Stopping `monitor`를 `niqe`에서 `loss`로 원복
+## 1. SR 파인튜닝 실험 롤백 및 정리
+- [x] 신규 Block4 파인튜닝 모델 실기기 결과 분석 및 화질 저하 확인
+- [x] 불필요해진 최근 SR 체크포인트 및 실험 폴더 전체 삭제 완료
+- [x] 육안상 가장 우수한 Deploy 버전 기준 Data Config 상태로 롤백 유지
 
-## 2. 최종 IR 모델 성능 및 수렴 확인
-- [x] 재학습된 최종 IR 모델들의 정상 수렴(Convergence) 여부 판단 (Epoch 20에서 안정적 종료 확인)
-- [x] Deploy 모델(Block8) 대비 PSNR 성능 방어율 측정
-  - IR x4: **+0.428 dB** 달성 (성능 증가)
-  - IR x2: **-0.49 dB** 달성 (연산량 50% 절감 대비 훌륭한 방어율)
-- [x] ONNX 모델 변환 및 QCS8550 실기기 탑재 적합성 검증 완료
+## 2. Denoise 고도화 및 센서 튜닝 방향성 수립
+- [x] SR 최적화 이전에 Denoise 성능을 우선적으로 확보하기로 결정
+- [ ] 안정성이 검증된 Deploy 버전의 Data Config 및 훈련 설정 리뷰
 
 ---
 
 ## Quick Priority (Next Actions)
-- [ ] 1. 최종 완성된 IR x2 / x4 모델들 ONNX 변환 수행
-- [ ] 2. QCS8550 보드 NPU 상에서 Latency 성능 측정
-- [ ] 3. EO 파인튜닝 모델들 결과도 분석하여 안정화 확인
+- [ ] 1. MC-G105 센서 등 주요 센서 파라미터 튜닝 진행
+- [ ] 2. Denoise 모델 고도화 방안 수립 및 학습 재개 (V2 기반)
+- [ ] 3. 튜닝된 센서와 Denoise 모델을 통한 깨끗한 기본 화질(Baseline) 확보

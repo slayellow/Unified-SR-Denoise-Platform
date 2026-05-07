@@ -118,3 +118,7 @@ python tools/export.py \
 4. `examples/4_apply_quant_analyzer.py` : PTQ 적용 후의 성능 손실(MSE 추이) 분석기 실행
 5. `examples/5_apply_manual_mixed_precision.py` : 앞선 분석 결과를 종합하여 Mixed Precision(혼합 정밀도) 레이어 셋업 지정
 6. `examples/6_apply_qat.py` : 최종 혼합된 모델 스킨을 기반으로 QAT(양자화 노이즈 저감 인식 학습) 파이프라인 진행
+7. qairt-converter --input_network 20260221_quicksrnet-large_ir_qat/qat_model.onnx --quantization_overrides 20260221_quicksrnet-large_ir_qat/qat_model.encodings --output_path 20260221_quicksrnet-large_ir_qat/quicksrnet-large_ir_prune50_w4a8_mp_qat_640x360.dlc --source_model_input_layout t.501 NCHW --desired_input_layout t.501 NHWC --source_model_output_layout 142 NCHW
+ --desired_output_layout 142 NHWC
+
+qairt-quantizer --input_dlc 20260221_quicksrnet-large_ir_qat/quicksrnet-large_ir_prune50_w4a8_mp_qat_640x360.dlc --output_dlc 20260221_quicksrnet-large_ir_qat/quicksrnet-large_ir_prune50_w4a8_mp_qat_640x360_snpe_quantized.dlc --float_fallback
