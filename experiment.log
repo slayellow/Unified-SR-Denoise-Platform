@@ -1,22 +1,74 @@
-# 📈 실험 로그 (Experiment Log)
+# Experiment Log
 
-## 📅 작성일: 2026-05-07 (목)
-**주제:** SR 파인튜닝 롤백 및 Denoise 모델 최적화로 방향 전환
-**현황:** 디바이스 실장 테스트 결과에 따라 SR 모델 고도화 보류, Denoise 파이프라인 및 센서 튜닝 우선 진행 결정
+## Date: 2026-05-11 (Monday)
+## Topic
+EO denoise redesign, MC-G105 daylight sensor analysis protocol, and EO recording / IR streaming PLD preparation
 
----
+## Summary
+Today focused on restarting the Denoise model design from the sensor-analysis side instead of immediately running another training job. The main direction is to first profile MC-G105 operational NV12 output, then use that profile to define a Denoise Degradation Pipeline and scratch-trained Teacher models for later Student distillation.
 
-### 🔬 금일 진행 내역
-1. **Deploy 모델과 신규 Block4 파인튜닝 모델 비교 분석**
-   - IR/EO x2, x4 모델의 Validation PSNR 지표는 하락폭(-0.1 ~ -0.5dB)이 적어 우수하게 방어됨을 확인했음.
-   - 그러나 실제 QCS8550 디바이스에 올려서 육안으로 확인한 결과, 기존 Deploy 버전(Block8) 대비 성능 및 화질이 기대 이하로 나타남.
-   - TV Loss 상향 및 Degradation 변경이 수치적 성능은 올렸을지라도 시각적 아티팩트나 부자연스러운 스무딩(Smoothing)을 유발한 것으로 판단됨.
+## Work Done
 
-2. **작업 방향 전환 (Pivot)**
-   - SR 모듈은 입력 노이즈를 증폭시키는 특성이 있으므로, 현재 시점에서 SR 파인튜닝을 진행하는 것보다 베이스가 되는 **Denoise 모델을 고도화하여 깨끗한 원본을 확보**하는 것이 우선이라고 결론을 내림.
-   - 기존 진행했던 최근 SR 파인튜닝 관련 체크포인트(`260505`, `260507` 등) 및 실험용 폴더들을 모두 삭제하고 롤백 완료함.
-   - 육안상 가장 안정적이고 품질이 좋았던 Deploy 버전의 Data Config와 훈련 설정을 베이스라인으로 다시 채택함.
+1. Denoise redesign / MTKD plan
+   - Reviewed the idea of using NAFNet, Restormer, and Deploy-family models as Teacher candidates.
+   - Clarified that Teacher models should not rely on generic pretrained outputs. They should be trained from scratch with the same designed denoise degradation pipeline.
+   - Separated three concepts that can otherwise be confused:
+     - degradation pipeline stage1/stage2 inside data config
+     - training curriculum 1-stage vs 2-stage
+     - KD stage for Student finetuning
+   - Recommended keeping GT supervision as the anchor during MTKD and using Teacher disagreement to downweight unreliable KD regions.
 
-### 💡 인사이트 및 향후 계획 (Next Action)
-- **우선 순위 변경**: Denoise 모델 고도화(`mc_g105` 센서 맞춤형 튜닝 등) 및 센서 파라미터 튜닝에 전면 집중.
-- **Denoise 최적화 후 SR 재진행**: 확실하게 노이즈가 제거된 맑은 센서 결과물이 확보된 이후에, 그 위에서 다시 SR 모델을 튜닝하는 정석적인 파이프라인 순서로 진행할 예정.
+2. MC-G105 sensor analysis design
+   - Reframed analysis as an empirical operational-output profile, not RAW physical sensor characterization.
+   - Decided night natural scenes are unnecessary for the current drone operation distribution.
+   - Defined outdoor operation conditions as morning/afternoon x sunny/cloudy.
+   - Defined outdoor scenes as building, mixed dynamic range, and road_shaded.
+   - Defined indoor calibration scenes as flat and dark.
+   - Updated flat/dark folder policy:
+     - `morning/sunny/flat/{1x,3x,5x,7x}/0000.png`
+     - `morning/sunny/dark/{1x,7x}/0000.png`
+   - Documented that flat/dark are indoor calibration buckets and do not need to be repeated across weather/time conditions.
+
+3. Sensor analysis script expansion
+   - Reworked `examples/analysis/analyze_mc_g105_sensor_capture.py`.
+   - Added folder-structure metadata parsing for `{time}/{weather}/{scene}/{zoom}/{frame}.png`.
+   - Added flat/white-wall metrics:
+     - green dominance
+     - `G/R`, `G/B`
+     - green excess
+     - shading/vignetting proxy
+     - center/corner ratio
+   - Added dark/burst metrics:
+     - temporal noise map
+     - hot-pixel persistence
+     - fixed hot-pixel candidate mask
+   - Added group summaries, scene contrast summaries, previous-run delta, plots, and markdown report generation.
+   - Verified the script with a temporary flat/dark/building test dataset.
+
+4. EO/IR pipeline preparation
+   - Added `configs/pipelines/eo_record_ir_stream.pld`.
+   - EO branch now supports both streaming and H.265 MKV recording.
+   - IR branch keeps streaming only; IR recording branch was removed because IR video storage is not needed.
+   - Added queues after tee branches to reduce branch coupling.
+   - EO recording branch stores 1920x1080 NV12-derived H.265 MKV segments via `splitmuxsink`.
+
+## Findings
+
+- The next important step is not model training yet. MC-G105 flat/dark data should be collected first and analyzed to establish initial sensor-output baselines.
+- Flat/dark captured through the current video-recording path are still useful, but they represent:
+  `sensor -> ISP/driver -> NV12 -> H.265 encode -> decode/extracted PNG`
+  rather than RAW sensor data.
+- Hot-pixel analysis can be affected by H.265 compression, so persistence across frames is more reliable than a single-frame hot-pixel count.
+- If `/tmp` is too small during mission-equipment testing, EO MKV output should be moved to `/data` or another persistent storage path.
+
+## Next Actions
+
+1. Deploy `configs/pipelines/eo_record_ir_stream.pld` to the mission-equipment environment.
+2. Test EO streaming and EO MKV recording, and confirm the final segment is valid after EOS/finalization.
+3. Capture indoor flat/dark EO videos:
+   - flat: 1x, 3x, 5x, 7x
+   - dark: 1x, 7x
+4. Extract at least 20 PNG frames per folder into the planned capture directory.
+5. Run:
+   `python3 examples/analysis/analyze_mc_g105_sensor_capture.py --input_dir <capture_root> --output_dir results/mc_g105_analysis/flat_dark_first`
+6. Use the first analysis report to decide whether outdoor capture should keep the same protocol or adjust exposure/zoom/session details.

@@ -1,0 +1,34 @@
+qtiqmmfsrc camera=0 name=eocam0 !
+video/x-raw(memory:GBM),format=NV12,framerate=30/1,width=1920,height=1080 !
+tee name=eoraw
+
+eoraw. ! queue leaky=downstream max-size-buffers=2 max-size-bytes=0 max-size-time=0 !
+qtivtransform name=eocrop0 crop=<0,0,1920,1080> !
+video/x-raw(memory:GBM),format=NV12,width=1280,height=720 !
+qtic2venc control-rate=1 target-bitrate={EO_BITRATE} !
+h264parse config-interval=-1 !
+rtph264pay mtu=1350 !
+queue !
+appsink name=eotxstm emit-signals=true max-buffers=1 drop=true sync=false
+
+eoraw. ! queue name=EO_IN_SRC max-size-buffers=0 max-size-bytes=0 max-size-time=3000000000 !
+qtic2venc name=EO_IN_SINK control-rate=1 target-bitrate=15000000 !
+h265parse config-interval=-1 !
+queue !
+splitmuxsink name=MUX_EO max-size-time=30000000000 async-finalize=true send-keyframe-requests=true muxer=matroskamux location=/tmp/EO_%05d.mkv
+
+v4l2src device=/dev/video2 name=ircam0 !
+video/x-raw,format=NV12,width=640,height=512,framerate=30/1 !
+tee name=irraw
+
+irraw. ! queue leaky=downstream max-size-buffers=2 max-size-bytes=0 max-size-time=0 !
+qtivtransform name=ircrop0 crop=<0,76,640,360> !
+video/x-raw(memory:GBM),format=NV12,width=640,height=360 !
+qtivtransform !
+video/x-raw(memory:GBM),format=NV12,width=1280,height=720,framerate=30/1 !
+qtivtransform !
+qtic2venc control-rate=1 target-bitrate={IR_BITRATE} !
+h264parse config-interval=-1 !
+rtph264pay mtu=1350 !
+queue !
+appsink name=irtxstm emit-signals=true max-buffers=1 drop=true sync=false

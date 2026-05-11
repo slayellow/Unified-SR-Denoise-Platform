@@ -1,23 +1,49 @@
 # Checklist Log
 
-## Date: 2026-05-07 (Thursday)
+## Date: 2026-05-11 (Monday)
 ## Goal
-SR 파인튜닝 실험을 롤백하고, 기초 화질 개선을 위해 Denoise 모델 고도화 및 센서 파라미터 튜닝에 집중한다.
+MC-G105 EO denoise redesign을 센서 분석 기반으로 재정렬하고, 내일 임무장비에서 flat/dark baseline을 수집할 준비를 마친다.
 
 ---
 
-## 1. SR 파인튜닝 실험 롤백 및 정리
-- [x] 신규 Block4 파인튜닝 모델 실기기 결과 분석 및 화질 저하 확인
-- [x] 불필요해진 최근 SR 체크포인트 및 실험 폴더 전체 삭제 완료
-- [x] 육안상 가장 우수한 Deploy 버전 기준 Data Config 상태로 롤백 유지
+## 1. Denoise Redesign / MTKD 방향 정리
+- [x] Scratch 기반 Teacher 학습 방향으로 MTKD 계획 수정
+- [x] NAFNet, Restormer, Deploy-family Teacher의 역할과 리스크 정리
+- [x] 1-stage/2-stage training curriculum과 degradation stage 개념 분리
+- [x] `docs/plans/2026-05-11-denoise-redesign-multiteacher-kd-plan.md` 작성
+- [/] Teacher 모델 registry, KD trainer, cache dataset 구현 범위 검토
 
-## 2. Denoise 고도화 및 센서 튜닝 방향성 수립
-- [x] SR 최적화 이전에 Denoise 성능을 우선적으로 확보하기로 결정
-- [ ] 안정성이 검증된 Deploy 버전의 Data Config 및 훈련 설정 리뷰
+## 2. MC-G105 센서 분석 프로토콜
+- [x] 주간 운용 조건을 morning/afternoon x sunny/cloudy로 정리
+- [x] 야간 자연 장면은 제외하고, dark frame은 별도 calibration으로 유지
+- [x] indoor flat/dark를 `morning/sunny` 기준 버킷에 저장하는 구조로 정리
+- [x] outdoor scene을 building, mixed, road_shaded 중심으로 정리
+- [x] `docs/plans/2026-05-11-mc-g105-daylight-sensor-analysis-plan.md` 작성
+- [/] 내일 indoor flat/dark EO 데이터 수집
+- [ ] outdoor daylight 데이터 수집
+
+## 3. 분석 스크립트
+- [x] 폴더 기반 metadata parser 추가
+- [x] flat/white-wall green dominance, shading, chroma proxy 분석 추가
+- [x] dark-frame hot-pixel persistence 및 fixed mask 분석 추가
+- [x] burst temporal noise, auto 안정성 flag, previous-run delta 추가
+- [x] 임시 flat/dark/building 데이터셋으로 실행 검증
+- [ ] 실제 MC-G105 flat/dark 데이터로 `flat_dark_first` report 생성
+- [ ] 야외 데이터 추가 후 `full_daylight` report 및 delta 비교
+
+## 4. EO/IR Pipeline
+- [x] EO streaming + EO H.265 MKV recording + IR streaming PLD 작성
+- [x] IR recording branch 제거
+- [x] tee branch별 queue 추가
+- [x] `configs/pipelines/eo_record_ir_stream.pld` 작성
+- [/] 내일 임무장비 환경에서 PLD 로딩 및 EO MKV segment 저장 테스트
+- [ ] `/tmp` 용량 또는 마지막 MKV finalize 문제가 있으면 `/data` 저장 경로로 변경
 
 ---
 
 ## Quick Priority (Next Actions)
-- [ ] 1. MC-G105 센서 등 주요 센서 파라미터 튜닝 진행
-- [ ] 2. Denoise 모델 고도화 방안 수립 및 학습 재개 (V2 기반)
-- [ ] 3. 튜닝된 센서와 Denoise 모델을 통한 깨끗한 기본 화질(Baseline) 확보
+- [/] 1. 임무장비에 `configs/pipelines/eo_record_ir_stream.pld` 올려서 EO 저장/IR 송출 테스트
+- [ ] 2. EO flat 1x/3x/5x/7x, dark 1x/7x 영상 수집
+- [ ] 3. MKV에서 20장 이상 PNG 추출 후 분석 스크립트 실행
+- [ ] 4. 분석 결과의 green dominance, shading, hot-pixel persistence 확인
+- [ ] 5. 결과에 따라 outdoor daylight 수집 protocol 보정
