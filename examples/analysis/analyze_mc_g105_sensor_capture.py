@@ -170,6 +170,9 @@ class BurstAnalysisResult:
     burst_edge_density_range: float
     burst_high_freq_range: float
     burst_high_freq_rel_range: float
+    unstable_luma: bool
+    unstable_color: bool
+    unstable_detail: bool
     unstable_auto: bool
     hot_persistence_count_25: int
     hot_persistence_count_50: int
@@ -667,11 +670,10 @@ def analyze_burst(
     high_freq_ref = float(np.median(high_freq_values)) + EPS
     high_freq_rel_range = float(high_freq_range / high_freq_ref)
 
-    unstable_auto = bool(
-        mean_y_range > args.unstable_y_range
-        or green_excess_range > args.unstable_color_range
-        or high_freq_rel_range > args.unstable_detail_rel_range
-    )
+    unstable_luma = bool(mean_y_range > args.unstable_y_range)
+    unstable_color = bool(green_excess_range > args.unstable_color_range)
+    unstable_detail = bool(high_freq_rel_range > args.unstable_detail_rel_range)
+    unstable_auto = bool(unstable_luma or unstable_color or unstable_detail)
 
     map_temporal_std = ""
     map_hot_persistence = ""
@@ -695,14 +697,6 @@ def analyze_burst(
             f"{burst_id} hot-pixel persistence",
             cmap="inferno",
         )
-        fixed_mask = (hot_persistence >= 0.50).astype(np.float32)
-        map_hot_fixed_mask = save_heatmap(
-            fixed_mask,
-            map_dir / f"{slug}_hot_fixed_mask.png",
-            f"{burst_id} fixed hot-pixel candidates",
-            cmap="gray",
-        )
-
         if scene_kind == "calibration_flat":
             rgb_stack = load_rgb_stack(used_paths)
             if rgb_stack.size > 0:
@@ -748,6 +742,9 @@ def analyze_burst(
         burst_edge_density_range=float(np.max(edge_values) - np.min(edge_values)),
         burst_high_freq_range=high_freq_range,
         burst_high_freq_rel_range=high_freq_rel_range,
+        unstable_luma=unstable_luma,
+        unstable_color=unstable_color,
+        unstable_detail=unstable_detail,
         unstable_auto=unstable_auto,
         hot_persistence_count_25=hot_count_25,
         hot_persistence_count_50=hot_count_50,
@@ -849,6 +846,141 @@ def save_scene_contrast_summary(df: pd.DataFrame, output_dir: Path) -> pd.DataFr
     contrast.to_csv(contrast_path, index=False)
     LOGGER.info("Saved scene contrast summary to %s", contrast_path)
     return contrast
+
+
+def build_hot_persistence_map(paths: list[Path]) -> np.ndarray:
+    """Build an in-memory persistence map for overlap statistics only."""
+    stack, _ = load_gray_stack(paths)
+    if stack.size == 0:
+        return np.empty((0, 0), dtype=np.float32)
+
+    masks = [
+        compute_hot_pixel_mask_from_gray(frame.astype(np.uint8))
+        for frame in stack
+    ]
+    if not masks:
+        return np.empty((0, 0), dtype=np.float32)
+    return np.mean(np.stack(masks, axis=0), axis=0).astype(np.float32)
+
+
+def save_hot_pixel_overlap_summary(
+    per_image_df: pd.DataFrame,
+    output_dir: Path,
+) -> pd.DataFrame:
+    """Summarize hot-pixel candidate overlap without saving sensor-specific masks.
+
+    A per-device hot-pixel mask is not emitted because the deployment target has
+    multiple sensors and the denoise model should remain sensor-general. The CSV
+    keeps only counts/ratios that are useful for choosing augmentation ranges.
+    """
+    if per_image_df.empty:
+        return pd.DataFrame()
+
+    persistence_by_burst: dict[str, np.ndarray] = {}
+    meta_by_burst: dict[str, dict[str, object]] = {}
+    for burst_id, group in per_image_df.groupby("burst_id", dropna=False):
+        burst_key = str(burst_id)
+        paths = [Path(path) for path in group["file_path"].tolist()]
+        persistence = build_hot_persistence_map(paths)
+        if persistence.size == 0:
+            continue
+        persistence_by_burst[burst_key] = persistence
+        first = group.iloc[0]
+        meta_by_burst[burst_key] = {
+            "time_label": first["time_label"],
+            "weather_label": first["weather_label"],
+            "scene_label": first["scene_label"],
+            "scene_kind": first["scene_kind"],
+            "zoom_label": first["zoom_label"],
+            "pixel_count": int(persistence.size),
+        }
+
+    dark_keys = [
+        key
+        for key, meta in meta_by_burst.items()
+        if meta["scene_kind"] == "calibration_dark"
+    ]
+    flat_keys = [
+        key
+        for key, meta in meta_by_burst.items()
+        if meta["scene_kind"] == "calibration_flat"
+    ]
+    thresholds = [0.25, 0.50, 0.75, 0.90]
+    records: list[dict[str, object]] = []
+
+    for idx, key_a in enumerate(dark_keys):
+        for key_b in dark_keys[idx + 1:]:
+            map_a = persistence_by_burst[key_a]
+            map_b = persistence_by_burst[key_b]
+            if map_a.shape != map_b.shape:
+                continue
+            meta_a = meta_by_burst[key_a]
+            meta_b = meta_by_burst[key_b]
+            for threshold in thresholds:
+                mask_a = map_a >= threshold
+                mask_b = map_b >= threshold
+                count_a = int(mask_a.sum())
+                count_b = int(mask_b.sum())
+                intersection = int(np.logical_and(mask_a, mask_b).sum())
+                union = int(np.logical_or(mask_a, mask_b).sum())
+                records.append({
+                    "comparison_type": "dark_vs_dark",
+                    "threshold": threshold,
+                    "burst_a": key_a,
+                    "burst_b": key_b,
+                    "scene_a": meta_a["scene_label"],
+                    "scene_b": meta_b["scene_label"],
+                    "zoom_a": meta_a["zoom_label"],
+                    "zoom_b": meta_b["zoom_label"],
+                    "count_a": count_a,
+                    "count_b": count_b,
+                    "intersection_count": intersection,
+                    "union_count": union,
+                    "jaccard": safe_divide(intersection, union),
+                    "intersection_ratio_a": safe_divide(intersection, count_a),
+                    "intersection_ratio_b": safe_divide(intersection, count_b),
+                })
+
+    for threshold in thresholds:
+        dark_masks = []
+        for dark_key in dark_keys:
+            dark_masks.append(persistence_by_burst[dark_key] >= threshold)
+        if not dark_masks:
+            continue
+        dark_union = np.logical_or.reduce(dark_masks)
+        dark_count = int(dark_union.sum())
+        for flat_key in flat_keys:
+            flat_map = persistence_by_burst[flat_key]
+            if flat_map.shape != dark_union.shape:
+                continue
+            flat_mask = flat_map >= threshold
+            flat_count = int(flat_mask.sum())
+            intersection = int(np.logical_and(flat_mask, dark_union).sum())
+            union = int(np.logical_or(flat_mask, dark_union).sum())
+            meta = meta_by_burst[flat_key]
+            records.append({
+                "comparison_type": "flat_vs_dark_union",
+                "threshold": threshold,
+                "burst_a": flat_key,
+                "burst_b": "dark_union",
+                "scene_a": meta["scene_label"],
+                "scene_b": "dark",
+                "zoom_a": meta["zoom_label"],
+                "zoom_b": "all",
+                "count_a": flat_count,
+                "count_b": dark_count,
+                "intersection_count": intersection,
+                "union_count": union,
+                "jaccard": safe_divide(intersection, union),
+                "intersection_ratio_a": safe_divide(intersection, flat_count),
+                "intersection_ratio_b": safe_divide(intersection, dark_count),
+            })
+
+    overlap = pd.DataFrame(records)
+    overlap_path = output_dir / "hot_pixel_overlap_summary.csv"
+    overlap.to_csv(overlap_path, index=False)
+    LOGGER.info("Saved hot-pixel overlap summary to %s", overlap_path)
+    return overlap
 
 
 def save_previous_delta(
@@ -1021,6 +1153,7 @@ def render_summary_markdown(
     burst_df: pd.DataFrame,
     group_summary: pd.DataFrame,
     contrast_summary: pd.DataFrame,
+    hot_overlap_summary: pd.DataFrame,
     previous_delta: pd.DataFrame,
     input_dir: Path,
     output_dir: Path,
@@ -1129,11 +1262,34 @@ def render_summary_markdown(
                 "burst_id",
                 "scene_label",
                 "zoom_label",
+                "unstable_luma",
+                "unstable_color",
+                "unstable_detail",
                 "burst_mean_y_range",
                 "burst_green_excess_range",
                 "burst_high_freq_rel_range",
             ],
             max_rows=20,
+        ),
+        "",
+        "## Hot-Pixel Candidate Overlap",
+        "",
+        dataframe_to_markdown(
+            hot_overlap_summary,
+            [
+                "comparison_type",
+                "threshold",
+                "burst_a",
+                "burst_b",
+                "zoom_a",
+                "zoom_b",
+                "count_a",
+                "count_b",
+                "intersection_count",
+                "jaccard",
+                "intersection_ratio_a",
+            ],
+            max_rows=24,
         ),
         "",
         "## Scene Contrast Preview",
@@ -1173,7 +1329,8 @@ def render_summary_markdown(
         "- `flat`은 실내 흰 벽 baseline이므로 야외 색 편향 전체를 대표하지 않는다.",
         "- `dark`는 렌즈 가림 baseline이며 Auto exposure 때문에 물리 dark current로 해석하지 않는다.",
         "- `hot_persistence_ratio_50`은 같은 위치가 burst의 50% 이상에서 hot-pixel 후보로 반복된 비율이다.",
-        "- `burst_mean_y_range`, `burst_green_excess_range`, `burst_high_freq_rel_range`가 크면 temporal noise 해석에 Auto exposure/WB/focus 변화가 섞였을 수 있다.",
+        "- `unstable_luma`, `unstable_color`, `unstable_detail`은 밝기/색/디테일 변화를 분리해서 표시한다.",
+        "- hot-pixel overlap summary는 특정 센서 mask를 저장하지 않고 count/ratio만 저장한다.",
         "- NV12 원본 plane이 아니라 저장된 이미지 분석이면 Y/Cr/Cb 지표는 RGB 변환 이후 proxy다.",
     ]
     return "\n".join(lines)
@@ -1242,6 +1399,7 @@ def main() -> int:
 
     group_summary = save_group_summary(per_image_df, output_dir)
     contrast_summary = save_scene_contrast_summary(per_image_df, output_dir)
+    hot_overlap_summary = save_hot_pixel_overlap_summary(per_image_df, output_dir)
     previous_delta = (
         save_previous_delta(group_summary, args.previous_group_summary, output_dir)
         if args.previous_group_summary
@@ -1254,6 +1412,7 @@ def main() -> int:
         burst_df,
         group_summary,
         contrast_summary,
+        hot_overlap_summary,
         previous_delta,
         input_dir,
         output_dir,

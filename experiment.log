@@ -1,74 +1,78 @@
 # Experiment Log
 
-## Date: 2026-05-11 (Monday)
+## Date: 2026-05-12 (Tuesday)
 ## Topic
-EO denoise redesign, MC-G105 daylight sensor analysis protocol, and EO recording / IR streaming PLD preparation
+MC-G105 flat/dark and morning-cloudy sensor analysis, analysis-script refinement, EO TS recording PLD update, and Phase 1/2 denoise training concept.
 
 ## Summary
-Today focused on restarting the Denoise model design from the sensor-analysis side instead of immediately running another training job. The main direction is to first profile MC-G105 operational NV12 output, then use that profile to define a Denoise Degradation Pipeline and scratch-trained Teacher models for later Student distillation.
+Today focused on converting the MC-G105 capture results into model-design guidance. The flat/dark baseline and morning-cloudy outdoor captures were analyzed, then the degradation strategy was reframed as a two-phase denoise curriculum: generic public-HR denoise pretraining followed by MC-G105 scene/zoom/brightness-conditioned sensor adaptation.
 
 ## Work Done
 
-1. Denoise redesign / MTKD plan
-   - Reviewed the idea of using NAFNet, Restormer, and Deploy-family models as Teacher candidates.
-   - Clarified that Teacher models should not rely on generic pretrained outputs. They should be trained from scratch with the same designed denoise degradation pipeline.
-   - Separated three concepts that can otherwise be confused:
-     - degradation pipeline stage1/stage2 inside data config
-     - training curriculum 1-stage vs 2-stage
-     - KD stage for Student finetuning
-   - Recommended keeping GT supervision as the anchor during MTKD and using Teacher disagreement to downweight unreliable KD regions.
+1. Check-in / repository state
+   - Confirmed the GitHub repo was already up to date.
+   - Confirmed the GitLab repo was clean before starting the new changes.
 
-2. MC-G105 sensor analysis design
-   - Reframed analysis as an empirical operational-output profile, not RAW physical sensor characterization.
-   - Decided night natural scenes are unnecessary for the current drone operation distribution.
-   - Defined outdoor operation conditions as morning/afternoon x sunny/cloudy.
-   - Defined outdoor scenes as building, mixed dynamic range, and road_shaded.
-   - Defined indoor calibration scenes as flat and dark.
-   - Updated flat/dark folder policy:
-     - `morning/sunny/flat/{1x,3x,5x,7x}/0000.png`
-     - `morning/sunny/dark/{1x,7x}/0000.png`
-   - Documented that flat/dark are indoor calibration buckets and do not need to be repeated across weather/time conditions.
+2. EO recording PLD update
+   - Updated `configs/pipelines/eo_record_ir_stream.pld` so the EO recording branch can save H.265 video into TS segments.
+   - Kept the IR side as streaming-only, as IR recording is not needed.
+   - Added the EO `splitmuxsink` / `mpegtsmux` path using `/tmp/EO_IN_%d.ts`.
 
-3. Sensor analysis script expansion
-   - Reworked `examples/analysis/analyze_mc_g105_sensor_capture.py`.
-   - Added folder-structure metadata parsing for `{time}/{weather}/{scene}/{zoom}/{frame}.png`.
-   - Added flat/white-wall metrics:
-     - green dominance
-     - `G/R`, `G/B`
-     - green excess
-     - shading/vignetting proxy
-     - center/corner ratio
-   - Added dark/burst metrics:
-     - temporal noise map
-     - hot-pixel persistence
-     - fixed hot-pixel candidate mask
-   - Added group summaries, scene contrast summaries, previous-run delta, plots, and markdown report generation.
-   - Verified the script with a temporary flat/dark/building test dataset.
+3. MC-G105 analysis script refinement
+   - Updated `examples/analysis/analyze_mc_g105_sensor_capture.py`.
+   - Split the previous broad auto-instability flag into luma, color, and detail-related indicators.
+   - Removed the training-oriented hot-pixel mask output path because the target model must generalize across multiple sensors.
+   - Kept hot-pixel density, persistence, and overlap statistics as diagnostic outputs.
+   - Added hot-pixel overlap summary output without saving per-device masks.
+   - Verified the script with `python3 -m py_compile`.
 
-4. EO/IR pipeline preparation
-   - Added `configs/pipelines/eo_record_ir_stream.pld`.
-   - EO branch now supports both streaming and H.265 MKV recording.
-   - IR branch keeps streaming only; IR recording branch was removed because IR video storage is not needed.
-   - Added queues after tee branches to reduce branch coupling.
-   - EO recording branch stores 1920x1080 NV12-derived H.265 MKV segments via `splitmuxsink`.
+4. Flat/dark first analysis
+   - Organized and committed the first `flat_dark_first` analysis results under `results/mc_g105_analysis/flat_dark_first`.
+   - Wrote a Korean interpretation document for the flat/dark baseline.
+   - Key conclusion: indoor flat frames do not prove a strong global green bias, but flat frames show noticeable shading/vignetting and dark frames show persistent hot-pixel candidates.
+
+5. Morning-cloudy outdoor analysis
+   - Organized and committed `flat_dark_morningcloudy` results under `results/mc_g105_analysis/flat_dark_morningcloudy`.
+   - Wrote a Korean interpretation document for the morning-cloudy outdoor result.
+   - Key conclusion:
+     - `road_shaded` 1x/3x/5x shows strong green cast and chroma mottle.
+     - 7x should not be treated as "always stronger green cast"; it is more closely tied to detail attenuation, shading, and optical/focus effects.
+     - Outdoor hot-pixel candidates are not the main issue; hot pixels should remain a random-density degradation, not a fixed-position mask.
+
+6. Phase 1/2 denoise training concept
+   - Discussed the design with four expert-style review perspectives:
+     - generic degradation design
+     - EO sensor/ISP behavior
+     - denoise curriculum and future MTKD
+     - validation protocol
+   - Added `docs/plans/2026-05-12-mc-g105-denoise-phase1-phase2-concept.md`.
+   - Decided not to create a new YAML config yet because three additional data cases are still pending.
+   - Current concept:
+     - Phase 1: public HR based generic x1 denoise prior, weak/moderate common noise, clean/detail preservation.
+     - Phase 2: MC-G105 scene/zoom/brightness-conditioned adaptation, especially road-shaded green/chroma, high-zoom detail attenuation, shading/vignetting, and random hot-pixel density.
+
+7. GitLab backup
+   - Committed and pushed today's analysis, script updates, PLD update, and planning document to GitLab:
+     - `f7c5d14 Add MC-G105 analysis results and denoise planning`
 
 ## Findings
 
-- The next important step is not model training yet. MC-G105 flat/dark data should be collected first and analyzed to establish initial sensor-output baselines.
-- Flat/dark captured through the current video-recording path are still useful, but they represent:
-  `sensor -> ISP/driver -> NV12 -> H.265 encode -> decode/extracted PNG`
-  rather than RAW sensor data.
-- Hot-pixel analysis can be affected by H.265 compression, so persistence across frames is more reliable than a single-frame hot-pixel count.
-- If `/tmp` is too small during mission-equipment testing, EO MKV output should be moved to `/data` or another persistent storage path.
+- Current MC-G105 degradation design should not be a single global noise recipe.
+- The most useful Phase 2 axes are:
+  - scene-conditioned green cast
+  - chroma mottle
+  - shading/vignetting
+  - high-zoom detail attenuation
+  - random hot-pixel density
+- The `night` profile is not justified by the current operational plan or data. Lens-covered dark data is a calibration bucket, not a natural night scene.
+- Real MC-G105 captures should be used as a real-domain probe, not as the sole validation target, because they do not have clean GT.
+- A fixed synthetic validation set is still required for checkpoint selection.
 
 ## Next Actions
 
-1. Deploy `configs/pipelines/eo_record_ir_stream.pld` to the mission-equipment environment.
-2. Test EO streaming and EO MKV recording, and confirm the final segment is valid after EOS/finalization.
-3. Capture indoor flat/dark EO videos:
-   - flat: 1x, 3x, 5x, 7x
-   - dark: 1x, 7x
-4. Extract at least 20 PNG frames per folder into the planned capture directory.
-5. Run:
-   `python3 examples/analysis/analyze_mc_g105_sensor_capture.py --input_dir <capture_root> --output_dir results/mc_g105_analysis/flat_dark_first`
-6. Use the first analysis report to decide whether outdoor capture should keep the same protocol or adjust exposure/zoom/session details.
+1. Capture the remaining three planned MC-G105 cases when weather and operation conditions allow.
+2. Run the same analysis script on the new data.
+3. Compare new results against `flat_dark_first` and `flat_dark_morningcloudy`.
+4. Use the updated evidence to draft `denoise_mc_g105_v3_daylight.yaml`.
+5. After `v3` is stable, decide whether to remove the old `denoise_mc_g105_v1.yaml` and `denoise_mc_g105_v2.yaml`.
+6. Prepare fixed generic synthetic validation and fixed MC-G105 synthetic validation sets before B1/C1/C2 training.

@@ -12,10 +12,18 @@ queue !
 appsink name=eotxstm emit-signals=true max-buffers=1 drop=true sync=false
 
 eoraw. ! queue name=EO_IN_SRC max-size-buffers=0 max-size-bytes=0 max-size-time=3000000000 !
-qtic2venc name=EO_IN_SINK control-rate=1 target-bitrate=15000000 !
+qtic2venc name=EO_IN_SINK control-rate=1 target-bitrate=8000000 !
 h265parse config-interval=-1 !
+video/x-h265,stream-format=byte-stream,alignment=au !
+identity name=eoklvmeta !
 queue !
-splitmuxsink name=MUX_EO max-size-time=30000000000 async-finalize=true send-keyframe-requests=true muxer=matroskamux location=/tmp/EO_%05d.mkv
+tsrec_eo.video
+
+appsrc name=eoklvsrc is-live=true format=time do-timestamp=true caps="meta/x-klv,parsed=true" !
+queue !
+tsrec_eo.subtitle_0
+
+splitmuxsink name=tsrec_eo max-size-time=30000000000 muxer=mpegtsmux location=/tmp/EO_IN_%d.ts
 
 v4l2src device=/dev/video2 name=ircam0 !
 video/x-raw,format=NV12,width=640,height=512,framerate=30/1 !
