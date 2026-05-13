@@ -1,8 +1,8 @@
 # Checklist Log
 
-## Date: 2026-05-12 (Tuesday)
+## Date: 2026-05-13 (Wednesday)
 ## Goal
-MC-G105 flat/dark 및 오전 흐림 야외 분석 결과를 정리하고, Denoise Phase 1/2 학습 컨셉을 확정 전 문서로 남긴다.
+MC-G105 sunny morning/afternoon 분석 결과와 outdoor map 산출물을 정리하고, `results/mc_g105_analysis` 분석 자료를 포함해서 퇴근 동기화를 수행한다.
 
 ---
 
@@ -12,47 +12,36 @@ MC-G105 flat/dark 및 오전 흐림 야외 분석 결과를 정리하고, Denois
 - [x] 오늘 작업 결과 GitLab commit/push
 - [x] 퇴근 시 GitHub repo 최신화
 
-## 2. EO/IR Pipeline
-- [x] EO 저장 branch를 TS 포맷 저장 방향으로 수정
-- [x] IR은 기존 streaming-only 형태 유지
-- [x] EO recording path를 `/tmp/EO_IN_%d.ts`로 구성
-- [/] 임무장비 환경에서 TS 저장 테스트 필요
-- [ ] 저장 안정성 문제가 있으면 `/data` 저장 경로 검토
+## 2. MC-G105 Sunny Outdoor Analysis
+- [x] `results/mc_g105_capture_frames/` 전체 기준 all 분석 실행
+- [x] `--save_outdoor_maps` 옵션으로 outdoor temporal/hot-persistence map 생성
+- [x] `results/mc_g105_analysis/all` 산출물 확인
+- [x] `flat_dark_first`, `flat_dark_morningcloudy` partial 결과 정리
+- [x] sunny morning/afternoon outdoor 결과 해석
 
-## 3. MC-G105 Analysis Script
-- [x] `unstable_auto`를 luma/color/detail 관점으로 분리
-- [x] 특정 센서 hot-pixel mask를 학습용으로 저장하지 않도록 개선
-- [x] hot-pixel overlap summary를 count/ratio 중심으로 저장
-- [x] 새 스크립트 문법 확인
-- [ ] 추가 데이터 3개 케이스 확보 후 동일 스크립트로 재분석
+## 3. Analysis Findings
+- [x] `road_shaded`가 dominant hard case임을 확인
+- [x] outdoor fixed hot-pixel persistence가 핵심 문제가 아님을 확인
+- [x] afternoon sunny에서 `mixed`, `road_shaded` green excess/clipping 증가 경향 확인
+- [x] 7x를 green cast가 아니라 shading/detail/luma instability 축으로 분리해야 함을 정리
+- [x] outdoor temporal map은 sensor-noise map이 아니라 real-domain instability proxy로 해석
 
-## 4. Flat/Dark Analysis
-- [x] `results/mc_g105_analysis/flat_dark_first` 결과 정리
-- [x] 한국어 해석 문서 작성
-- [x] flat에서 shading/vignetting 관찰
-- [x] dark에서 hot-pixel persistence density 범위 확인
-- [x] fixed hot-pixel mask는 학습에 사용하지 않는 방향 확정
+## 4. Planning Docs
+- [x] `docs/plans/2026-05-13-mc-g105-sunny-outdoor-analysis-result.md` 작성
+- [x] Phase 2 degradation bucket 우선순위 정리
+- [x] road-shaded hard-case sampling 비율 제안
+- [x] afternoon-cloudy 추가 수집의 의미와 우선순위 판단
 
-## 5. Morning-Cloudy Outdoor Analysis
-- [x] `results/mc_g105_analysis/flat_dark_morningcloudy` 결과 정리
-- [x] 한국어 해석 문서 작성
-- [x] `road_shaded` 1x/3x/5x의 green cast 및 chroma mottle 확인
-- [x] 7x는 green cast보다 detail attenuation/shading 중심으로 볼 필요 확인
-- [x] outdoor hot-pixel 후보는 핵심 문제가 아니라는 점 정리
-
-## 6. Phase 1/2 Denoise Concept
-- [x] Vision AI 관점으로 Phase 1/2 개념 검토
-- [x] Phase 1은 generic denoise prior로 정의
-- [x] Phase 2는 MC-G105 scene/zoom/brightness-conditioned adaptation으로 정의
-- [x] fixed synthetic validation + real MC-G105 probe 병행 방향 정리
-- [x] `docs/plans/2026-05-12-mc-g105-denoise-phase1-phase2-concept.md` 작성
-- [ ] 추가 3개 케이스 분석 후 `denoise_mc_g105_v3_daylight.yaml` 초안 작성
+## 5. Next Work
+- [ ] `denoise_mc_g105_v3_daylight.yaml` 초안 작성
+- [ ] Phase 2 scene/zoom/condition-aware degradation profile 구현
+- [ ] real probe 고정 샘플 선정
+- [ ] 필요 시 `afternoon/cloudy` 추가 촬영
 
 ---
 
 ## Quick Priority (Next Actions)
-- [x] 1. GitHub repo 최신화 완료
-- [ ] 2. 추가 3개 MC-G105 촬영 케이스 확보
-- [ ] 3. 신규 데이터 분석 결과를 기존 flat/dark/morning-cloudy 결과와 비교
-- [ ] 4. `denoise_mc_g105_v3_daylight.yaml` 설계
-- [ ] 5. B1/C1/C2 실험용 fixed synthetic validation set 준비
+- [x] 1. GitLab commit/push 및 GitHub 동기화
+- [ ] 2. `denoise_mc_g105_v3_daylight.yaml` 설계
+- [ ] 3. road-shaded / mixed / 7x real probe 샘플 고정
+- [ ] 4. B1/C1/C2 실험용 fixed synthetic validation set 준비

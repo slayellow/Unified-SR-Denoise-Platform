@@ -1,78 +1,83 @@
 # Experiment Log
 
-## Date: 2026-05-12 (Tuesday)
+## Date: 2026-05-13 (Wednesday)
 ## Topic
-MC-G105 flat/dark and morning-cloudy sensor analysis, analysis-script refinement, EO TS recording PLD update, and Phase 1/2 denoise training concept.
+MC-G105 sunny morning/afternoon outdoor capture analysis, outdoor-map generation, and commute synchronization with analysis artifacts included.
 
 ## Summary
-Today focused on converting the MC-G105 capture results into model-design guidance. The flat/dark baseline and morning-cloudy outdoor captures were analyzed, then the degradation strategy was reframed as a two-phase denoise curriculum: generic public-HR denoise pretraining followed by MC-G105 scene/zoom/brightness-conditioned sensor adaptation.
+Today focused on completing the sunny outdoor side of the MC-G105 daylight analysis. Morning/afternoon sunny captures were analyzed together with the existing calibration and morning-cloudy data under `results/mc_g105_analysis/all`, then the analysis was rerun with `--save_outdoor_maps` so outdoor temporal/hot-persistence maps are available for inspection. The results were distilled into a new planning document for Phase 2 denoise degradation design.
 
 ## Work Done
 
 1. Check-in / repository state
+   - Ran the check-in flow from `commute-sync-workflow.md`.
    - Confirmed the GitHub repo was already up to date.
-   - Confirmed the GitLab repo was clean before starting the new changes.
+   - Confirmed there were no GitLab local changes before starting today's new analysis work.
 
-2. EO recording PLD update
-   - Updated `configs/pipelines/eo_record_ir_stream.pld` so the EO recording branch can save H.265 video into TS segments.
-   - Kept the IR side as streaming-only, as IR recording is not needed.
-   - Added the EO `splitmuxsink` / `mpegtsmux` path using `/tmp/EO_IN_%d.ts`.
+2. MC-G105 all-condition analysis
+   - Analyzed the full capture root:
+     - `results/mc_g105_capture_frames/`
+   - Main command:
+     - `python3 examples/analysis/analyze_mc_g105_sensor_capture.py --input_dir results/mc_g105_capture_frames/ --output_dir results/mc_g105_analysis/all`
+   - Re-ran with `--save_outdoor_maps` to include outdoor map artifacts:
+     - `python3 examples/analysis/analyze_mc_g105_sensor_capture.py --input_dir results/mc_g105_capture_frames/ --output_dir results/mc_g105_analysis/all --save_outdoor_maps`
+   - The final `all` output contains:
+     - 2700 analyzed images
+     - 42 bursts
+     - 105 files
+     - 92 map images
 
-3. MC-G105 analysis script refinement
-   - Updated `examples/analysis/analyze_mc_g105_sensor_capture.py`.
-   - Split the previous broad auto-instability flag into luma, color, and detail-related indicators.
-   - Removed the training-oriented hot-pixel mask output path because the target model must generalize across multiple sensors.
-   - Kept hot-pixel density, persistence, and overlap statistics as diagnostic outputs.
-   - Added hot-pixel overlap summary output without saving per-device masks.
-   - Verified the script with `python3 -m py_compile`.
+3. Analysis result cleanup
+   - Removed the older partial analysis folders after confirming `all` supersedes them:
+     - `results/mc_g105_analysis/flat_dark_first`
+     - `results/mc_g105_analysis/flat_dark_morningcloudy`
+   - Kept the consolidated result under:
+     - `results/mc_g105_analysis/all`
 
-4. Flat/dark first analysis
-   - Organized and committed the first `flat_dark_first` analysis results under `results/mc_g105_analysis/flat_dark_first`.
-   - Wrote a Korean interpretation document for the flat/dark baseline.
-   - Key conclusion: indoor flat frames do not prove a strong global green bias, but flat frames show noticeable shading/vignetting and dark frames show persistent hot-pixel candidates.
-
-5. Morning-cloudy outdoor analysis
-   - Organized and committed `flat_dark_morningcloudy` results under `results/mc_g105_analysis/flat_dark_morningcloudy`.
-   - Wrote a Korean interpretation document for the morning-cloudy outdoor result.
+4. Sunny outdoor result interpretation
+   - Reviewed `group_summary.csv`, `burst_metrics.csv`, `hot_pixel_overlap_summary.csv`, and representative outdoor maps.
    - Key conclusion:
-     - `road_shaded` 1x/3x/5x shows strong green cast and chroma mottle.
-     - 7x should not be treated as "always stronger green cast"; it is more closely tied to detail attenuation, shading, and optical/focus effects.
-     - Outdoor hot-pixel candidates are not the main issue; hot pixels should remain a random-density degradation, not a fixed-position mask.
+     - Outdoor fixed hot-pixel persistence is not the main issue.
+     - `road_shaded` is the dominant hard case across sunny morning/afternoon conditions.
+     - Afternoon sunny increases green-excess and clipping risk in `mixed` and `road_shaded`.
+     - 7x should be treated as a shading/detail/luma-instability condition, not just a stronger green-cast condition.
 
-6. Phase 1/2 denoise training concept
-   - Discussed the design with four expert-style review perspectives:
-     - generic degradation design
-     - EO sensor/ISP behavior
-     - denoise curriculum and future MTKD
-     - validation protocol
-   - Added `docs/plans/2026-05-12-mc-g105-denoise-phase1-phase2-concept.md`.
-   - Decided not to create a new YAML config yet because three additional data cases are still pending.
-   - Current concept:
-     - Phase 1: public HR based generic x1 denoise prior, weak/moderate common noise, clean/detail preservation.
-     - Phase 2: MC-G105 scene/zoom/brightness-conditioned adaptation, especially road-shaded green/chroma, high-zoom detail attenuation, shading/vignetting, and random hot-pixel density.
+5. Planning documentation
+   - Added:
+     - `docs/plans/2026-05-13-mc-g105-sunny-outdoor-analysis-result.md`
+   - The document summarizes:
+     - sunny outdoor scene/zoom statistics
+     - worst burst ranking
+     - flat/dark baseline reuse
+     - outdoor map interpretation
+     - Phase 2 degradation bucket and sampling recommendations
 
-7. GitLab backup
-   - Committed and pushed today's analysis, script updates, PLD update, and planning document to GitLab:
-     - `f7c5d14 Add MC-G105 analysis results and denoise planning`
+6. Afternoon-cloudy data decision
+   - Compared existing `morning/cloudy`, `morning/sunny`, and `afternoon/sunny` outdoor summaries.
+   - Current judgment:
+     - `afternoon/cloudy` would be useful for completing the 2x2 time/weather grid.
+     - It is not a blocker for starting `denoise_mc_g105_v3` design.
+     - If captured, priority should be `road_shaded` all zooms, then `mixed` 5x/7x, then `building` 7x.
 
 ## Findings
 
-- Current MC-G105 degradation design should not be a single global noise recipe.
-- The most useful Phase 2 axes are:
-  - scene-conditioned green cast
-  - chroma mottle
-  - shading/vignetting
-  - high-zoom detail attenuation
-  - random hot-pixel density
-- The `night` profile is not justified by the current operational plan or data. Lens-covered dark data is a calibration bucket, not a natural night scene.
-- Real MC-G105 captures should be used as a real-domain probe, not as the sole validation target, because they do not have clean GT.
-- A fixed synthetic validation set is still required for checkpoint selection.
+- `road_shaded` temporal-noise proxy is consistently high:
+  - morning sunny: about 40.20
+  - afternoon sunny: about 42.68
+  - morning cloudy: about 40.27
+- The strongest sunny temporal-noise proxy bursts are all `road_shaded`.
+- Outdoor temporal maps are not pure sensor-noise maps. They include scene edges, vehicles, shadow boundaries, and auto/detail instability.
+- Flat 7x shows stronger shading and chroma non-uniformity than the lower zooms.
+- Dark frames show persistent hot-pixel candidates, but outdoor hot-pixel persistence is effectively near zero.
+- Phase 2 should use scene/zoom/condition-aware degradation instead of one global MC-G105 noise recipe.
 
 ## Next Actions
 
-1. Capture the remaining three planned MC-G105 cases when weather and operation conditions allow.
-2. Run the same analysis script on the new data.
-3. Compare new results against `flat_dark_first` and `flat_dark_morningcloudy`.
-4. Use the updated evidence to draft `denoise_mc_g105_v3_daylight.yaml`.
-5. After `v3` is stable, decide whether to remove the old `denoise_mc_g105_v1.yaml` and `denoise_mc_g105_v2.yaml`.
-6. Prepare fixed generic synthetic validation and fixed MC-G105 synthetic validation sets before B1/C1/C2 training.
+1. Commit and push today's logs, planning document, and consolidated `results/mc_g105_analysis/all` artifacts.
+2. Sync the GitLab worktree back to the GitHub worktree for home-side continuation.
+3. Draft `denoise_mc_g105_v3_daylight.yaml` using separate profiles for:
+   - `road_shaded`
+   - afternoon sunny `mixed`
+   - 7x high-zoom shading/detail attenuation
+   - sparse random hot pixels
+4. Capture `afternoon/cloudy` only if weather/time allows, prioritizing `road_shaded` over full-grid completeness.
