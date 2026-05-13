@@ -1,47 +1,38 @@
 # Checklist Log
 
-## Date: 2026-05-13 (Wednesday)
+## Date: 2026-05-14 (Thursday)
 ## Goal
-MC-G105 sunny morning/afternoon 분석 결과와 outdoor map 산출물을 정리하고, `results/mc_g105_analysis` 분석 자료를 포함해서 퇴근 동기화를 수행한다.
+MC-G105 Phase 2 field profile 기준으로 validation dataset을 만들고, Phase 1/Phase 2 Denoise baseline 학습을 시작한다.
 
 ---
 
-## 1. Repository / Commute Sync
-- [x] 출근 시 GitHub repo 최신 상태 확인
-- [x] GitLab repo 상태 확인 및 기존 변경사항 보호
-- [x] 오늘 작업 결과 GitLab commit/push
-- [x] 퇴근 시 GitHub repo 최신화
+## 1. Repository Sync
+- [ ] 회사 GitLab repo에서 GitHub 최신 commit pull
+- [ ] `configs/data/denoise_mc_g105_phase1_generic_v1.yaml` 확인
+- [ ] `configs/data/denoise_mc_g105_phase2_field_v1.yaml` 확인
+- [ ] dim32 train/finetune config 경로 확인
 
-## 2. MC-G105 Sunny Outdoor Analysis
-- [x] `results/mc_g105_capture_frames/` 전체 기준 all 분석 실행
-- [x] `--save_outdoor_maps` 옵션으로 outdoor temporal/hot-persistence map 생성
-- [x] `results/mc_g105_analysis/all` 산출물 확인
-- [x] `flat_dark_first`, `flat_dark_morningcloudy` partial 결과 정리
-- [x] sunny morning/afternoon outdoor 결과 해석
+## 2. Fixed Validation Dataset
+- [ ] Phase 1 generic validation 생성
+  - [ ] `val_denoise_generic_fixed_v1/HR`, `LR` 생성 확인
+- [ ] Phase 2 field validation 생성
+  - [ ] `val_denoise_mc_g105_field_fixed_v1/HR`, `LR` 생성 확인
+- [ ] Phase 1 모델과 Phase 2 finetune 모델 모두 Phase 2 field validation에서 비교하도록 평가 기준 고정
 
-## 3. Analysis Findings
-- [x] `road_shaded`가 dominant hard case임을 확인
-- [x] outdoor fixed hot-pixel persistence가 핵심 문제가 아님을 확인
-- [x] afternoon sunny에서 `mixed`, `road_shaded` green excess/clipping 증가 경향 확인
-- [x] 7x를 green cast가 아니라 shading/detail/luma instability 축으로 분리해야 함을 정리
-- [x] outdoor temporal map은 sensor-noise map이 아니라 real-domain instability proxy로 해석
+## 3. Real Probe Set
+- [ ] `road_shaded/3x`, `road_shaded/5x`, `road_shaded/7x` 샘플 고정
+- [ ] `mixed/5x`, `mixed/7x`, `building/7x` 샘플 고정
+- [ ] `flat/1x`, `flat/7x`, `dark/1x`, `dark/7x` 샘플 고정
+- [ ] real probe는 GT metric이 아니라 input/output 부작용 확인용으로 분리
 
-## 4. Planning Docs
-- [x] `docs/plans/2026-05-13-mc-g105-sunny-outdoor-analysis-result.md` 작성
-- [x] Phase 2 degradation bucket 우선순위 정리
-- [x] road-shaded hard-case sampling 비율 제안
-- [x] afternoon-cloudy 추가 수집의 의미와 우선순위 판단
+## 4. Training
+- [ ] Phase 1 dim32 smoke run
+- [ ] Phase 1 dim32 full training 시작
+- [ ] Phase 1 checkpoint 생성 후 Phase 2 finetune config의 `pretrained_path` 확인
+- [ ] Phase 2 dim32 finetune 시작
 
-## 5. Next Work
-- [ ] `denoise_mc_g105_v3_daylight.yaml` 초안 작성
-- [ ] Phase 2 scene/zoom/condition-aware degradation profile 구현
-- [ ] real probe 고정 샘플 선정
-- [ ] 필요 시 `afternoon/cloudy` 추가 촬영
-
----
-
-## Quick Priority (Next Actions)
-- [x] 1. GitLab commit/push 및 GitHub 동기화
-- [ ] 2. `denoise_mc_g105_v3_daylight.yaml` 설계
-- [ ] 3. road-shaded / mixed / 7x real probe 샘플 고정
-- [ ] 4. B1/C1/C2 실험용 fixed synthetic validation set 준비
+## 5. 판단 기준
+- [ ] Main: Phase 2 field validation에서 Phase 1 대비 Phase 2 finetune 개선 여부 확인
+- [ ] Guardrail: Phase 1 generic validation에서 일반성/edge/detail 보존 저하 확인
+- [ ] Real probe: road-shaded, mixed, 7x에서 색감/음영/texture 부작용 확인
+- [ ] 최종 판단은 QCS8550/QNN/AIMET 배포 출력까지 확인 후 결정

@@ -1,0 +1,524 @@
+dataset_type: denoise
+clean_prob: 0.08
+
+crop_size: 256
+use_flip: true
+use_rot: true
+
+# MC-G105 Denoise Pipeline v1 - Phase 2 Field
+# 근거:
+# - results/mc_g105_analysis/all
+# - road_shaded: dominant hard case
+# - afternoon mixed: green/chroma/clipping stress
+# - 7x: green cast보다 shading/detail/luma instability 중심
+# - dark hot-pixel: fixed mask 금지, sparse random density만 사용
+conditional_profiles:
+  enabled: true
+  axes: [profile]
+  sampling:
+    profile:
+      generic_replay: 0.40
+      normal_building: 0.08
+      normal_mixed: 0.10
+      road_shaded_1x_3x_5x: 0.18
+      road_shaded_7x: 0.08
+      afternoon_mixed_5x_7x: 0.07
+      building_7x: 0.04
+      hot_pixel_stress: 0.03
+      near_clean: 0.02
+
+  profile_profiles:
+    generic_replay:
+      degradation:
+        stage2:
+          eo_shading:
+            enabled: true
+            prob: 0.06
+            strength: [0.02, 0.06]
+            sigma: [0.75, 1.30]
+            center_offset: [-0.08, 0.08]
+            diagonal_prob: 0.15
+            chroma_strength: [0.0, 0.006]
+          detail_attenuation:
+            enabled: true
+            prob: 0.10
+            blur_sigma: [0.20, 0.55]
+            detail_blend: [0.08, 0.20]
+            contrast: [0.93, 0.99]
+          color_cast:
+            enabled: true
+            prob: 0.10
+            rg_shift: [-3.0, -0.5]
+            bg_shift: [-2.0, 0.8]
+            global_gain: [0.99, 1.01]
+          signal_instability:
+            enabled: true
+            prob: 0.05
+            gain: [0.98, 1.03]
+            gamma: [0.98, 1.03]
+            channel_gain: [0.99, 1.02]
+          chroma_mottle:
+            enabled: true
+            prob: 0.08
+            sigma_min: 1.0
+            sigma_max: 3.0
+            downscale: 8
+
+    normal_building:
+      degradation:
+        stage2:
+          eo_shading:
+            enabled: true
+            prob: 0.12
+            strength: [0.03, 0.08]
+            sigma: [0.75, 1.25]
+            center_offset: [-0.10, 0.10]
+            diagonal_prob: 0.20
+            chroma_strength: [0.0, 0.008]
+          detail_attenuation:
+            enabled: true
+            prob: 0.16
+            blur_sigma: [0.22, 0.70]
+            detail_blend: [0.10, 0.24]
+            contrast: [0.91, 0.98]
+          color_cast:
+            enabled: true
+            prob: 0.22
+            rg_shift: [-4.5, -1.0]
+            bg_shift: [-2.5, 0.8]
+            global_gain: [0.99, 1.02]
+          chroma_mottle:
+            enabled: true
+            prob: 0.14
+            sigma_min: 1.5
+            sigma_max: 4.0
+            downscale: 8
+
+    normal_mixed:
+      degradation:
+        stage2:
+          eo_shading:
+            enabled: true
+            prob: 0.14
+            strength: [0.03, 0.08]
+            sigma: [0.75, 1.25]
+            center_offset: [-0.10, 0.10]
+            diagonal_prob: 0.25
+            chroma_strength: [0.0, 0.010]
+          detail_attenuation:
+            enabled: true
+            prob: 0.16
+            blur_sigma: [0.22, 0.70]
+            detail_blend: [0.10, 0.24]
+            contrast: [0.91, 0.98]
+          color_cast:
+            enabled: true
+            prob: 0.24
+            rg_shift: [-4.5, -1.0]
+            bg_shift: [-2.5, 0.8]
+            global_gain: [0.99, 1.02]
+          chroma_mottle:
+            enabled: true
+            prob: 0.18
+            sigma_min: 1.8
+            sigma_max: 4.8
+            downscale: 8
+          highlight_clipping:
+            enabled: true
+            prob: 0.06
+            gain: [1.02, 1.06]
+            gamma: [0.97, 1.02]
+            channel_gain: [0.99, 1.02]
+
+    road_shaded_1x_3x_5x:
+      degradation:
+        stage2:
+          eo_shading:
+            enabled: true
+            prob: 0.24
+            strength: [0.04, 0.11]
+            sigma: [0.70, 1.25]
+            center_offset: [-0.12, 0.12]
+            diagonal_prob: 0.35
+            chroma_strength: [0.0, 0.014]
+          detail_attenuation:
+            enabled: true
+            prob: 0.34
+            blur_sigma: [0.28, 0.95]
+            detail_blend: [0.12, 0.34]
+            contrast: [0.88, 0.97]
+          signal_instability:
+            enabled: true
+            prob: 0.36
+            gain: [0.94, 1.07]
+            gamma: [0.96, 1.06]
+            channel_gain: [0.97, 1.04]
+          color_cast:
+            enabled: true
+            prob: 0.46
+            rg_shift: [-6.5, -1.5]
+            bg_shift: [-4.5, 0.5]
+            global_gain: [0.99, 1.03]
+          highlight_clipping:
+            enabled: true
+            prob: 0.16
+            gain: [1.03, 1.10]
+            gamma: [0.96, 1.02]
+            channel_gain: [0.98, 1.03]
+          common_noise:
+            enabled: true
+            prob: 0.28
+            sigma_min: 1
+            sigma_max: 5
+            gray_prob: 0.25
+          chroma_mottle:
+            enabled: true
+            prob: 0.36
+            sigma_min: 3.0
+            sigma_max: 8.0
+            downscale: 8
+
+    road_shaded_7x:
+      degradation:
+        stage2:
+          eo_shading:
+            enabled: true
+            prob: 0.50
+            strength: [0.08, 0.18]
+            sigma: [0.65, 1.20]
+            center_offset: [-0.14, 0.14]
+            diagonal_prob: 0.35
+            chroma_strength: [0.0, 0.018]
+          detail_attenuation:
+            enabled: true
+            prob: 0.42
+            blur_sigma: [0.40, 1.05]
+            detail_blend: [0.16, 0.36]
+            contrast: [0.86, 0.96]
+          signal_instability:
+            enabled: true
+            prob: 0.42
+            gain: [0.93, 1.08]
+            gamma: [0.96, 1.07]
+            channel_gain: [0.97, 1.04]
+          color_cast:
+            enabled: true
+            prob: 0.18
+            rg_shift: [-3.0, 0.5]
+            bg_shift: [-2.0, 1.0]
+            global_gain: [0.99, 1.02]
+          highlight_clipping:
+            enabled: true
+            prob: 0.18
+            gain: [1.03, 1.10]
+            gamma: [0.96, 1.02]
+            channel_gain: [0.98, 1.03]
+          chroma_mottle:
+            enabled: true
+            prob: 0.32
+            sigma_min: 2.5
+            sigma_max: 6.5
+            downscale: 8
+
+    afternoon_mixed_5x_7x:
+      degradation:
+        stage2:
+          eo_shading:
+            enabled: true
+            prob: 0.22
+            strength: [0.04, 0.10]
+            sigma: [0.70, 1.20]
+            center_offset: [-0.12, 0.12]
+            diagonal_prob: 0.30
+            chroma_strength: [0.0, 0.014]
+          detail_attenuation:
+            enabled: true
+            prob: 0.26
+            blur_sigma: [0.25, 0.85]
+            detail_blend: [0.12, 0.30]
+            contrast: [0.89, 0.97]
+          signal_instability:
+            enabled: true
+            prob: 0.26
+            gain: [0.95, 1.07]
+            gamma: [0.96, 1.05]
+            channel_gain: [0.97, 1.04]
+          color_cast:
+            enabled: true
+            prob: 0.44
+            rg_shift: [-6.0, -1.5]
+            bg_shift: [-4.0, 0.5]
+            global_gain: [0.99, 1.03]
+          highlight_clipping:
+            enabled: true
+            prob: 0.24
+            gain: [1.03, 1.11]
+            gamma: [0.96, 1.02]
+            channel_gain: [0.98, 1.03]
+          chroma_mottle:
+            enabled: true
+            prob: 0.34
+            sigma_min: 2.5
+            sigma_max: 7.5
+            downscale: 8
+
+    building_7x:
+      degradation:
+        stage2:
+          eo_shading:
+            enabled: true
+            prob: 0.36
+            strength: [0.06, 0.14]
+            sigma: [0.70, 1.20]
+            center_offset: [-0.12, 0.12]
+            diagonal_prob: 0.25
+            chroma_strength: [0.0, 0.014]
+          detail_attenuation:
+            enabled: true
+            prob: 0.30
+            blur_sigma: [0.35, 0.95]
+            detail_blend: [0.14, 0.32]
+            contrast: [0.88, 0.97]
+          signal_instability:
+            enabled: true
+            prob: 0.22
+            gain: [0.96, 1.06]
+            gamma: [0.97, 1.05]
+            channel_gain: [0.98, 1.03]
+          color_cast:
+            enabled: true
+            prob: 0.36
+            rg_shift: [-6.0, -1.5]
+            bg_shift: [-3.5, 0.8]
+            global_gain: [0.99, 1.02]
+          chroma_mottle:
+            enabled: true
+            prob: 0.22
+            sigma_min: 2.0
+            sigma_max: 5.5
+            downscale: 8
+
+    hot_pixel_stress:
+      degradation:
+        stage2:
+          detail_attenuation:
+            enabled: true
+            prob: 0.10
+            blur_sigma: [0.20, 0.55]
+            detail_blend: [0.08, 0.20]
+            contrast: [0.93, 0.99]
+          hot_pixels:
+            enabled: true
+            prob: 0.70
+            density_min: 0.00010
+            density_max: 0.00060
+            blob_prob: 0.06
+            blob_radius_min: 1
+            blob_radius_max: 2
+          color_cast:
+            enabled: true
+            prob: 0.10
+            rg_shift: [-3.0, -0.5]
+            bg_shift: [-2.0, 0.8]
+            global_gain: [0.99, 1.01]
+          chroma_mottle:
+            enabled: true
+            prob: 0.08
+            sigma_min: 1.0
+            sigma_max: 3.0
+            downscale: 8
+
+    near_clean:
+      degradation:
+        stage1:
+          unprocess_noise:
+            enabled: true
+            prob: 0.20
+            read_noise_max: 0.006
+            shot_noise_max: 3.0
+          blur:
+            enabled: false
+          gaussian_noise:
+            enabled: true
+            prob: 0.10
+            sigma_min: 1
+            sigma_max: 2
+            gray_prob: 0.25
+          poisson_noise:
+            enabled: true
+            prob: 0.08
+            scale_min: 0.05
+            scale_max: 0.5
+            gray_prob: 0.20
+          jpeg:
+            enabled: true
+            prob: 0.01
+            quality_min: 97
+            quality_max: 99
+        stage2:
+          blur:
+            enabled: false
+          eo_shading:
+            enabled: false
+          detail_attenuation:
+            enabled: false
+          signal_instability:
+            enabled: false
+          color_cast:
+            enabled: false
+          highlight_clipping:
+            enabled: false
+          common_noise:
+            enabled: true
+            prob: 0.08
+            sigma_min: 1
+            sigma_max: 2
+            gray_prob: 0.25
+          chroma_mottle:
+            enabled: false
+          hot_pixels:
+            enabled: false
+          final_jpeg:
+            enabled: true
+            prob: 0.01
+            quality_min: 97
+            quality_max: 99
+
+degradation:
+  stage1:
+    unprocess_noise:
+      enabled: true
+      prob: 0.52
+      read_noise_max: 0.010
+      shot_noise_max: 6.5
+
+    turbulence:
+      enabled: false
+      prob: 0.0
+
+    blur:
+      enabled: true
+      prob: 0.08
+      kernel_probs: [0.65, 0.14, 0.08, 0.02, 0.08, 0.03]
+      kernel_sizes: [7, 9, 11, 13]
+      sigma: [0.2, 0.7]
+      betag: [0.8, 2.0]
+      betap: [1.0, 1.4]
+
+    resize:
+      enabled: false
+      prob: 0.0
+      scale_min: 1.0
+      scale_max: 1.0
+      interpolations: ["cv2.INTER_LINEAR"]
+
+    gaussian_noise:
+      enabled: true
+      prob: 0.22
+      sigma_min: 1
+      sigma_max: 3
+      gray_prob: 0.25
+
+    poisson_noise:
+      enabled: true
+      prob: 0.20
+      scale_min: 0.05
+      scale_max: 1.0
+      gray_prob: 0.20
+
+    jpeg:
+      enabled: true
+      prob: 0.03
+      quality_min: 95
+      quality_max: 99
+
+    sinc:
+      enabled: false
+      prob: 0.0
+      kernel_sizes: [7, 9, 11]
+
+  stage2:
+    blur:
+      enabled: true
+      prob: 0.08
+      kernel_probs: [0.65, 0.14, 0.08, 0.02, 0.08, 0.03]
+      kernel_sizes: [7, 9, 11]
+      sigma: [0.2, 0.6]
+      betag: [0.8, 2.0]
+      betap: [1.0, 1.4]
+
+    target_resize:
+      enabled: false
+      interpolations: ["cv2.INTER_CUBIC", "cv2.INTER_LINEAR"]
+
+    ir_noise:
+      enabled: false
+
+    eo_shading:
+      enabled: true
+      prob: 0.10
+      strength: [0.03, 0.08]
+      sigma: [0.75, 1.30]
+      center_offset: [-0.10, 0.10]
+      diagonal_prob: 0.20
+      chroma_strength: [0.0, 0.008]
+
+    detail_attenuation:
+      enabled: true
+      prob: 0.16
+      blur_sigma: [0.20, 0.65]
+      detail_blend: [0.08, 0.22]
+      contrast: [0.92, 0.99]
+
+    signal_instability:
+      enabled: true
+      prob: 0.08
+      gain: [0.98, 1.04]
+      gamma: [0.98, 1.04]
+      channel_gain: [0.99, 1.02]
+
+    color_cast:
+      enabled: true
+      prob: 0.16
+      rg_shift: [-4.0, -0.8]
+      bg_shift: [-2.5, 0.8]
+      global_gain: [0.99, 1.02]
+
+    highlight_clipping:
+      enabled: true
+      prob: 0.04
+      gain: [1.02, 1.06]
+      gamma: [0.97, 1.02]
+      channel_gain: [0.99, 1.02]
+
+    common_noise:
+      enabled: true
+      prob: 0.18
+      sigma_min: 1
+      sigma_max: 4
+      gray_prob: 0.25
+
+    chroma_noise:
+      enabled: false
+
+    chroma_mottle:
+      enabled: true
+      prob: 0.12
+      sigma_min: 1.5
+      sigma_max: 4.0
+      downscale: 8
+
+    hot_pixels:
+      enabled: true
+      prob: 0.08
+      density_min: 0.00003
+      density_max: 0.00018
+      blob_prob: 0.06
+      blob_radius_min: 1
+      blob_radius_max: 2
+
+    final_jpeg:
+      enabled: true
+      prob: 0.03
+      quality_min: 95
+      quality_max: 99

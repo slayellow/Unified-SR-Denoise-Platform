@@ -73,11 +73,40 @@ Today focused on completing the sunny outdoor side of the MC-G105 daylight analy
 
 ## Next Actions
 
-1. Commit and push today's logs, planning document, and consolidated `results/mc_g105_analysis/all` artifacts.
-2. Sync the GitLab worktree back to the GitHub worktree for home-side continuation.
-3. Draft `denoise_mc_g105_v3_daylight.yaml` using separate profiles for:
-   - `road_shaded`
-   - afternoon sunny `mixed`
-   - 7x high-zoom shading/detail attenuation
-   - sparse random hot pixels
+1. Select fixed real probe samples:
+   - `road_shaded/3x`
+   - `road_shaded/5x`
+   - `road_shaded/7x`
+   - `afternoon/mixed/5x`
+   - `afternoon/mixed/7x`
+   - `building/7x`
+   - `flat/1x`, `flat/7x`, `dark/1x`, `dark/7x`
+2. Materialize fixed synthetic validation sets:
+   - `val_denoise_generic_fixed_v1/HR`, `LR`
+   - `val_denoise_mc_g105_field_fixed_v1/HR`, `LR`
+3. Smoke-test the new Phase 1/Phase 2 config pair:
+   - `configs/data/denoise_mc_g105_phase1_generic_v1.yaml`
+   - `configs/data/denoise_mc_g105_phase2_field_v1.yaml`
 4. Capture `afternoon/cloudy` only if weather/time allows, prioritizing `road_shaded` over full-grid completeness.
+
+## 2026-05-13 Evening Update
+
+After home-side review, the previous interim MC-G105 v1/v2 degradation configs were replaced by a new v1 Phase 1/Phase 2 structure based on `results/mc_g105_analysis/all`.
+The Phase 2 naming was changed from `daylight` to `field` because the target is the collected MC-G105 field profile, not a strict daylight/weather subset. Cloudy afternoon is optional and not a blocker for this v1 baseline.
+
+New active data configs:
+- `configs/data/denoise_mc_g105_phase1_generic_v1.yaml`
+- `configs/data/denoise_mc_g105_phase2_field_v1.yaml`
+
+New active train configs:
+- `configs/train/Denoise/svfocusdenoise_mc_g105_phase1_generic_v1_dim32.yaml`
+- `configs/finetune/Denoise/svfocusdenoise_mc_g105_phase2_field_v1_dim32.yaml`
+
+Implementation updates:
+- Added generic conditional profile axes for profile-bucket sampling.
+- Added EO-specific `eo_shading`.
+- Added YCrCb chroma-only `chroma_mottle`.
+- Added sunny highlight saturation proxy `highlight_clipping`.
+
+Design reference:
+- `docs/plans/2026-05-13-mc-g105-denoise-degradation-v1-design.md`

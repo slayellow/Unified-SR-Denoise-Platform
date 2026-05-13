@@ -1,29 +1,29 @@
-task: sr          # SRDataset을 scale=1로 사용 (degradation pipeline 재활용)
+task: denoise
 model:
   name: svfocussrnet
-  use_advanced_rep: false # basic RepBlock 사용
-  scale: 1          # Denoise: 해상도 유지
-  dim: 24           # channel 축소 비교용
-  n_resblocks: 2    # block2/basic 경량화 버전
+  use_advanced_rep: false
+  scale: 1
+  dim: 32
+  n_resblocks: 2
 
 data:
   type: eo
   train_root:
     - /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
-  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/HR
-  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/LR
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise_mc_g105_field_fixed_v1/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise_mc_g105_field_fixed_v1/LR
 
 train:
-  epochs: 300
-  batch_size: 128
-  lr: 5e-5
+  epochs: 140
+  batch_size: 96
+  lr: 1e-5
   num_workers: 4
   gradient_accumulation_steps: 1
   patch_size: 256
   save_interval: 20
-  save_name: "train_svfocusdenoise_basic_x1_dim24_block2_epoch300_lr5e-5_awgn_260420"
+  save_name: "finetune_svfocusdenoise_mc_g105_phase2_field_v1_x1_dim32_block2_260513"
 
-  pretrained_path: null
+  pretrained_path: "checkpoints/train_svfocusdenoise_mc_g105_phase1_generic_v1_x1_dim32_block2_260513/best.pth"
 
   optimizer:
     type: AdamW
@@ -34,12 +34,12 @@ train:
   early_stopping:
     patience: 50
     min_delta: 0.0
-    monitor: 'loss'
-    mode: 'min'
+    monitor: 'psnr'
+    mode: 'max'
 
   scheduler:
     type: CosineAnnealingLR
-    T_max: 300
+    T_max: 140
     eta_min: 1e-7
 
 loss:
@@ -48,11 +48,11 @@ loss:
     weight: 1.0
   edge:
     enabled: true
-    weight: 0.08
+    weight: 0.10
     mode: 'gray'
   ssim:
     enabled: true
-    weight: 0.15
+    weight: 0.12
   l1:
     enabled: false
     weight: 1.0
@@ -61,16 +61,16 @@ loss:
     weight: 0.0
   color_consistency:
     enabled: true
-    weight: 0.08
-    loss_type: 'l1'
+    weight: 0.06
+    loss_type: 'charbonnier'
   hot_pixel_masked:
     enabled: true
-    weight: 0.15
-    threshold: 0.15
+    weight: 0.08
+    threshold: 0.10
     base_loss: 'charbonnier'
     kernel_size: 3
   tv:
     enabled: false
-    weight: 0.1
+    weight: 0.0
 
 export_onnx: false

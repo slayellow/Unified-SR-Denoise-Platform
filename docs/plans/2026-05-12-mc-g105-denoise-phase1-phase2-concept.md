@@ -5,7 +5,7 @@
 목적:
 - 공개 HR 데이터셋(DIV2K, Flickr2K 등)을 기반으로 MC-G105 EO 센서용 Denoise 모델을 학습하기 위한 Phase 1/Phase 2 컨셉을 정리한다.
 - 아직 추가 촬영 데이터 3개 케이스가 모두 확보되지 않았으므로, 본 문서는 YAML config 확정 전 설계 메모로 둔다.
-- 현재 `denoise_mc_g105_v1.yaml`, `denoise_mc_g105_v2.yaml`는 추후 삭제 가능하지만, `v3` 설계가 확정되기 전까지는 보존한다.
+- 2026-05-13 통합 분석 이후 본 문서는 historical concept로 둔다. 실제 active v1 pipeline은 `2026-05-13-mc-g105-denoise-degradation-v1-design.md`와 `denoise_mc_g105_phase1_generic_v1.yaml`, `denoise_mc_g105_phase2_field_v1.yaml`를 기준으로 한다.
 
 ---
 

@@ -10,6 +10,7 @@ from .unprocess import add_unprocess_isp_noise
 import math
 from typing import Any
 from copy import deepcopy
+from itertools import combinations
 
 # =========================================================
 #  Common Utils
@@ -83,6 +84,67 @@ def add_chroma_noise(img, sigma_range=(5, 20), downscale_factor=4):
     noise_up = cv2.resize(noise, (W, H), interpolation=cv2.INTER_CUBIC)
     
     return np.clip(img_float + noise_up, 0, 255).astype('uint8')
+
+def add_chroma_mottle(img, sigma_range=(2, 8), downscale_factor=8):
+    """Apply low-frequency chroma-only mottle in YCrCb space."""
+    sigma = random.uniform(sigma_range[0], sigma_range[1])
+    h, w, _ = img.shape
+    ycrcb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb).astype(np.float32)
+
+    h_down, w_down = max(h // downscale_factor, 1), max(w // downscale_factor, 1)
+    noise = np.random.normal(0, sigma, (h_down, w_down, 2)).astype(np.float32)
+    noise_up = cv2.resize(noise, (w, h), interpolation=cv2.INTER_CUBIC)
+
+    ycrcb[:, :, 1] += noise_up[:, :, 0]
+    ycrcb[:, :, 2] += noise_up[:, :, 1]
+    ycrcb = np.clip(ycrcb, 0, 255).astype(np.uint8)
+    return cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2BGR)
+
+def add_eo_shading(img, strength_range=(0.04, 0.14), sigma_range=(0.65, 1.25), center_offset_range=(-0.12, 0.12), diagonal_prob=0.25, chroma_strength_range=(0.0, 0.015)):
+    """Apply EO-style low-frequency shading/vignetting without IR noise artifacts."""
+    out = img.astype(np.float32) / 255.0
+    h, w, _ = out.shape
+
+    cx = (0.5 + random.uniform(center_offset_range[0], center_offset_range[1])) * w
+    cy = (0.5 + random.uniform(center_offset_range[0], center_offset_range[1])) * h
+    yy, xx = np.mgrid[0:h, 0:w]
+    sigma = max(h, w) * random.uniform(sigma_range[0], sigma_range[1])
+    dist_sq = (xx - cx) ** 2 + (yy - cy) ** 2
+    radial = np.exp(-dist_sq / (2 * sigma ** 2)).astype(np.float32)
+    radial = radial - radial.mean()
+    radial = radial / (np.max(np.abs(radial)) + 1e-6)
+
+    strength = random.uniform(strength_range[0], strength_range[1])
+    shading = 1.0 + strength * radial
+
+    if random.random() < diagonal_prob:
+        gx = np.linspace(-1.0, 1.0, w, dtype=np.float32)
+        gy = np.linspace(-1.0, 1.0, h, dtype=np.float32)
+        plane = (gy[:, None] + gx[None, :]) * 0.5
+        shading += random.uniform(-0.5, 0.5) * strength * plane
+
+    chroma_strength = random.uniform(chroma_strength_range[0], chroma_strength_range[1])
+    channel_gain = np.array(
+        [1.0 + random.uniform(-chroma_strength, chroma_strength) for _ in range(3)],
+        dtype=np.float32
+    )
+
+    out = out * shading[:, :, None] * channel_gain.reshape(1, 1, 3)
+    return np.clip(out * 255.0, 0, 255).round().astype(np.uint8)
+
+def add_highlight_clipping(img, gain_range=(1.02, 1.10), gamma_range=(0.96, 1.02), channel_gain_jitter=(0.98, 1.03)):
+    """Simulate sunny highlight saturation with mild global/channel gain drift."""
+    out = img.astype(np.float32) / 255.0
+    gain = random.uniform(gain_range[0], gain_range[1])
+    gamma = random.uniform(gamma_range[0], gamma_range[1])
+    channel_gains = np.array(
+        [random.uniform(channel_gain_jitter[0], channel_gain_jitter[1]) for _ in range(3)],
+        dtype=np.float32
+    )
+
+    out = np.power(np.maximum(out, 1e-8), gamma)
+    out = out * gain * channel_gains.reshape(1, 1, 3)
+    return np.clip(out * 255.0, 0, 255).round().astype(np.uint8)
 
 def add_gaussian_noise(img, sigma_range=(1, 10), gray_prob=0.5):
     """ Gaussian Noise """
@@ -207,22 +269,37 @@ def resolve_conditional_cfg(cfg: dict[str, Any]) -> tuple[dict[str, Any], dict[s
 
     resolved_cfg = deepcopy(cfg)
     sampling = conditional.get('sampling', {})
+    axes = conditional.get('axes')
     resolved_labels: dict[str, str] = {}
 
-    time_label = sample_weighted_profile(sampling.get('time', {}), 'default')
-    if time_label in conditional.get('time_profiles', {}):
-        resolved_cfg = merge_nested_dict(resolved_cfg, conditional['time_profiles'][time_label])
-        resolved_labels['time'] = time_label
+    if not axes:
+        axes = []
+        for axis in ('time', 'zoom'):
+            if axis in sampling or f'{axis}_profiles' in conditional:
+                axes.append(axis)
+        for axis in sampling.keys():
+            if axis not in axes and f'{axis}_profiles' in conditional:
+                axes.append(axis)
 
-    zoom_label = sample_weighted_profile(sampling.get('zoom', {}), 'default')
-    if zoom_label in conditional.get('zoom_profiles', {}):
-        resolved_cfg = merge_nested_dict(resolved_cfg, conditional['zoom_profiles'][zoom_label])
-        resolved_labels['zoom'] = zoom_label
+    for axis in axes:
+        label = sample_weighted_profile(sampling.get(axis, {}), 'default')
+        profile_map = conditional.get(f'{axis}_profiles', {})
+        if label in profile_map:
+            resolved_cfg = merge_nested_dict(resolved_cfg, profile_map[label])
+            resolved_labels[axis] = label
 
-    combo_key = f"{resolved_labels.get('time', 'default')}__{resolved_labels.get('zoom', 'default')}"
-    if combo_key in conditional.get('combo_profiles', {}):
-        resolved_cfg = merge_nested_dict(resolved_cfg, conditional['combo_profiles'][combo_key])
-        resolved_labels['combo'] = combo_key
+    combo_profiles = conditional.get('combo_profiles', {})
+    label_pairs = [(axis, resolved_labels[axis]) for axis in axes if axis in resolved_labels]
+    for combo_len in range(2, len(label_pairs) + 1):
+        for combo in combinations(label_pairs, combo_len):
+            label_key = '__'.join(label for _, label in combo)
+            axis_label_key = '__'.join(f'{axis}:{label}' for axis, label in combo)
+            if label_key in combo_profiles:
+                resolved_cfg = merge_nested_dict(resolved_cfg, combo_profiles[label_key])
+                resolved_labels[f'combo_{combo_len}_{len(resolved_labels)}'] = label_key
+            if axis_label_key in combo_profiles:
+                resolved_cfg = merge_nested_dict(resolved_cfg, combo_profiles[axis_label_key])
+                resolved_labels[f'combo_{combo_len}_{len(resolved_labels)}'] = axis_label_key
 
     return resolved_cfg, resolved_labels
 
@@ -356,6 +433,17 @@ def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_
             gray_prob=t_noise.get('gray_prob', 0.9)
         )
 
+    c_eo_shading = s2.get('eo_shading', {})
+    if c_eo_shading.get('enabled', False) and random.random() < c_eo_shading.get('prob', 0.5):
+        out = add_eo_shading(
+            out,
+            strength_range=tuple(c_eo_shading.get('strength', [0.04, 0.14])),
+            sigma_range=tuple(c_eo_shading.get('sigma', [0.65, 1.25])),
+            center_offset_range=tuple(c_eo_shading.get('center_offset', [-0.12, 0.12])),
+            diagonal_prob=c_eo_shading.get('diagonal_prob', 0.25),
+            chroma_strength_range=tuple(c_eo_shading.get('chroma_strength', [0.0, 0.015]))
+        )
+
     c_detail = s2.get('detail_attenuation', {})
     if c_detail.get('enabled', False) and random.random() < c_detail.get('prob', 0.5):
         out = add_detail_attenuation(
@@ -383,6 +471,15 @@ def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_
             global_gain_range=tuple(c_cast.get('global_gain', [0.98, 1.02]))
         )
 
+    c_highlight = s2.get('highlight_clipping', {})
+    if c_highlight.get('enabled', False) and random.random() < c_highlight.get('prob', 0.5):
+        out = add_highlight_clipping(
+            out,
+            gain_range=tuple(c_highlight.get('gain', [1.02, 1.10])),
+            gamma_range=tuple(c_highlight.get('gamma', [0.96, 1.02])),
+            channel_gain_jitter=tuple(c_highlight.get('channel_gain', [0.98, 1.03]))
+        )
+
     c_common = s2.get('common_noise', {})
     if c_common.get('enabled', True) and random.random() < c_common.get('prob', 0.0):
         out = add_gaussian_noise(
@@ -397,6 +494,14 @@ def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_
             out,
             sigma_range=(c_chroma.get('sigma_min', 5), c_chroma.get('sigma_max', 20)),
             downscale_factor=c_chroma.get('downscale', 4)
+        )
+
+    c_mottle = s2.get('chroma_mottle', {})
+    if c_mottle.get('enabled', False) and random.random() < c_mottle.get('prob', 0.5):
+        out = add_chroma_mottle(
+            out,
+            sigma_range=(c_mottle.get('sigma_min', 2), c_mottle.get('sigma_max', 8)),
+            downscale_factor=c_mottle.get('downscale', 8)
         )
 
     c_hot = s2.get('hot_pixels', {})

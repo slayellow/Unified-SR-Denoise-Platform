@@ -103,7 +103,7 @@ KD stage는 Teacher training stage와 분리해서 관리한다.
 - `DenoiseDataset`은 SRDataset 상속에서 분리되어 same-resolution clean/noisy pair를 만든다.
 - `apply_configured_degradation()`은 data config 기반으로 공통 열화와 센서 특화 열화를 함께 적용한다.
 - `configs/data/denoise_generic_baseline.yaml`은 common/generic denoise profile에 가깝다.
-- `configs/data/denoise_mc_g105_v1.yaml`, `denoise_mc_g105_v2.yaml`은 MC-G105 day/night, zoom conditional profile을 포함한다.
+- `configs/data/denoise_mc_g105_phase1_generic_v1.yaml`, `denoise_mc_g105_phase2_field_v1.yaml`은 MC-G105 통합 분석 기반 Phase 1/Phase 2 profile을 포함한다.
 - `examples/analysis/analyze_mc_g105_sensor_capture.py`는 temporal noise, hot-pixel 후보, tint bias, dark-region noise, edge density, high-frequency energy를 계산한다.
 - `UnifiedLoss`는 Charbonnier, edge, SSIM, color consistency, hot-pixel masked loss 등을 지원한다.
 - `SVFocusSRNet(scale=1)`은 input skip + residual 구조로 denoise Student에 적합한 형태다.
@@ -123,7 +123,7 @@ KD stage는 Teacher training stage와 분리해서 관리한다.
 
 ### 주의할 점
 
-현재 `tools/train.py`는 denoise task에서 기본 data config를 `configs/data/denoise.yaml`로 잡는다. 따라서 Teacher와 Student가 "동일한 degradation design"으로 학습하려면 반드시 `--data_config configs/data/denoise_generic_baseline.yaml` 또는 `--data_config configs/data/denoise_mc_g105_v2.yaml`처럼 명시해야 한다.
+현재 `tools/train.py`는 denoise task에서 기본 data config를 `configs/data/denoise.yaml`로 잡는다. 따라서 Teacher와 Student가 "동일한 degradation design"으로 학습하려면 반드시 `--data_config configs/data/denoise_mc_g105_phase1_generic_v1.yaml` 또는 `--data_config configs/data/denoise_mc_g105_phase2_field_v1.yaml`처럼 명시해야 한다.
 
 또한 현재 MC-G105 finetune config는 `pretrained_path`를 사용하므로, user가 말한 scratch Teacher recipe와는 다르다. 새 Teacher config는 `pretrained_path: null`을 명확히 둬야 한다.
 
@@ -332,7 +332,7 @@ Student는 배포 제약이 먼저다. Teacher 성능이 좋아도 Student가 QN
 ### 주 Student 후보
 
 - `SVFocusSRNet(scale=1, basic RepBlock, n_resblocks=2)`
-- dim24 vs dim32는 실제 QNN latency로 결정
+- Student 기본 채널은 dim32로 고정하고, 실제 QNN latency/품질은 dim32 기준으로 평가
 - `QuickDenoiseOpt`는 Quick path를 쓸 경우 `QuickDenoiseNet`보다 scale=1 구조가 깨끗하다.
 
 ### 주의할 점

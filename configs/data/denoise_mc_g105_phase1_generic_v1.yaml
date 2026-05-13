@@ -1,0 +1,148 @@
+dataset_type: denoise
+clean_prob: 0.12
+
+crop_size: 256
+use_flip: true
+use_rot: true
+
+# MC-G105 Denoise Pipeline v1 - Phase 1
+# 목적:
+# - Public HR을 clean scene prior로 사용
+# - same-resolution denoise prior 학습
+# - Phase 2 hard-case 적응 전에 clean/detail/edge 보존 능력 확보
+# - MC-G105 특화 artifact는 약하게만 주입
+degradation:
+  stage1:
+    unprocess_noise:
+      enabled: true
+      prob: 0.45
+      read_noise_max: 0.008
+      shot_noise_max: 5.0
+
+    turbulence:
+      enabled: false
+      prob: 0.0
+
+    blur:
+      enabled: true
+      prob: 0.05
+      kernel_probs: [0.70, 0.12, 0.08, 0.02, 0.06, 0.02]
+      kernel_sizes: [7, 9, 11]
+      sigma: [0.2, 0.5]
+      betag: [0.8, 2.0]
+      betap: [1.0, 1.4]
+
+    resize:
+      enabled: false
+      prob: 0.0
+      scale_min: 1.0
+      scale_max: 1.0
+      interpolations: ["cv2.INTER_LINEAR"]
+
+    gaussian_noise:
+      enabled: true
+      prob: 0.18
+      sigma_min: 1
+      sigma_max: 3
+      gray_prob: 0.25
+
+    poisson_noise:
+      enabled: true
+      prob: 0.18
+      scale_min: 0.05
+      scale_max: 0.8
+      gray_prob: 0.20
+
+    jpeg:
+      enabled: true
+      prob: 0.03
+      quality_min: 95
+      quality_max: 99
+
+    sinc:
+      enabled: false
+      prob: 0.0
+      kernel_sizes: [7, 9, 11]
+
+  stage2:
+    blur:
+      enabled: true
+      prob: 0.05
+      kernel_probs: [0.70, 0.12, 0.08, 0.02, 0.06, 0.02]
+      kernel_sizes: [7, 9, 11]
+      sigma: [0.2, 0.5]
+      betag: [0.8, 2.0]
+      betap: [1.0, 1.4]
+
+    target_resize:
+      enabled: false
+      interpolations: ["cv2.INTER_CUBIC", "cv2.INTER_LINEAR"]
+
+    ir_noise:
+      enabled: false
+
+    eo_shading:
+      enabled: true
+      prob: 0.06
+      strength: [0.02, 0.06]
+      sigma: [0.75, 1.30]
+      center_offset: [-0.08, 0.08]
+      diagonal_prob: 0.15
+      chroma_strength: [0.0, 0.006]
+
+    detail_attenuation:
+      enabled: true
+      prob: 0.10
+      blur_sigma: [0.20, 0.55]
+      detail_blend: [0.08, 0.20]
+      contrast: [0.93, 0.99]
+
+    signal_instability:
+      enabled: true
+      prob: 0.06
+      gain: [0.98, 1.03]
+      gamma: [0.98, 1.03]
+      channel_gain: [0.99, 1.02]
+
+    color_cast:
+      enabled: true
+      prob: 0.12
+      rg_shift: [-3.5, -0.5]
+      bg_shift: [-2.5, 0.5]
+      global_gain: [0.99, 1.01]
+
+    highlight_clipping:
+      enabled: false
+      prob: 0.0
+
+    common_noise:
+      enabled: true
+      prob: 0.16
+      sigma_min: 1
+      sigma_max: 3
+      gray_prob: 0.25
+
+    chroma_noise:
+      enabled: false
+
+    chroma_mottle:
+      enabled: true
+      prob: 0.08
+      sigma_min: 1.0
+      sigma_max: 3.0
+      downscale: 8
+
+    hot_pixels:
+      enabled: true
+      prob: 0.04
+      density_min: 0.00002
+      density_max: 0.00012
+      blob_prob: 0.06
+      blob_radius_min: 1
+      blob_radius_max: 2
+
+    final_jpeg:
+      enabled: true
+      prob: 0.02
+      quality_min: 96
+      quality_max: 99
