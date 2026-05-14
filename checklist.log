@@ -7,17 +7,17 @@ MC-G105 Phase 2 field profile 기준으로 validation dataset을 만들고, Phas
 ---
 
 ## 1. Repository Sync
-- [ ] 회사 GitLab repo에서 GitHub 최신 commit pull
-- [ ] `configs/data/denoise_mc_g105_phase1_generic_v1.yaml` 확인
-- [ ] `configs/data/denoise_mc_g105_phase2_field_v1.yaml` 확인
-- [ ] dim32 train/finetune config 경로 확인
+- [x] 회사 GitLab repo에서 GitHub 최신 commit pull
+- [x] `configs/data/denoise_mc_g105_phase1_generic_v1.yaml` 확인
+- [x] `configs/data/denoise_mc_g105_phase2_field_v1.yaml` 확인
+- [x] dim32 train/finetune config 경로 확인
 
 ## 2. Fixed Validation Dataset
-- [ ] Phase 1 generic validation 생성
-  - [ ] `val_denoise_generic_fixed_v1/HR`, `LR` 생성 확인
-- [ ] Phase 2 field validation 생성
-  - [ ] `val_denoise_mc_g105_field_fixed_v1/HR`, `LR` 생성 확인
-- [ ] Phase 1 모델과 Phase 2 finetune 모델 모두 Phase 2 field validation에서 비교하도록 평가 기준 고정
+- [x] Phase 1 generic validation 생성
+  - [x] `val_denoise_generic_fixed_v1/HR`, `LR` 생성 확인
+- [x] Phase 2 field validation 생성
+  - [x] `val_denoise_mc_g105_field_fixed_v1/HR`, `LR` 생성 확인
+- [x] Phase 1 모델과 Phase 2 finetune 모델 모두 Phase 2 field validation에서 비교하도록 평가 기준 고정
 
 ## 3. Real Probe Set
 - [ ] `road_shaded/3x`, `road_shaded/5x`, `road_shaded/7x` 샘플 고정
@@ -26,9 +26,9 @@ MC-G105 Phase 2 field profile 기준으로 validation dataset을 만들고, Phas
 - [ ] real probe는 GT metric이 아니라 input/output 부작용 확인용으로 분리
 
 ## 4. Training
-- [ ] Phase 1 dim32 smoke run
-- [ ] Phase 1 dim32 full training 시작
-- [ ] Phase 1 checkpoint 생성 후 Phase 2 finetune config의 `pretrained_path` 확인
+- [x] Phase 1 dim32 smoke run
+- [/] Phase 1 dim32 full training 시작
+- [x] Phase 1 checkpoint 생성 후 Phase 2 finetune config의 `pretrained_path` 확인
 - [ ] Phase 2 dim32 finetune 시작
 
 ## 5. 판단 기준

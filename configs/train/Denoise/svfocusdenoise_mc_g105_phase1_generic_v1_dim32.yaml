@@ -10,8 +10,8 @@ data:
   type: eo
   train_root:
     - /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
-  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise_generic_fixed_v1/HR
-  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise_generic_fixed_v1/LR
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_field_fixed_v1/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_field_fixed_v1/LR
 
 train:
   epochs: 320
@@ -21,7 +21,7 @@ train:
   gradient_accumulation_steps: 1
   patch_size: 256
   save_interval: 20
-  save_name: "train_svfocusdenoise_mc_g105_phase1_generic_v1_x1_dim32_block2_260513"
+  save_name: "train_svfocusdenoise_mc_g105_phase1_generic_v1_x1_dim32_block2_260514"
 
   pretrained_path: null
 

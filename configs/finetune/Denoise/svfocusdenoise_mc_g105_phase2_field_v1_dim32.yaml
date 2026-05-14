@@ -21,9 +21,9 @@ train:
   gradient_accumulation_steps: 1
   patch_size: 256
   save_interval: 20
-  save_name: "finetune_svfocusdenoise_mc_g105_phase2_field_v1_x1_dim32_block2_260513"
+  save_name: "finetune_svfocusdenoise_mc_g105_phase2_field_v1_x1_dim32_block2_260514"
 
-  pretrained_path: "checkpoints/train_svfocusdenoise_mc_g105_phase1_generic_v1_x1_dim32_block2_260513/best.pth"
+  pretrained_path: "checkpoints/train_svfocusdenoise_mc_g105_phase1_generic_v1_x1_dim32_block2_260514/best.pth"
 
   optimizer:
     type: AdamW

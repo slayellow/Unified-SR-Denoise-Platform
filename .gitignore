@@ -5,6 +5,7 @@
 *.engine
 *.onnx.data
 __pycache__/
+checkpoints/
 logs/
 Dataset/
 tmp/

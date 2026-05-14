@@ -23,7 +23,7 @@ import numpy as np
 import yaml
 
 # 프로젝트 루트를 path에 추가
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from src.data.datasets import SRDataset
 
 
