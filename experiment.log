@@ -78,7 +78,10 @@ Today focused on validating whether the current public-HR synthetic degradation 
      - `train_config.yaml`
      - `data_config.yaml`
      - `training_log.csv`
-   - At checkout time, `training_log.csv` had not yet written an epoch row.
+     - `best.pth`
+     - `last.pth`
+   - Latest observed row at checkout time:
+     - epoch 1, train loss `0.154322`, val loss `0.152595`, PSNR `21.8070`, SSIM `0.5240`, LPIPS `0.5629`, NIQE `8.9228`
 
 ## Findings
 
