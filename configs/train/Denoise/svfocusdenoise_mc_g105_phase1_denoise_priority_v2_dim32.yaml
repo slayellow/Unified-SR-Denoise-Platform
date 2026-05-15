@@ -10,20 +10,20 @@ data:
   type: eo
   train_root:
     - /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
-  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise_mc_g105_field_fixed_v1/HR
-  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise_mc_g105_field_fixed_v1/LR
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/LR
 
 train:
-  epochs: 140
-  batch_size: 96
-  lr: 1e-5
+  epochs: 320
+  batch_size: 128
+  lr: 5e-5
   num_workers: 4
   gradient_accumulation_steps: 1
   patch_size: 256
   save_interval: 20
-  save_name: "finetune_svfocusdenoise_mc_g105_phase2_denoise_priority_v1_x1_dim32_block2_260515"
+  save_name: "train_svfocusdenoise_mc_g105_phase1_denoise_priority_v2_x1_dim32_block2_260515"
 
-  pretrained_path: "checkpoints/train_svfocusdenoise_mc_g105_phase1_generic_v1_x1_dim32_block2_260514/best.pth"
+  pretrained_path: null
 
   optimizer:
     type: AdamW
@@ -32,14 +32,14 @@ train:
   grad_clip: 1.0
 
   early_stopping:
-    patience: 50
+    patience: 70
     min_delta: 0.00001
     monitor: 'loss'
     mode: 'min'
 
   scheduler:
     type: CosineAnnealingLR
-    T_max: 140
+    T_max: 320
     eta_min: 1e-7
 
 loss:
@@ -48,11 +48,11 @@ loss:
     weight: 1.0
   edge:
     enabled: true
-    weight: 0.12
+    weight: 0.10
     mode: 'gray'
   ssim:
     enabled: true
-    weight: 0.10
+    weight: 0.06
   l1:
     enabled: false
     weight: 1.0
@@ -61,11 +61,11 @@ loss:
     weight: 0.0
   color_consistency:
     enabled: true
-    weight: 0.08
+    weight: 0.10
     loss_type: 'charbonnier'
   hot_pixel_masked:
     enabled: true
-    weight: 0.15
+    weight: 0.22
     threshold: 0.08
     base_loss: 'charbonnier'
     kernel_size: 3

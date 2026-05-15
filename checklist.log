@@ -1,38 +1,65 @@
 # Checklist Log
 
-## Date: 2026-05-14 (Thursday)
+## Date: 2026-05-15 (Friday)
 ## Goal
-MC-G105 Phase 2 field profile 기준으로 validation dataset을 만들고, Phase 1/Phase 2 Denoise baseline 학습을 시작한다.
+SVFocusDenoiseNet dim32/block2 고정 조건에서 MC-G105 denoise-priority 열화 pipeline v2를 구성하고, fixed validation dataset과 함께 새 Phase 1 학습을 시작한다.
 
 ---
 
 ## 1. Repository Sync
-- [x] 회사 GitLab repo에서 GitHub 최신 commit pull
-- [x] `configs/data/denoise_mc_g105_phase1_generic_v1.yaml` 확인
-- [x] `configs/data/denoise_mc_g105_phase2_field_v1.yaml` 확인
-- [x] dim32 train/finetune config 경로 확인
+- [x] 출근 flow 수행
+- [x] GitHub 최신 상태 확인
+- [x] GitLab 최신 상태 확인
+- [x] GitHub -> GitLab source sync 확인
 
-## 2. Fixed Validation Dataset
-- [x] Phase 1 generic validation 생성
-  - [x] `val_denoise_generic_fixed_v1/HR`, `LR` 생성 확인
-- [x] Phase 2 field validation 생성
-  - [x] `val_denoise_mc_g105_field_fixed_v1/HR`, `LR` 생성 확인
-- [x] Phase 1 모델과 Phase 2 finetune 모델 모두 Phase 2 field validation에서 비교하도록 평가 기준 고정
+## 2. 260514 Phase 1 / Phase 2 Review
+- [x] 260514 Phase 1 학습 완료 확인
+  - [x] `epoch_320.pth`, `best.pth`, `last.pth` 확인
+- [x] Deploy / 260514 Phase 1 / 260514 Phase 2 결과 비교
+- [x] Phase 1 vs Phase 2 차이가 매우 작음을 확인
+  - [x] 100 frame proxy 기준 Phase 1 vs Phase 2 MAE `0.001545`, PSNR `52.28 dB`
+- [x] Phase 2가 foliage/shadow noise 제거 목표를 충분히 만족하지 못한다고 판단
 
-## 3. Real Probe Set
-- [ ] `road_shaded/3x`, `road_shaded/5x`, `road_shaded/7x` 샘플 고정
-- [ ] `mixed/5x`, `mixed/7x`, `building/7x` 샘플 고정
-- [ ] `flat/1x`, `flat/7x`, `dark/1x`, `dark/7x` 샘플 고정
-- [ ] real probe는 GT metric이 아니라 input/output 부작용 확인용으로 분리
+## 3. Design Constraint 정리
+- [x] 운용 student 모델은 `SVFocusDenoiseNet` dim32/block2로 고정
+- [x] Public HR -> synthetic noisy -> HR target 학습 방식 유지
+- [x] MTKD는 열화 pipeline 검증 이후 단계로 유지
+- [x] 목표 우선순위 정리
+  - [x] 2D/3D-like noise 제거
+  - [x] Hot pixel 제거
+  - [x] Chroma noise / mottle 제거
+  - [x] Deploy 대비 sign text / edge 뭉개짐 완화
 
-## 4. Training
-- [x] Phase 1 dim32 smoke run
-- [/] Phase 1 dim32 full training 시작
-- [x] Phase 1 checkpoint 생성 후 Phase 2 finetune config의 `pretrained_path` 확인
-- [ ] Phase 2 dim32 finetune 시작
+## 4. Denoise-Priority V2 Pipeline
+- [x] `configs/data/denoise_mc_g105_phase1_denoise_priority_v2.yaml` 생성
+- [x] `configs/train/Denoise/svfocusdenoise_mc_g105_phase1_denoise_priority_v2_dim32.yaml` 생성
+- [x] Blur/detail attenuation은 최소화
+- [x] Unprocess, Gaussian/Poisson/common noise 강화
+- [x] Chroma mottle 강화
+- [x] Hot pixel 주입 강화
+- [x] `hot_pixel_masked`, `color_consistency`, `edge` loss 비중 조정
+- [x] 새 save name 설정
+  - [x] `train_svfocusdenoise_mc_g105_phase1_denoise_priority_v2_x1_dim32_block2_260515`
 
-## 5. 판단 기준
-- [ ] Main: Phase 2 field validation에서 Phase 1 대비 Phase 2 finetune 개선 여부 확인
-- [ ] Guardrail: Phase 1 generic validation에서 일반성/edge/detail 보존 저하 확인
-- [ ] Real probe: road-shaded, mixed, 7x에서 색감/음영/texture 부작용 확인
-- [ ] 최종 판단은 QCS8550/QNN/AIMET 배포 출력까지 확인 후 결정
+## 5. Fixed Validation Dataset
+- [x] v2 fixed validation dataset 생성
+  - [x] `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/HR`
+  - [x] `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/LR`
+- [x] HR 100장 확인
+- [x] LR 100장 확인
+- [x] v2 train config의 validation root를 v2 fixed validation으로 변경
+
+## 6. Training
+- [x] v2 Phase 1 denoise-priority 학습 시작
+- [/] v2 Phase 1 denoise-priority full training 진행 중
+- [ ] `epoch_20.pth` 생성 확인
+- [ ] `epoch_20.pth` 기준 Deploy / 260514 Phase 1 / v2 비교
+- [ ] foliage/shadow noise 제거 방향성 확인
+- [ ] sign text / edge 보존 확인
+- [ ] hot pixel 및 chroma noise 개선 여부 확인
+
+## 7. Next Decision
+- [ ] v2가 Phase 1 대비 noise를 명확히 줄이면 epoch 40/60까지 추가 확인
+- [ ] v2가 여전히 identity에 가까우면 열화 pipeline을 더 강하게 조정
+- [ ] synthetic pipeline 방향성이 확인되기 전까지 MTKD 진행 보류
+- [ ] MTKD용 teacher/student 설계는 v2 pipeline 검증 후 재개

@@ -13,4 +13,6 @@ md/
 
 # 센서 캡처 원본 이미지 (용량이 크고 GitHub/GitLab에서 제외)
 results/mc_g105_capture_*/
+# 날짜 prefix를 붙인 inference/비교 결과 폴더
+results/[0-9][0-9][0-9][0-9][0-9][0-9]_*/
 *.mp4

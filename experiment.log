@@ -1,82 +1,101 @@
 # Experiment Log
 
-## Date: 2026-05-14 (Thursday)
+## Date: 2026-05-15 (Friday)
 ## Topic
-MC-G105 Phase 1/Phase 2 field validation preparation and Phase 1 denoise baseline start.
+MC-G105 denoise pipeline review, denoise-priority v2 redesign, and new Phase 1 training start.
 
 ## Summary
-Today focused on preparing the MC-G105 denoise training baseline. The latest home-side Phase 1/Phase 2 field configs were synced into the GitLab worktree, fixed denoise validation pairs were generated for both generic and MC-G105 field profiles, and Phase 1 dim32 training was started. The Phase 2 finetune config was updated to point at today's Phase 1 checkpoint directory.
+Today focused on validating whether the current public-HR synthetic degradation pipeline is producing a useful denoise learning signal for `SVFocusDenoiseNet` dim32/block2. Visual comparison showed that the 260514 Phase 1 and Phase 2 outputs were almost identical, and Phase 2 did not visibly improve the foliage/shadow noise that the deploy model suppresses. The project constraint was clarified: the operating student model remains `SVFocusDenoiseNet` dim32/block2, with MTKD planned later; the immediate goal is to make the synthetic degradation pipeline itself teach the small model to remove 2D/3D-like noise, hot pixels, and chroma noise while reducing deploy-style text blur.
 
 ## Work Done
 
-1. Check-in / repository sync
-   - Ran the check-in flow from `commute-sync-workflow.md`.
-   - Pulled the latest GitHub changes into `Unified-SR-Denoise-Platform`.
-   - Synced the new Phase 1/Phase 2 MC-G105 field configs, degradation design docs, and dataset code changes into the GitLab worktree.
-   - Explicitly brought over the updated `checklist.log` because it now contains today's validation/training plan.
-   - Committed and pushed the morning sync to GitLab:
-     - `15e73fc Sync MC-G105 field training configs`
+1. Check-in flow
+   - Ran the morning check-in flow from `commute-sync-workflow.md`.
+   - GitHub was already up to date at `1df8d6d`.
+   - GitLab was already up to date at `72a3056`.
+   - GitHub -> GitLab source sync found no source changes to apply.
 
-2. Fixed denoise validation dataset creation
-   - Created Phase 1 generic fixed validation pairs from:
-     - `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_HR_ORIGIN/`
-   - Output:
-     - `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/generic_fixed_v1/HR`
-     - `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/generic_fixed_v1/LR`
-   - Verified counts:
-     - HR: 100
-     - LR: 100
-   - Created Phase 2 MC-G105 field fixed validation pairs.
-   - Output:
-     - `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_field_fixed_v1/HR`
-     - `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_field_fixed_v1/LR`
-   - Verified counts:
-     - HR: 100
-     - LR: 100
-
-3. Validation path compatibility
-   - Added local symlinks so the existing train configs can resolve the expected validation roots:
-     - `val_denoise_generic_fixed_v1 -> val_denoise/generic_fixed_v1`
-     - `val_denoise_mc_g105_field_fixed_v1 -> val_denoise/mc_g105_field_fixed_v1`
-   - Updated Phase 1 train config to evaluate against the Phase 2 field validation set.
-   - Confirmed both Phase 1 and Phase 2 configs now compare on MC-G105 field validation.
-
-4. Validation script fix
-   - Fixed `examples/dataset_preparation/generate_denoise_val.py` so it adds the repository root to `sys.path`.
-   - This resolves `ModuleNotFoundError: No module named 'src'` when the script is launched from the repository root.
-
-5. Phase 1 dim32 training
-   - Started Phase 1 dim32 training:
-     - `python3 tools/train.py --config configs/train/Denoise/svfocusdenoise_mc_g105_phase1_generic_v1_dim32.yaml --data_config configs/data/denoise_mc_g105_phase1_generic_v1.yaml --device 0`
-   - Active process at checkout time:
-     - PID `2061192`
-   - Training has produced checkpoints under:
+2. Phase 1 / Phase 2 result review
+   - Confirmed the 260514 Phase 1 training had finished at epoch 320.
+   - Checked the Phase 1 checkpoint directory:
      - `checkpoints/train_svfocusdenoise_mc_g105_phase1_generic_v1_x1_dim32_block2_260514/`
-   - Latest observed training log row reached epoch 184.
-   - Checkpoints and training logs remain local and are not committed because `checkpoints/`, `logs/`, `*.pth`, and training CSVs are checkout-excluded artifacts.
+     - `best.pth`, `last.pth`, and epoch checkpoints through `epoch_320.pth` exist locally.
+   - Compared `results/260515_deploy`, `results/260515_new_phase1`, and `results/260515_new_phase2`.
+   - Numeric proxy over 100 common frames:
+     - Phase 1 vs Phase 2: MAE `0.001545`, PSNR `52.28 dB`
+     - Deploy vs Phase 1: MAE `0.008477`
+     - Deploy vs Phase 2: MAE `0.008576`
+   - Conclusion: Phase 2 is effectively too close to Phase 1 and does not act as a strong denoise model.
 
-6. Phase 2 finetune preparation
-   - Updated `configs/finetune/Denoise/svfocusdenoise_mc_g105_phase2_field_v1_dim32.yaml`.
-   - New `pretrained_path`:
-     - `checkpoints/train_svfocusdenoise_mc_g105_phase1_generic_v1_x1_dim32_block2_260514/best.pth`
-   - New Phase 2 save name:
-     - `finetune_svfocusdenoise_mc_g105_phase2_field_v1_x1_dim32_block2_260514`
+3. Design clarification
+   - Confirmed the current stage is not model replacement.
+   - Fixed constraints:
+     - Student model: `SVFocusDenoiseNet` / `svfocussrnet`, dim32, block2.
+     - Public high-quality HR images remain the clean target source.
+     - HR -> degradation pipeline -> noisy input -> model output -> HR comparison remains the training method.
+     - MTKD is a later step after the degradation pipeline is validated.
+   - Updated the target priority:
+     1. Remove 2D/3D-like foliage/shadow noise.
+     2. Remove hot pixels.
+     3. Reduce chroma noise / chroma mottle.
+     4. Preserve sign text, wire, and pole edges better than the deploy-style over-smoothed output.
+
+4. Phase 2 exploratory config adjustment
+   - Earlier Phase 2 config was adjusted toward denoise priority:
+     - Lower generic replay.
+     - Higher road-shaded / 7x / hot-pixel stress.
+     - Stronger `hot_pixel_masked` and color consistency loss.
+   - After visual review and design clarification, this is kept as an exploratory branch, not the primary next run.
+
+5. New Phase 1 denoise-priority v2 pipeline
+   - Added:
+     - `configs/data/denoise_mc_g105_phase1_denoise_priority_v2.yaml`
+     - `configs/train/Denoise/svfocusdenoise_mc_g105_phase1_denoise_priority_v2_dim32.yaml`
+   - Main design:
+     - Keep dim32/block2.
+     - Minimize blur/detail collapse to avoid deploy-style text smear.
+     - Strengthen `unprocess_noise`, Gaussian/Poisson/common noise, `chroma_mottle`, and `hot_pixels`.
+     - Lower clean probability to reduce identity fallback.
+     - Use stronger hot-pixel/color losses and lower SSIM weight.
+   - New save directory:
+     - `checkpoints/train_svfocusdenoise_mc_g105_phase1_denoise_priority_v2_x1_dim32_block2_260515/`
+
+6. Fixed validation dataset for v2
+   - Created / verified fixed validation pairs for the new v2 pipeline:
+     - `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/HR`
+     - `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/LR`
+   - Verified counts:
+     - HR: 100
+     - LR: 100
+   - Updated the v2 train config to use this fixed validation set.
+
+7. New v2 training start
+   - Started training:
+     - `python3 tools/train.py --config configs/train/Denoise/svfocusdenoise_mc_g105_phase1_denoise_priority_v2_dim32.yaml --data_config configs/data/denoise_mc_g105_phase1_denoise_priority_v2.yaml --device 0`
+   - Active process at checkout time:
+     - Main PID `2193438`
+   - Checkpoint directory exists and currently contains:
+     - `train_config.yaml`
+     - `data_config.yaml`
+     - `training_log.csv`
+   - At checkout time, `training_log.csv` had not yet written an epoch row.
 
 ## Findings
 
-- The validation generation step is now reproducible from repository root after the import-path fix.
-- Both fixed validation sets contain 100 HR/LR pairs.
-- The Phase 1 training run is still in progress and should be checked before launching Phase 2 finetuning.
-- The Phase 2 finetune config should now pick up today's Phase 1 `best.pth` once Phase 1 completes.
-- Real probe set selection is still pending and should remain separate from GT metric validation.
+- The current Phase 2 output is too close to Phase 1, so simply continuing that path is unlikely to validate the denoise objective.
+- The deploy model demonstrates stronger noise removal but also over-smooths sign text; the new v2 pipeline is designed to move toward deploy-level noise suppression without increasing synthetic blur.
+- A matching fixed validation dataset is necessary for each new degradation pipeline; the v2 validation set is now available and wired into the v2 train config.
+- The active v2 run should be judged early with visual ROI checks at `epoch_20.pth`, especially foliage/shadow noise, sign text, hot pixels, and chroma mottle.
 
 ## Next Actions
 
-1. Let Phase 1 dim32 training finish or inspect whether it should be stopped/resumed.
-2. Review Phase 1 best/last checkpoint and validation metrics.
-3. Select the fixed real probe set:
-   - `road_shaded/3x`, `road_shaded/5x`, `road_shaded/7x`
-   - `mixed/5x`, `mixed/7x`, `building/7x`
-   - `flat/1x`, `flat/7x`, `dark/1x`, `dark/7x`
-4. Start Phase 2 dim32 finetune only after confirming the Phase 1 checkpoint path.
-5. Use Phase 2 field validation as the main comparison set and keep generic validation as a guardrail.
+1. Let the v2 Phase 1 denoise-priority training reach at least epoch 20.
+2. Run inference with `epoch_20.pth` or `best.pth` on the fixed real probe frames.
+3. Compare Deploy / 260514 Phase 1 / v2 on the same crops:
+   - foliage/shadow noise
+   - blue sign text
+   - pole/wire edges
+   - hot-pixel-like sparse outliers
+   - chroma noise in green/shadow regions
+4. If v2 remains close to Phase 1, strengthen the synthetic noise pipeline further before moving to MTKD.
+5. Only start MTKD after the synthetic pipeline clearly produces the desired denoise behavior on the small student.
