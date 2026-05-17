@@ -5,10 +5,10 @@ from .ddrnet import DDRNet
 from .rrdbnet import RRDBNet
 from .qcsawaresrnet import QCSAwareSRNetSmall, QCSAwareSRNetMedium, QCSAwareSRNetLarge
 from .svfocussrnet import SVFocusSRNet
-from .mambair import MambaIR
-from .mambairv2 import MambaIRv2
 from .corefusion import CoReFusion
 from .lapgsr import LapGSR, LapGSRDiscriminator
+from .nafnet import NAFNet, NAFNetDenoiseTeacher
+from .restormer import Restormer, RestormerDenoiseTeacher
 
 __all__ = [
     "QuickSRNetSmall", "QuickSRNetMedium", "QuickSRNetLarge",
@@ -17,8 +17,21 @@ __all__ = [
     "QCSAwareSRNetSmall", "QCSAwareSRNetMedium", "QCSAwareSRNetLarge",
     "SVFocusSRNet", "MambaIR", "MambaIRv2",
     "CoReFusion", "LapGSR", "LapGSRDiscriminator",
+    "NAFNet", "NAFNetDenoiseTeacher",
+    "Restormer", "RestormerDenoiseTeacher",
     "build_model"
 ]
+
+
+def __getattr__(name):
+    if name == "MambaIR":
+        from .mambair import MambaIR
+        return MambaIR
+    if name == "MambaIRv2":
+        from .mambairv2 import MambaIRv2
+        return MambaIRv2
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 def build_model(config):
     """
@@ -112,6 +125,8 @@ def build_model(config):
         return SVFocusSRNet(scaling_factor=scale, n_resblocks=n_resblocks, n_feats=n_feats, use_advanced_rep=use_advanced_rep)
 
     elif name == 'mambair':
+        from .mambair import MambaIR
+
         return MambaIR(
             upscale=scale,
             in_chans=config.get('in_chans', 3),
@@ -123,6 +138,8 @@ def build_model(config):
         )
     
     elif name == 'mambairv2':
+        from .mambairv2 import MambaIRv2
+
         return MambaIRv2(
             upscale=scale,
             in_chans=config.get('in_chans', 3),
@@ -131,6 +148,34 @@ def build_model(config):
             d_state=config.get('d_state', 8),
             depths=config.get('depths', (6, 6, 6, 6)),
             upsampler=config.get('upsampler', 'pixelshuffle')
+        )
+
+    elif name in {'nafnet', 'nafnet_denoise_teacher'}:
+        return NAFNetDenoiseTeacher(
+            img_channel=config.get('img_channel', config.get('in_chans', 3)),
+            width=dim if dim else config.get('width', 32),
+            middle_blk_num=config.get('middle_blk_num', 12),
+            enc_blk_nums=config.get('enc_blk_nums', (2, 2, 4, 8)),
+            dec_blk_nums=config.get('dec_blk_nums', (2, 2, 2, 2)),
+            dw_expand=config.get('dw_expand', 2),
+            ffn_expand=config.get('ffn_expand', 2),
+            drop_out_rate=config.get('drop_out_rate', 0.0),
+            clamp_output=config.get('clamp_output', False),
+        )
+
+    elif name in {'restormer', 'restormer_denoise_teacher'}:
+        return RestormerDenoiseTeacher(
+            inp_channels=config.get('inp_channels', config.get('in_chans', 3)),
+            out_channels=config.get('out_channels', 3),
+            dim=dim if dim else config.get('width', 48),
+            num_blocks=config.get('num_blocks', (4, 6, 6, 8)),
+            num_refinement_blocks=config.get('num_refinement_blocks', 4),
+            heads=config.get('heads', (1, 2, 4, 8)),
+            ffn_expansion_factor=config.get('ffn_expansion_factor', 2.66),
+            bias=config.get('bias', False),
+            layer_norm_type=config.get('layer_norm_type', config.get('LayerNorm_type', 'BiasFree')),
+            dual_pixel_task=config.get('dual_pixel_task', False),
+            clamp_output=config.get('clamp_output', False),
         )
 
     # ====== GSR Models ======

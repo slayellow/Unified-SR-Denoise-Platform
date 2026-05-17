@@ -1,0 +1,126 @@
+task: denoise
+model:
+  name: svfocussrnet
+  use_advanced_rep: false
+  scale: 1
+  dim: 32
+  n_resblocks: 2
+
+data:
+  type: eo
+  train_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/LR
+
+train:
+  epochs: 160
+  batch_size: 8
+  lr: 2e-5
+  num_workers: 4
+  gradient_accumulation_steps: 4
+  patch_size: 256
+  save_interval: 10
+  save_name: "train_mtkd_svfocusdenoise_mc_g105_phase1_denoise_priority_v2_x1_dim32_block2_nafnet_restormer_260517"
+
+  # Set this to the best supervised v2 student checkpoint before KD.
+  pretrained_path: null
+
+  optimizer:
+    type: AdamW
+    betas: [0.9, 0.999]
+  weight_decay: 1e-4
+  grad_clip: 1.0
+
+  early_stopping:
+    patience: 40
+    min_delta: 0.00001
+    monitor: 'val_loss'
+    mode: 'min'
+
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 160
+    eta_min: 1e-7
+
+loss:
+  charbonnier:
+    enabled: true
+    weight: 1.0
+  edge:
+    enabled: true
+    weight: 0.10
+    mode: 'gray'
+  ssim:
+    enabled: true
+    weight: 0.06
+  l1:
+    enabled: false
+    weight: 1.0
+  perceptual:
+    enabled: false
+    weight: 0.0
+  color_consistency:
+    enabled: true
+    weight: 0.10
+    loss_type: 'charbonnier'
+  hot_pixel_masked:
+    enabled: true
+    weight: 0.22
+    threshold: 0.08
+    base_loss: 'charbonnier'
+    kernel_size: 3
+  tv:
+    enabled: false
+    weight: 0.0
+
+kd:
+  enabled: true
+  supervised_weight: 1.0
+  eps: 0.001
+  edge_mode: gray
+  edge_mask_threshold: 0.05
+  frequency_kernel_size: 5
+
+  agreement:
+    enabled: true
+    alpha: 8.0
+    min: 0.25
+    max: 1.0
+    apply_to: [output, residual, edge, frequency]
+
+  residual_focus:
+    enabled: true
+    noise_delta_weight: 1.0
+    noise_delta_max: 4.0
+    hot_pixel_weight: 2.0
+    hot_pixel_threshold: 0.08
+    hot_pixel_kernel_size: 3
+    chroma_weight: 0.5
+    chroma_max: 4.0
+    max_weight: 8.0
+
+  teachers:
+    nafnet:
+      enabled: true
+      config: configs/train/Denoise/nafnet_mc_g105_phase1_denoise_priority_v2_teacher.yaml
+      # Set after NAFNet teacher training.
+      checkpoint: null
+      strict_load: true
+      output_weight: 0.20
+      residual_weight: 0.30
+      edge_weight: 0.00
+      frequency_weight: 0.00
+
+    restormer:
+      enabled: true
+      config: configs/train/Denoise/restormer_mc_g105_phase1_denoise_priority_v2_teacher.yaml
+      # Set after Restormer teacher training.
+      checkpoint: null
+      strict_load: true
+      output_weight: 0.15
+      residual_weight: 0.40
+      edge_weight: 0.08
+      frequency_weight: 0.06
+
+export_onnx: false
