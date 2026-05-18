@@ -1,77 +1,55 @@
 # Checklist Log
 
-## Date: 2026-05-18 (Monday)
+## Date: 2026-05-19 (Tuesday)
 ## Goal
-MC-G105 denoise deploy-hybrid v3를 학습/평가하고, deploy 모델 교체 후보로 적합한지 Noise, Hot Pixel, 색 편향, 모델 크기 관점에서 판단한다.
+비행시험에서 deploy 모델과 v3 모델을 실시간 비교하고, v3 기준 NAFNet Teacher 학습을 시작한다.
 
 ---
 
-## 1. Deploy-Hybrid V3 Pipeline
-- [x] v3 data config 생성
-  - [x] `configs/data/denoise_mc_g105_phase1_deploy_hybrid_v3.yaml`
-- [x] v3 train config 생성
-  - [x] `configs/train/Denoise/svfocusdenoise_mc_g105_phase1_deploy_hybrid_v3_dim32.yaml`
-- [x] `SVFocusDenoiseNet` / `svfocussrnet` dim32/block2 조건 유지
-- [x] deploy-like degradation backbone 복원
-- [x] MC-G105 color cast / chroma mottle / hot pixel / highlight clipping 반영
-- [x] edge loss threshold 설정 반영
+## 1. Morning Sync
+- [ ] 회사 PC/GitLab 작업 전 GitHub 최신 상태 확인
+- [ ] `configs/data/denoise_mc_g105_phase1_deploy_hybrid_v3.yaml` 존재 확인
+- [ ] `configs/train/Denoise/svfocusdenoise_mc_g105_phase1_deploy_hybrid_v3_dim32.yaml` 존재 확인
+- [ ] `configs/train/Denoise/nafnet_mc_g105_phase1_deploy_hybrid_v3_teacher.yaml` 존재 확인
+- [ ] v3 deploy candidate checkpoint 경로 확인
+- [ ] v3 ONNX/QNN 변환 산출물 경로 확인
 
-## 2. Training Code Support
-- [x] `tools/train.py` CLI override 적용 흐름 정리
-- [x] resume config 로드 후에도 CLI override 적용
-- [x] train config의 `data_config_path` 자동 사용 지원
-- [x] `src/losses/losses.py`에서 edge threshold를 `EdgeLoss`로 전달
+## 2. Flight Test: Deploy vs V3
+- [ ] QCS8550에서 기존 deploy Denoise 모델 실시간 구동 확인
+- [ ] QCS8550에서 v3 Denoise 모델 실시간 구동 확인
+- [ ] 단일 Denoise 모델 운용 latency 기록
+- [ ] 4개/5개 모델 동시 운용 시 latency 변동 기록
+- [ ] 동일 구간에서 deploy/v3 출력 저장
+- [ ] foliage / road / building / highlight / shadow 구간 샘플 확보
+- [ ] noise, hot-pixel-like spike, magenta/color bias, edge/detail 관점으로 정성 비교
+- [ ] v3에서 치명적 edge/detail collapse 또는 temporal flicker가 있는지 확인
+- [ ] 비행시험 결과 기준 v3를 deploy replacement candidate로 계속 유지할지 결정
 
-## 3. V3 Training
-- [x] v3 학습 시작 및 재개
-- [x] `epoch_160.pth` 기준 inference 확인
-- [x] `epoch_180.pth` 생성 확인
-- [/] v3 full training 진행 중
-  - [/] 현재 확인 PID: `2298397`
-  - [/] 최신 확인 epoch: `182`
-- [ ] `epoch_200.pth` 생성 확인
-- [ ] epoch 180/200 기준 추가 inference 비교
+## 3. NAFNet Teacher Training
+- [ ] RTX A6000 서버에서 GPU 2대 사용 가능 여부 확인
+- [ ] NAFNet v3 Teacher 학습 시작
 
-## 4. Deploy / V2 / V3 Inference Review
-- [x] `frame_2928.png` 단일 프레임 비교
-- [x] deploy / v2 / v3 100장 batch metric 비교
-- [x] foliage/sidewalk 구간과 road 구간을 분리해서 분석
-- [x] 비교 이미지 생성
-  - [x] `results/frame_2928_compare_deploy_v2_v3.png`
-  - [x] `results/batch_contact_deploy_v2_v3.png`
-- [x] batch metric CSV 생성
-  - [x] `results/batch_metrics_deploy_v2_v3.csv`
+```bash
+CUDA_VISIBLE_DEVICES=0,1 accelerate launch --num_processes=2 tools/train.py \
+  --config configs/train/Denoise/nafnet_mc_g105_phase1_deploy_hybrid_v3_teacher.yaml \
+  --data_config configs/data/denoise_mc_g105_phase1_deploy_hybrid_v3.yaml
+```
 
-## 5. Replacement Assessment
-- [x] checkpoint 크기 비교
-  - [x] deploy 약 `1.33 MB`
-  - [x] v3 약 `0.40 MB`
-- [x] noise proxy 비교
-  - [x] deploy `1.516`
-  - [x] v3 `1.399`
-- [x] hot-pixel proxy 비교
-  - [x] deploy strong spike `241/Mpix`
-  - [x] v3 strong spike `209/Mpix`
-- [x] magenta/color-bias p95 비교
-  - [x] deploy `14.45`
-  - [x] v3 `12.83`
-- [x] detail/edge tradeoff 확인
-  - [x] deploy edge p90 `11.50`
-  - [x] v3 edge p90 `10.69`
-- [x] v3를 deploy replacement candidate로 유지하기로 판단
+- [ ] 첫 1-2 epoch에서 loss가 정상적으로 감소하는지 확인
+- [ ] VRAM 사용량 및 OOM 여부 확인
+- [ ] OOM 발생 시 `batch_size: 6`, `gradient_accumulation_steps: 6`으로 조정
+- [ ] `epoch_20.pth` 생성 여부 확인
+- [ ] 가능하면 `epoch_20.pth` 기준 real probe inference 샘플 생성
 
-## 6. ONNX Export
-- [x] v3 `best.pth` ONNX export 시도
-- [x] `onnxscript.onnx_opset.opset23` import error 확인
-- [x] 원인이 모델이 아니라 PyTorch 2.9 / ONNXScript 호환성 문제임을 확인
-- [x] `requirements.txt` 수정
-  - [x] `onnxscript==0.2.5` -> `onnxscript==0.2.7`
-- [x] 컨테이너에서 `python3 -m pip install -U onnxscript==0.2.7` 실행
-- [x] ONNX export 재시도
-- [x] PyTorch output vs ONNX output numerical check
+## 4. Decision Gate
+- [ ] 비행시험에서 v3가 deploy보다 안정적이면 NAFNet Teacher 학습 계속 진행
+- [ ] v3가 deploy보다 명확히 나쁘면 NAFNet Teacher 학습 중단 후 degradation profile 재검토
+- [ ] NAFNet Teacher output이 over-smoothing 또는 색 틀어짐을 만들지 않는지 확인
+- [ ] NAFNet Teacher가 유효하면 Restormer v3 Teacher config 추가 여부 결정
+- [ ] Teacher checkpoint가 확보되면 v3 기준 MTKD config 분리 계획 수립
 
-## 7. Next Decision
-- [ ] v3 epoch 180/200 결과를 같은 100장으로 재분석
-- [ ] edge/detail 손실이 커지지 않으면 v3를 deploy 교체 후보로 고정
-- [x] ONNX export 성공 후 runtime 성능 및 출력 일치성 검증
-- [ ] 최종 후보 확정 시 deploy 경로/문서 업데이트
+## 5. End-of-Day Handoff
+- [ ] 비행시험 정성 비교 결과 정리
+- [ ] v3 latency / 출력 품질 / deploy 교체 가능성 기록
+- [ ] NAFNet Teacher 학습 진행 epoch, loss, checkpoint 상태 기록
+- [ ] GitHub/GitLab 동기화 전 생성 artifact와 commit 대상 분리

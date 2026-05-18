@@ -1,9 +1,10 @@
 # NAFNet + Restormer Dual-Teacher MTKD 설계
 
 작성일: 2026-05-16
+갱신일: 2026-05-18
 
 목적:
-- MC-G105 denoise-priority v2 pipeline 검증 후 `SVFocusDenoiseNet dim32/block2` student를 개선하기 위한 MTKD 방향을 고정한다.
+- MC-G105 deploy-hybrid v3 pipeline 검증 후 `SVFocusDenoiseNet dim32/block2` student를 개선하기 위한 MTKD 방향을 고정한다.
 - Teacher는 `NAFNet width64`와 `Restormer dim48` 두 개로 시작한다.
 - Teacher는 모두 offline 학습/추론용이며 QCS8550 배포 대상이 아니다.
 
@@ -20,16 +21,17 @@ NAFNet과 Restormer를 단순 평균 teacher로 쓰지 않는다.
 - HR/GT: teacher 오류를 막는 최종 anchor
 
 초기 실험 순서:
-1. v2 supervised student가 deploy보다 나은지 real probe로 확인한다.
-2. NAFNet teacher를 같은 v2 degradation으로 학습한다.
-3. Restormer teacher를 같은 v2 degradation으로 학습한다.
+1. v3 supervised student가 deploy보다 나은지 real probe와 비행시험으로 확인한다.
+2. NAFNet teacher를 같은 v3 degradation으로 학습한다.
+3. Restormer teacher를 같은 v3 degradation으로 학습한다.
 4. teacher output을 real probe 기준으로 비교한다.
 5. NAFNet-only KD, Restormer-only KD, dual-teacher KD를 ablation한다.
 
 ## 2. Teacher Training Config
 
 NAFNet:
-- config: `configs/train/Denoise/nafnet_mc_g105_phase1_denoise_priority_v2_teacher.yaml`
+- active config: `configs/train/Denoise/nafnet_mc_g105_phase1_deploy_hybrid_v3_teacher.yaml`
+- historical config: `configs/train/Denoise/nafnet_mc_g105_phase1_denoise_priority_v2_teacher.yaml`
 - model: `nafnet_denoise_teacher`
 - width: 64
 - params: 115,982,915
@@ -37,7 +39,8 @@ NAFNet:
 - effective batch: `8 x 2 x 4 = 64`
 
 Restormer:
-- config: `configs/train/Denoise/restormer_mc_g105_phase1_denoise_priority_v2_teacher.yaml`
+- current prepared config: `configs/train/Denoise/restormer_mc_g105_phase1_denoise_priority_v2_teacher.yaml`
+- note: Restormer도 v3 기준으로 학습할 경우 별도 `deploy_hybrid_v3` config를 추가한다.
 - model: `restormer_denoise_teacher`
 - dim: 48
 - params: 26,111,668
@@ -47,7 +50,7 @@ Restormer:
 둘 다 data config는 다음을 명시한다.
 
 ```bash
---data_config configs/data/denoise_mc_g105_phase1_denoise_priority_v2.yaml
+--data_config configs/data/denoise_mc_g105_phase1_deploy_hybrid_v3.yaml
 ```
 
 ## 3. MTKD Loss 초안
@@ -109,12 +112,13 @@ Teacher가 색을 틀거나 texture hallucination을 만들면 해당 teacher의
 - KD config: `configs/train/Denoise/mtkd_svfocusdenoise_mc_g105_phase1_denoise_priority_v2_nafnet_restormer.yaml`
 
 다음 구현 대상:
-1. v2 supervised student checkpoint 경로를 KD config의 `train.pretrained_path`에 입력
+1. v3 supervised student checkpoint 경로를 KD config의 `train.pretrained_path`에 입력
 2. NAFNet teacher checkpoint 경로를 KD config의 `kd.teachers.nafnet.checkpoint`에 입력
 3. Restormer teacher checkpoint 경로를 KD config의 `kd.teachers.restormer.checkpoint`에 입력
-4. NAFNet-only, Restormer-only ablation config 분리
+4. v3 기준 KD config를 별도 파일로 분리
+5. NAFNet-only, Restormer-only ablation config 분리
 
-KD 구현은 v2 supervised student와 teacher output이 real probe에서 유효하다는 것이 확인된 뒤 진행한다.
+KD 구현은 v3 supervised student와 teacher output이 real probe에서 유효하다는 것이 확인된 뒤 진행한다.
 
 ## 6. Online MTKD 실행
 
@@ -133,7 +137,7 @@ loss -> student only update
 
 ```yaml
 train:
-  pretrained_path: /path/to/supervised_v2_student/best.pth
+  pretrained_path: /path/to/supervised_v3_student/best.pth
 
 kd:
   teachers:
@@ -148,5 +152,7 @@ kd:
 ```bash
 CUDA_VISIBLE_DEVICES=0,1 accelerate launch --num_processes=2 tools/train_kd.py \
   --config configs/train/Denoise/mtkd_svfocusdenoise_mc_g105_phase1_denoise_priority_v2_nafnet_restormer.yaml \
-  --data_config configs/data/denoise_mc_g105_phase1_denoise_priority_v2.yaml
+  --data_config configs/data/denoise_mc_g105_phase1_deploy_hybrid_v3.yaml
 ```
+
+현재 KD config 파일명은 아직 v2 기준이므로, v3 Teacher checkpoint가 준비되면 `deploy_hybrid_v3` 기준 config로 분리한다.

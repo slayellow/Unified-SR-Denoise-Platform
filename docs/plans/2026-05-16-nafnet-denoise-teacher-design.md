@@ -1,9 +1,10 @@
 # NAFNet Denoise Teacher 설계
 
 작성일: 2026-05-16
+갱신일: 2026-05-18
 
 목적:
-- MC-G105 denoise-priority v2 pipeline이 유효하다고 확인된 이후 학습할 Teacher 모델을 준비한다.
+- MC-G105 deploy-hybrid v3 pipeline을 기준으로 학습할 Teacher 모델을 준비한다.
 - Student는 QCS8550 운용용 `SVFocusDenoiseNet dim32/block2`로 유지한다.
 - Teacher는 배포 모델이 아니라 MTKD용 high-capacity restoration target으로 사용한다.
 
@@ -43,6 +44,7 @@
 추가:
 - `src/models/nafnet.py`
 - `configs/train/Denoise/nafnet_mc_g105_phase1_denoise_priority_v2_teacher.yaml`
+- `configs/train/Denoise/nafnet_mc_g105_phase1_deploy_hybrid_v3_teacher.yaml`
 
 수정:
 - `src/models/__init__.py`
@@ -67,10 +69,12 @@
 - output: input residual, train-time clamp off
 
 학습 data config:
-- `configs/data/denoise_mc_g105_phase1_denoise_priority_v2.yaml`
+- active: `configs/data/denoise_mc_g105_phase1_deploy_hybrid_v3.yaml`
+- historical: `configs/data/denoise_mc_g105_phase1_denoise_priority_v2.yaml`
 
 학습 train config:
-- `configs/train/Denoise/nafnet_mc_g105_phase1_denoise_priority_v2_teacher.yaml`
+- active: `configs/train/Denoise/nafnet_mc_g105_phase1_deploy_hybrid_v3_teacher.yaml`
+- historical: `configs/train/Denoise/nafnet_mc_g105_phase1_denoise_priority_v2_teacher.yaml`
 
 ## 5. Params 기준
 
@@ -86,7 +90,7 @@
 | `NAFNet width32 SIDD-style` | 29,159,715 |
 | `NAFNet width64 SIDD-style` | 115,982,915 |
 
-현재 추가한 teacher config는 `NAFNet width64 SIDD-style` 기준이다.
+현재 active teacher config는 `NAFNet width64 SIDD-style` 기준이다.
 이는 active student인 `SVFocusDenoiseNet dim32/block2`보다 약 3,668배 큰 capacity를 가진다.
 
 Teacher는 배포 대상이 아니므로 QCS8550 latency보다 복원 품질과 KD target 품질을 우선한다.
@@ -102,22 +106,22 @@ Teacher는 배포 대상이 아니므로 QCS8550 latency보다 복원 품질과 
 
 ```bash
 CUDA_VISIBLE_DEVICES=0,1 accelerate launch --num_processes=2 tools/train.py \
-  --config configs/train/Denoise/nafnet_mc_g105_phase1_denoise_priority_v2_teacher.yaml \
-  --data_config configs/data/denoise_mc_g105_phase1_denoise_priority_v2.yaml
+  --config configs/train/Denoise/nafnet_mc_g105_phase1_deploy_hybrid_v3_teacher.yaml \
+  --data_config configs/data/denoise_mc_g105_phase1_deploy_hybrid_v3.yaml
 ```
 
 OOM이 발생하면 `batch_size: 6`, `gradient_accumulation_steps: 6`으로 낮춰 effective batch를 72 근처로 유지한다. 안정적으로 동작하고 VRAM 여유가 크면 `batch_size: 12`, `gradient_accumulation_steps: 3`도 후보로 볼 수 있다.
 
 ## 6. 실행 조건
 
-지금 바로 Teacher 학습을 시작하지 않는다.
+deploy-hybrid v3가 deploy replacement candidate로 올라왔으므로 NAFNet Teacher 학습을 시작할 수 있다.
 
-먼저 확인할 것:
-- v2 student가 deploy 대비 noise 제거 방향으로 개선되는가.
+학습 시작 전/병행 확인할 것:
+- 비행시험에서 v3가 deploy 대비 치명적인 색 틀어짐, edge/detail collapse, temporal flicker를 만들지 않는가.
 - foliage/shadow noise, hot pixel, chroma mottle이 줄어드는가.
 - sign text, pole, wire edge가 deploy처럼 과하게 뭉개지지 않는가.
 
-이 조건이 통과되면 같은 v2 degradation으로 NAFNet teacher를 학습한다.
+이 조건이 통과되면 v3 degradation 기준 NAFNet Teacher를 계속 학습한다. 비행시험에서 v3가 부적합하다고 판단되면 Teacher 학습을 중단하고 degradation profile을 다시 고정한다.
 
 ## 7. 이후 MTKD 연결
 
