@@ -109,9 +109,10 @@ Today focused on deciding whether the smaller `SVFocusDenoiseNet` dim32/block2 v
      - The pinned `onnxscript==0.2.5` does not provide `opset23`.
    - Updated:
      - `requirements.txt`: `onnxscript==0.2.5` -> `onnxscript==0.2.7`
-   - Next command inside the container:
-     - `python3 -m pip install -U onnxscript==0.2.7`
-   - Then retry the same export command.
+   - Completed after the initial handoff:
+     - Installed `onnxscript==0.2.7` inside the container.
+     - Retried ONNX export successfully.
+     - Completed PyTorch output vs ONNX output numerical check.
 
 ## Findings
 
@@ -123,13 +124,12 @@ Today focused on deciding whether the smaller `SVFocusDenoiseNet` dim32/block2 v
   - reduced magenta/color-bias peaks
   - smaller checkpoint size
 - v3's main cost is slightly lower edge/detail strength. This should be monitored around sign text, wires, foliage texture, and road markings.
-- The ONNX export failure is dependency compatibility, not a model architecture failure.
+- The ONNX export failure was dependency compatibility, not a model architecture failure, and the export path is now unblocked after updating ONNXScript.
 
 ## Next Actions
 
 1. Let v3 training continue past epoch 180 toward epoch 200.
 2. Run the same deploy/v2/v3 batch comparison for v3 epoch 180 and epoch 200.
 3. Confirm whether v3 edge/detail loss worsens with additional training.
-4. Install `onnxscript==0.2.7` in the export container and retry ONNX export.
-5. If export succeeds, validate ONNX output numerically against PyTorch on a small fixed image set.
-6. If v3 epoch 180/200 keeps the same balance, prepare v3 as the deploy replacement candidate.
+4. If v3 epoch 180/200 keeps the same balance, prepare v3 as the deploy replacement candidate.
+5. After final candidate selection, update the deploy path and deployment notes.

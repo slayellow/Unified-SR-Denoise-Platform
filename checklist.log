@@ -66,12 +66,12 @@ MC-G105 denoise deploy-hybrid v3를 학습/평가하고, deploy 모델 교체 �
 - [x] 원인이 모델이 아니라 PyTorch 2.9 / ONNXScript 호환성 문제임을 확인
 - [x] `requirements.txt` 수정
   - [x] `onnxscript==0.2.5` -> `onnxscript==0.2.7`
-- [ ] 컨테이너에서 `python3 -m pip install -U onnxscript==0.2.7` 실행
-- [ ] ONNX export 재시도
-- [ ] PyTorch output vs ONNX output numerical check
+- [x] 컨테이너에서 `python3 -m pip install -U onnxscript==0.2.7` 실행
+- [x] ONNX export 재시도
+- [x] PyTorch output vs ONNX output numerical check
 
 ## 7. Next Decision
 - [ ] v3 epoch 180/200 결과를 같은 100장으로 재분석
 - [ ] edge/detail 손실이 커지지 않으면 v3를 deploy 교체 후보로 고정
-- [ ] ONNX export 성공 후 runtime 성능 및 출력 일치성 검증
+- [x] ONNX export 성공 후 runtime 성능 및 출력 일치성 검증
 - [ ] 최종 후보 확정 시 deploy 경로/문서 업데이트
