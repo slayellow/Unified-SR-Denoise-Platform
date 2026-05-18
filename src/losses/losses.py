@@ -363,7 +363,10 @@ class UnifiedLoss(nn.Module):
         # 3. Edge Loss
         cfg_edge = config.get('edge', {})
         if cfg_edge.get('enabled', False):
-            self.loss_funcs['edge'] = EdgeLoss(mode=cfg_edge.get('mode', 'gray'))
+            self.loss_funcs['edge'] = EdgeLoss(
+                mode=cfg_edge.get('mode', 'gray'),
+                threshold=cfg_edge.get('threshold', 0.2)
+            )
             self.weights['edge'] = cfg_edge.get('weight', 0.05)
             
         # 4. SSIM Loss

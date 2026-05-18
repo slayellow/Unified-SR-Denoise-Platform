@@ -1,0 +1,79 @@
+task: denoise
+data_config_path: configs/data/denoise_mc_g105_phase1_deploy_hybrid_v3.yaml
+
+model:
+  name: svfocussrnet
+  use_advanced_rep: false
+  scale: 1
+  dim: 32
+  n_resblocks: 2
+
+data:
+  type: eo
+  train_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/LR
+
+train:
+  epochs: 320
+  batch_size: 256
+  lr: 5e-5
+  num_workers: 8
+  gradient_accumulation_steps: 1
+  patch_size: 256
+  save_interval: 20
+  save_name: "train_svfocusdenoise_mc_g105_phase1_deploy_hybrid_v3_x1_dim32_block2_260518"
+
+  pretrained_path: null
+
+  optimizer:
+    type: AdamW
+    betas: [0.9, 0.999]
+  weight_decay: 1e-4
+  grad_clip: 1.0
+
+  early_stopping:
+    patience: 70
+    min_delta: 0.00001
+    monitor: 'loss'
+    mode: 'min'
+
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 320
+    eta_min: 1e-7
+
+loss:
+  charbonnier:
+    enabled: true
+    weight: 1.0
+  edge:
+    enabled: true
+    weight: 0.14
+    mode: 'gray'
+    threshold: 0.08
+  ssim:
+    enabled: true
+    weight: 0.10
+  l1:
+    enabled: false
+    weight: 1.0
+  perceptual:
+    enabled: false
+    weight: 0.0
+  color_consistency:
+    enabled: true
+    weight: 0.06
+    loss_type: 'l1'
+  hot_pixel_masked:
+    enabled: true
+    weight: 0.14
+    threshold: 0.10
+    base_loss: 'charbonnier'
+    kernel_size: 3
+  tv:
+    enabled: false
+    weight: 0.0
+
+export_onnx: false

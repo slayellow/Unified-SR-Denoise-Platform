@@ -1,65 +1,77 @@
 # Checklist Log
 
-## Date: 2026-05-15 (Friday)
+## Date: 2026-05-18 (Monday)
 ## Goal
-SVFocusDenoiseNet dim32/block2 고정 조건에서 MC-G105 denoise-priority 열화 pipeline v2를 구성하고, fixed validation dataset과 함께 새 Phase 1 학습을 시작한다.
+MC-G105 denoise deploy-hybrid v3를 학습/평가하고, deploy 모델 교체 후보로 적합한지 Noise, Hot Pixel, 색 편향, 모델 크기 관점에서 판단한다.
 
 ---
 
-## 1. Repository Sync
-- [x] 출근 flow 수행
-- [x] GitHub 최신 상태 확인
-- [x] GitLab 최신 상태 확인
-- [x] GitHub -> GitLab source sync 확인
+## 1. Deploy-Hybrid V3 Pipeline
+- [x] v3 data config 생성
+  - [x] `configs/data/denoise_mc_g105_phase1_deploy_hybrid_v3.yaml`
+- [x] v3 train config 생성
+  - [x] `configs/train/Denoise/svfocusdenoise_mc_g105_phase1_deploy_hybrid_v3_dim32.yaml`
+- [x] `SVFocusDenoiseNet` / `svfocussrnet` dim32/block2 조건 유지
+- [x] deploy-like degradation backbone 복원
+- [x] MC-G105 color cast / chroma mottle / hot pixel / highlight clipping 반영
+- [x] edge loss threshold 설정 반영
 
-## 2. 260514 Phase 1 / Phase 2 Review
-- [x] 260514 Phase 1 학습 완료 확인
-  - [x] `epoch_320.pth`, `best.pth`, `last.pth` 확인
-- [x] Deploy / 260514 Phase 1 / 260514 Phase 2 결과 비교
-- [x] Phase 1 vs Phase 2 차이가 매우 작음을 확인
-  - [x] 100 frame proxy 기준 Phase 1 vs Phase 2 MAE `0.001545`, PSNR `52.28 dB`
-- [x] Phase 2가 foliage/shadow noise 제거 목표를 충분히 만족하지 못한다고 판단
+## 2. Training Code Support
+- [x] `tools/train.py` CLI override 적용 흐름 정리
+- [x] resume config 로드 후에도 CLI override 적용
+- [x] train config의 `data_config_path` 자동 사용 지원
+- [x] `src/losses/losses.py`에서 edge threshold를 `EdgeLoss`로 전달
 
-## 3. Design Constraint 정리
-- [x] 운용 student 모델은 `SVFocusDenoiseNet` dim32/block2로 고정
-- [x] Public HR -> synthetic noisy -> HR target 학습 방식 유지
-- [x] MTKD는 열화 pipeline 검증 이후 단계로 유지
-- [x] 목표 우선순위 정리
-  - [x] 2D/3D-like noise 제거
-  - [x] Hot pixel 제거
-  - [x] Chroma noise / mottle 제거
-  - [x] Deploy 대비 sign text / edge 뭉개짐 완화
+## 3. V3 Training
+- [x] v3 학습 시작 및 재개
+- [x] `epoch_160.pth` 기준 inference 확인
+- [x] `epoch_180.pth` 생성 확인
+- [/] v3 full training 진행 중
+  - [/] 현재 확인 PID: `2298397`
+  - [/] 최신 확인 epoch: `182`
+- [ ] `epoch_200.pth` 생성 확인
+- [ ] epoch 180/200 기준 추가 inference 비교
 
-## 4. Denoise-Priority V2 Pipeline
-- [x] `configs/data/denoise_mc_g105_phase1_denoise_priority_v2.yaml` 생성
-- [x] `configs/train/Denoise/svfocusdenoise_mc_g105_phase1_denoise_priority_v2_dim32.yaml` 생성
-- [x] Blur/detail attenuation은 최소화
-- [x] Unprocess, Gaussian/Poisson/common noise 강화
-- [x] Chroma mottle 강화
-- [x] Hot pixel 주입 강화
-- [x] `hot_pixel_masked`, `color_consistency`, `edge` loss 비중 조정
-- [x] 새 save name 설정
-  - [x] `train_svfocusdenoise_mc_g105_phase1_denoise_priority_v2_x1_dim32_block2_260515`
+## 4. Deploy / V2 / V3 Inference Review
+- [x] `frame_2928.png` 단일 프레임 비교
+- [x] deploy / v2 / v3 100장 batch metric 비교
+- [x] foliage/sidewalk 구간과 road 구간을 분리해서 분석
+- [x] 비교 이미지 생성
+  - [x] `results/frame_2928_compare_deploy_v2_v3.png`
+  - [x] `results/batch_contact_deploy_v2_v3.png`
+- [x] batch metric CSV 생성
+  - [x] `results/batch_metrics_deploy_v2_v3.csv`
 
-## 5. Fixed Validation Dataset
-- [x] v2 fixed validation dataset 생성
-  - [x] `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/HR`
-  - [x] `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/LR`
-- [x] HR 100장 확인
-- [x] LR 100장 확인
-- [x] v2 train config의 validation root를 v2 fixed validation으로 변경
+## 5. Replacement Assessment
+- [x] checkpoint 크기 비교
+  - [x] deploy 약 `1.33 MB`
+  - [x] v3 약 `0.40 MB`
+- [x] noise proxy 비교
+  - [x] deploy `1.516`
+  - [x] v3 `1.399`
+- [x] hot-pixel proxy 비교
+  - [x] deploy strong spike `241/Mpix`
+  - [x] v3 strong spike `209/Mpix`
+- [x] magenta/color-bias p95 비교
+  - [x] deploy `14.45`
+  - [x] v3 `12.83`
+- [x] detail/edge tradeoff 확인
+  - [x] deploy edge p90 `11.50`
+  - [x] v3 edge p90 `10.69`
+- [x] v3를 deploy replacement candidate로 유지하기로 판단
 
-## 6. Training
-- [x] v2 Phase 1 denoise-priority 학습 시작
-- [/] v2 Phase 1 denoise-priority full training 진행 중
-- [ ] `epoch_20.pth` 생성 확인
-- [ ] `epoch_20.pth` 기준 Deploy / 260514 Phase 1 / v2 비교
-- [ ] foliage/shadow noise 제거 방향성 확인
-- [ ] sign text / edge 보존 확인
-- [ ] hot pixel 및 chroma noise 개선 여부 확인
+## 6. ONNX Export
+- [x] v3 `best.pth` ONNX export 시도
+- [x] `onnxscript.onnx_opset.opset23` import error 확인
+- [x] 원인이 모델이 아니라 PyTorch 2.9 / ONNXScript 호환성 문제임을 확인
+- [x] `requirements.txt` 수정
+  - [x] `onnxscript==0.2.5` -> `onnxscript==0.2.7`
+- [ ] 컨테이너에서 `python3 -m pip install -U onnxscript==0.2.7` 실행
+- [ ] ONNX export 재시도
+- [ ] PyTorch output vs ONNX output numerical check
 
 ## 7. Next Decision
-- [ ] v2가 Phase 1 대비 noise를 명확히 줄이면 epoch 40/60까지 추가 확인
-- [ ] v2가 여전히 identity에 가까우면 열화 pipeline을 더 강하게 조정
-- [ ] synthetic pipeline 방향성이 확인되기 전까지 MTKD 진행 보류
-- [ ] MTKD용 teacher/student 설계는 v2 pipeline 검증 후 재개
+- [ ] v3 epoch 180/200 결과를 같은 100장으로 재분석
+- [ ] edge/detail 손실이 커지지 않으면 v3를 deploy 교체 후보로 고정
+- [ ] ONNX export 성공 후 runtime 성능 및 출력 일치성 검증
+- [ ] 최종 후보 확정 시 deploy 경로/문서 업데이트

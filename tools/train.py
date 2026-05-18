@@ -68,6 +68,17 @@ def resolve_dataset_kind(config: dict) -> str:
     return 'sr'
 
 
+def apply_arg_overrides(config: dict, args):
+    """Apply CLI overrides after loading config from a file or checkpoint."""
+    if args.model: config['model']['name'] = args.model
+    if args.task: config['task'] = args.task
+    if args.scale: config['model']['scale'] = args.scale
+    if args.epochs: config['train']['epochs'] = args.epochs
+    if args.batch_size: config['train']['batch_size'] = args.batch_size
+    if args.lr: config['train']['lr'] = args.lr
+    return config
+
+
 def load_config(args):
     # 1. If Resuming, load config from the checkpoint directory
     if args.resume and os.path.exists(args.resume):
@@ -90,17 +101,14 @@ def load_config(args):
         else:
             config['data_config'] = {}
             
-        return config
+        return apply_arg_overrides(config, args)
 
     # 2. New Training
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
         
     # Load Data Config
-    if args.data_config:
-        data_cfg_path = args.data_config
-    else:
-        data_cfg_path = infer_default_data_config_path(config, args.config)
+    data_cfg_path = args.data_config or config.get('data_config_path') or infer_default_data_config_path(config, args.config)
         
     if data_cfg_path and os.path.exists(data_cfg_path):
         with open(data_cfg_path, 'r') as f:
@@ -111,15 +119,7 @@ def load_config(args):
         config['data_config'] = {}
         config['data_config_path'] = None
     
-    # Args override
-    if args.model: config['model']['name'] = args.model
-    if args.task: config['task'] = args.task
-    if args.scale: config['model']['scale'] = args.scale
-    if args.epochs: config['train']['epochs'] = args.epochs
-    if args.batch_size: config['train']['batch_size'] = args.batch_size
-    if args.lr: config['train']['lr'] = args.lr
-    
-    return config
+    return apply_arg_overrides(config, args)
 
 def main():
     args = get_args()
@@ -154,6 +154,7 @@ def main():
         ckpt = torch.load(args.resume, map_location='cpu') # Load to cpu just for config
         if 'config' in ckpt:
             config = ckpt['config']
+            config = apply_arg_overrides(config, args)
             print("Loaded config from checkpoint.")
         else:
             print("Warning: No config found in checkpoint. Using command line/default config.")
