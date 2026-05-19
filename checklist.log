@@ -38,5 +38,5 @@ deploy-baseline Denoise 설정으로 정리하고 NAFNet/Restormer Teacher 학�
 
 ## 5. Handoff
 - [x] GitLab 커밋/푸시 완료
-- [ ] GitLab -> GitHub 동기화
-- [ ] GitHub 커밋/푸시
+- [x] GitLab -> GitHub 동기화
+- [x] GitHub 커밋/푸시
