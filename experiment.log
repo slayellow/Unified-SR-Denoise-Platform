@@ -1,135 +1,45 @@
 # Experiment Log
 
-## Date: 2026-05-18 (Monday)
+## Date: 2026-05-19 (Tuesday)
 ## Topic
-MC-G105 denoise deploy-hybrid v3 training, deploy/v2/v3 inference comparison, deploy replacement assessment, and ONNX export compatibility fix.
+Deploy-baseline denoise reset and Teacher training preparation.
 
 ## Summary
-Today focused on deciding whether the smaller `SVFocusDenoiseNet` dim32/block2 v3 model can replace the current deploy denoise model. The v3 pipeline restores a stronger deploy-like degradation backbone while keeping MC-G105-specific color cast, chroma mottle, hot-pixel, and highlight behavior as secondary effects. Inference results were compared across `deploy`, `v2`, and `v3` over 100 common frames. The v3 model is substantially smaller than the deploy checkpoint and improves the main replacement criteria: noise, hot-pixel proxy, and color-bias behavior. The main tradeoff is a modest reduction in edge/detail sharpness versus deploy.
+출장 후 고배율 비행 결과를 반영하여 MC-G105 전용 v2/v3 degradation 실험 흐름을 폐기하고, 검증된 deploy Denoise 학습 설정을 baseline으로 복원했다. 이후 이 deploy-baseline `configs/data/denoise.yaml`을 기준으로 NAFNet/Restormer Teacher 학습 config를 추가했다.
 
 ## Work Done
 
-1. Deploy-hybrid v3 pipeline setup
-   - Added the v3 data config:
-     - `configs/data/denoise_mc_g105_phase1_deploy_hybrid_v3.yaml`
-   - Added the v3 train config:
-     - `configs/train/Denoise/svfocusdenoise_mc_g105_phase1_deploy_hybrid_v3_dim32.yaml`
-   - Key v3 design:
-     - Keep `SVFocusDenoiseNet` / `svfocussrnet`, scale 1, dim32, block2.
-     - Restore stronger deploy-like degradation terms.
-     - Keep MC-G105-specific color cast, chroma mottle, hot pixels, signal instability, and highlight clipping.
-     - Use stronger edge and hot-pixel losses while avoiding excessive detail attenuation.
+1. Deploy baseline 복원
+   - `configs/data/denoise.yaml`을 `checkpoints/csuav_deploy/train_svfocusdenoise_adv_x1_dim32_block3_epoch300_lr1e-4_charbonnier_edge_ssim_hotpixel_260309/data_config.yaml` 기준으로 정리.
+   - `dataset_type`은 현재 코드의 denoise dataset 분기와 맞추기 위해 `denoise`로 유지.
+   - deploy 저장본과 비교 시 `dataset_type`을 제외한 degradation 내용이 동일함을 확인.
 
-2. Training code and loss support
-   - Updated `tools/train.py` so CLI overrides are consistently applied after config load and resume config load.
-   - Updated `tools/train.py` to honor `data_config_path` from the train config when `--data_config` is not explicitly provided.
-   - Updated `src/losses/losses.py` so `UnifiedLoss` passes the configured edge threshold into `EdgeLoss`.
+2. 폐기된 실험 config/document 정리
+   - MC-G105 phase/generic/v2/v3 data config 제거.
+   - MC-G105 phase/generic/v2/v3 train/finetune config 제거.
+   - NAFNet/Restormer/MTKD 구 실험 config 제거.
+   - `docs/plans`의 MC-G105 denoise/v2/v3/Teacher/MTKD 관련 md 제거.
 
-3. v3 training status
-   - Active run:
-     - `checkpoints/train_svfocusdenoise_mc_g105_phase1_deploy_hybrid_v3_x1_dim32_block2_260518/`
-   - Current process at checkout time:
-     - PID `2298397`
-     - Command: `python3 tools/train.py --config configs/train/Denoise/svfocusdenoise_mc_g105_phase1_deploy_hybrid_v3_dim32.yaml --resume checkpoints/train_svfocusdenoise_mc_g105_phase1_deploy_hybrid_v3_x1_dim32_block2_260518/last.pth --batch_size 256 --device 0`
-   - Latest observed training log row:
-     - epoch `182`
-     - train loss `0.0886005`
-     - val loss `0.0871006`
-     - PSNR `27.1142`
-     - SSIM `0.8116`
-     - LPIPS `0.3247`
-     - NIQE `2.9849`
-     - lr `1.994e-05`
-   - Available checkpoints include:
-     - `epoch_20.pth` through `epoch_180.pth`
-     - `best.pth`
-     - `last.pth`
+3. Deploy-baseline Teacher config 추가
+   - 추가:
+     - `configs/train/Denoise/nafnet_deploy_denoise_teacher.yaml`
+     - `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
+   - 두 config 모두 `data_config_path: configs/data/denoise.yaml` 사용.
+   - Docker `sr` 환경에서 model build 확인:
+     - NAFNet Teacher: `115,982,915` params
+     - Restormer Teacher: `26,111,668` params
 
-4. Inference comparison data
-   - Compared 100 common frames from:
-     - `results/260515_deploy/`
-     - `results/260518_new_phase1_v2/`
-     - `results/260518_new_phase1_v3/`
-   - Created local comparison artifacts:
-     - `results/frame_2928_compare_deploy_v2_v3.png`
-     - `results/batch_contact_deploy_v2_v3.png`
-     - `results/batch_metrics_deploy_v2_v3.csv`
-   - These are result artifacts and remain ignored by git.
+4. Teacher 학습 상태
+   - NAFNet Teacher 학습 진행 중:
+     - PID: `1221159`
+     - command: `accelerate launch --num_processes=2 tools/train.py --config configs/train/Denoise/nafnet_deploy_denoise_teacher.yaml --data_config configs/data/denoise.yaml`
+     - work dir: `checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_260519`
+     - `training_log.csv`는 아직 첫 epoch 기록 전.
+   - 현재 Teacher train config의 `train_root`는 `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/tmp/`로 수정된 상태.
+   - Restormer Teacher config는 준비 완료, 학습 시작 전.
 
-5. Frame 2928 spot check
-   - v3 visually reduced the pink/magenta cast versus deploy.
-   - v3 reduced high-frequency noise compared with deploy and v2 on the selected crop.
-   - v3 preserved a more natural color balance than v2.
-   - Tradeoff: deploy still has slightly stronger edge/detail response.
+## Next
 
-6. 100-frame batch analysis
-   - Whole-set averages:
-     - Deploy noise proxy: `1.516`
-     - v2 noise proxy: `1.517`
-     - v3 noise proxy: `1.399`
-     - Deploy magenta p95: `14.45`
-     - v2 magenta p95: `12.20`
-     - v3 magenta p95: `12.83`
-     - Deploy edge p90: `11.50`
-     - v3 edge p90: `10.69`
-   - Foliage/sidewalk subset (`frame_2901`-`frame_2950`):
-     - Deploy noise proxy: `2.029`
-     - v3 noise proxy: `1.762`
-     - Deploy magenta p95: `26.29`
-     - v3 magenta p95: `23.31`
-     - Deploy edge p90: `18.17`
-     - v3 edge p90: `16.25`
-   - Road subset (`frame_3851`-`frame_3900`):
-     - v3 stayed close to deploy while avoiding v2's stronger color shift.
-
-7. Deploy replacement assessment
-   - Approximate checkpoint size:
-     - deploy checkpoint: `1.33 MB`
-     - v3 epoch/best checkpoint: `0.40 MB`
-     - v3 is roughly 70 percent smaller.
-   - Hot-pixel proxy over 100 frames:
-     - Deploy strong isolated spike proxy: `241/Mpix`
-     - v2 strong isolated spike proxy: `240/Mpix`
-     - v3 strong isolated spike proxy: `209/Mpix`
-   - Replacement judgement:
-     - v3 is a reasonable deploy replacement candidate when prioritizing smaller size, lower noise, fewer hot-pixel-like spikes, and reduced color bias.
-     - Main risk is modest sharpness/detail loss versus deploy.
-     - Recommendation: keep v3 as the current replacement candidate, then compare epoch 180/200 before final freezing.
-
-8. ONNX export issue and fix
-   - Attempted export:
-     - `tools/export.py`
-     - v3 `best.pth`
-     - static input `720x1280`
-     - opset 18
-   - Error:
-     - `cannot import name 'opset23' from 'onnxscript.onnx_opset'`
-   - Root cause:
-     - PyTorch 2.9 ONNX exporter imports newer ONNXScript opset registry symbols even when exporting with opset 18.
-     - The pinned `onnxscript==0.2.5` does not provide `opset23`.
-   - Updated:
-     - `requirements.txt`: `onnxscript==0.2.5` -> `onnxscript==0.2.7`
-   - Completed after the initial handoff:
-     - Installed `onnxscript==0.2.7` inside the container.
-     - Retried ONNX export successfully.
-     - Completed PyTorch output vs ONNX output numerical check.
-
-## Findings
-
-- v3 is more suitable than v2 for deploy replacement because it keeps deploy-like color/detail behavior better while still improving noise and hot-pixel metrics.
-- v2 suppresses saturation and magenta peaks, but it can push the image toward a colder/less natural color balance.
-- v3 improves the main operational risks:
-  - lower high-frequency noise proxy
-  - lower hot-pixel proxy
-  - reduced magenta/color-bias peaks
-  - smaller checkpoint size
-- v3's main cost is slightly lower edge/detail strength. This should be monitored around sign text, wires, foliage texture, and road markings.
-- The ONNX export failure was dependency compatibility, not a model architecture failure, and the export path is now unblocked after updating ONNXScript.
-
-## Next Actions
-
-1. Let v3 training continue past epoch 180 toward epoch 200.
-2. Run the same deploy/v2/v3 batch comparison for v3 epoch 180 and epoch 200.
-3. Confirm whether v3 edge/detail loss worsens with additional training.
-4. If v3 epoch 180/200 keeps the same balance, prepare v3 as the deploy replacement candidate.
-5. After final candidate selection, update the deploy path and deployment notes.
+- NAFNet Teacher 첫 epoch 완료 후 loss/PSNR/SSIM/LPIPS/NIQE가 정상 기록되는지 확인.
+- `tmp/` train_root를 본 학습 데이터셋으로 확정할지 재확인.
+- NAFNet 안정화 후 GPU 2대 별도 배정으로 Restormer Teacher 학습 시작.

@@ -1,4 +1,6 @@
 task: denoise
+data_config_path: configs/data/denoise.yaml
+
 model:
   name: restormer_denoise_teacher
   scale: 1
@@ -17,19 +19,19 @@ model:
 data:
   type: eo
   train_root:
-    - /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
-  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/HR
-  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/mc_g105_phase1_denoise_priority_v2_fixed/LR
+    - /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/tmp/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/LR
 
 train:
-  epochs: 320
+  epochs: 300
   batch_size: 4
-  lr: 1e-4
+  lr: 5e-5
   num_workers: 4
   gradient_accumulation_steps: 8
   patch_size: 256
   save_interval: 20
-  save_name: "train_restormer_teacher_mc_g105_phase1_denoise_priority_v2_x1_dim48_260516"
+  save_name: "train_restormer_teacher_deploy_denoise_x1_dim48_260519"
 
   pretrained_path: null
 
@@ -40,14 +42,14 @@ train:
   grad_clip: 1.0
 
   early_stopping:
-    patience: 70
-    min_delta: 0.00001
-    monitor: 'loss'
+    patience: 50
+    min_delta: 0.0001
+    monitor: 'lpips'
     mode: 'min'
 
   scheduler:
     type: CosineAnnealingLR
-    T_max: 320
+    T_max: 300
     eta_min: 1e-7
 
 loss:
@@ -56,29 +58,19 @@ loss:
     weight: 1.0
   edge:
     enabled: true
-    weight: 0.08
+    weight: 0.15
     mode: 'gray'
   ssim:
     enabled: true
-    weight: 0.08
+    weight: 0.5
   l1:
     enabled: false
     weight: 1.0
   perceptual:
-    enabled: false
-    weight: 0.0
-  color_consistency:
     enabled: true
-    weight: 0.08
-    loss_type: 'charbonnier'
-  hot_pixel_masked:
-    enabled: true
-    weight: 0.18
-    threshold: 0.08
-    base_loss: 'charbonnier'
-    kernel_size: 3
+    weight: 0.05
   tv:
     enabled: false
-    weight: 0.0
+    weight: 0.1
 
 export_onnx: false
