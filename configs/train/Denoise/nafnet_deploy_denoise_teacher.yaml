@@ -29,7 +29,7 @@ train:
   gradient_accumulation_steps: 4
   patch_size: 256
   save_interval: 20
-  save_name: "train_nafnet_teacher_deploy_denoise_x1_width64_260519"
+  save_name: "train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521"
 
   pretrained_path: null
 
@@ -41,9 +41,9 @@ train:
 
   early_stopping:
     patience: 50
-    min_delta: 0.0001
-    monitor: 'lpips'
-    mode: 'min'
+    min_delta: 0.01
+    monitor: 'psnr'
+    mode: 'max'
 
   scheduler:
     type: CosineAnnealingLR
@@ -54,19 +54,30 @@ loss:
   charbonnier:
     enabled: true
     weight: 1.0
-  edge:
-    enabled: true
-    weight: 0.15
-    mode: 'gray'
+    eps: 0.001
   ssim:
     enabled: true
-    weight: 0.5
+    weight: 0.05
+  edge:
+    enabled: false
+    weight: 0.0
+    mode: 'gray'
+  perceptual:
+    enabled: false
+    weight: 0.0
+  color_consistency:
+    enabled: true
+    weight: 0.03
+    loss_type: 'l1'
+  hot_pixel_masked:
+    enabled: true
+    weight: 0.03
+    threshold: 0.15
+    base_loss: 'charbonnier'
+    kernel_size: 3
   l1:
     enabled: false
     weight: 1.0
-  perceptual:
-    enabled: true
-    weight: 0.05
   tv:
     enabled: false
     weight: 0.1

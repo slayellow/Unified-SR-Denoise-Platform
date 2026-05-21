@@ -17,6 +17,16 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.models import build_model
 
+def normalize_state_dict(state_dict):
+    normalized = {}
+    for key, value in state_dict.items():
+        if key.startswith("module."):
+            key = key[len("module."):]
+        if key.startswith("_orig_mod."):
+            key = key[len("_orig_mod."):]
+        normalized[key] = value
+    return normalized
+
 def get_args():
     parser = argparse.ArgumentParser(description="Unified SR/Denoise Inference")
     parser.add_argument("--input", type=str, required=True, help="Path to input image or directory")
@@ -174,7 +184,8 @@ def main():
             state_dict = checkpoint['model_state_dict']
         else:
             state_dict = checkpoint
-            
+
+        state_dict = normalize_state_dict(state_dict)
         model.load_state_dict(state_dict)
 
     if hasattr(model, 'switch_to_deploy'):

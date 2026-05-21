@@ -8,7 +8,7 @@ Usage:
     python3 examples/generate_denoise_val.py \
         --hr_dir /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/HR \
         --out_dir /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise \
-        --data_config configs/data/denoise_eo.yaml \
+        --data_config configs/data/denoise.yaml \
         --seed 42
 """
 import os
@@ -36,7 +36,7 @@ def main():
                         default="/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise",
                         help="출력 디렉토리 (하위에 HR/, LR/ 생성)")
     parser.add_argument("--data_config", type=str,
-                        default="configs/data/denoise_eo.yaml",
+                        default="configs/data/denoise.yaml",
                         help="열화 파이프라인 설정 yaml")
     parser.add_argument("--seed", type=int, default=42,
                         help="재현 가능한 노이즈를 위한 시드")

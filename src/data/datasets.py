@@ -100,6 +100,41 @@ def add_chroma_mottle(img, sigma_range=(2, 8), downscale_factor=8):
     ycrcb = np.clip(ycrcb, 0, 255).astype(np.uint8)
     return cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2BGR)
 
+def add_row_band_noise(img, sigma_range=(1.0, 8.0), channel_independent_prob=0.3):
+    """Apply weak row-wise offset noise often seen in sensor readout."""
+    out = img.astype(np.float32)
+    h, _, c = out.shape
+    sigma = random.uniform(sigma_range[0], sigma_range[1])
+
+    if random.random() < channel_independent_prob:
+        offsets = np.random.normal(0.0, sigma, (h, 1, c)).astype(np.float32)
+    else:
+        offsets = np.random.normal(0.0, sigma, (h, 1, 1)).astype(np.float32)
+
+    return np.clip(out + offsets, 0, 255).astype(np.uint8)
+
+def add_periodic_grid_noise(img, amplitude_range=(0.5, 3.0), period_range=(2.0, 8.0), channel_jitter=0.35):
+    """Apply subtle periodic grid/readout texture for MC-G105-style validation stress."""
+    out = img.astype(np.float32)
+    h, w, c = out.shape
+
+    amp = random.uniform(amplitude_range[0], amplitude_range[1])
+    px = random.uniform(period_range[0], period_range[1])
+    py = random.uniform(period_range[0], period_range[1])
+    phase_x = random.uniform(0, 2 * math.pi)
+    phase_y = random.uniform(0, 2 * math.pi)
+
+    yy, xx = np.mgrid[0:h, 0:w]
+    grid = np.sin((2 * math.pi * xx / px) + phase_x) + np.sin((2 * math.pi * yy / py) + phase_y)
+    grid = grid.astype(np.float32)
+    grid = grid / (np.max(np.abs(grid)) + 1e-6)
+
+    gains = np.ones((1, 1, c), dtype=np.float32)
+    if channel_jitter > 0:
+        gains += np.random.uniform(-channel_jitter, channel_jitter, (1, 1, c)).astype(np.float32)
+
+    return np.clip(out + amp * grid[:, :, None] * gains, 0, 255).astype(np.uint8)
+
 def add_eo_shading(img, strength_range=(0.04, 0.14), sigma_range=(0.65, 1.25), center_offset_range=(-0.12, 0.12), diagonal_prob=0.25, chroma_strength_range=(0.0, 0.015)):
     """Apply EO-style low-frequency shading/vignetting without IR noise artifacts."""
     out = img.astype(np.float32) / 255.0
@@ -502,6 +537,23 @@ def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_
             out,
             sigma_range=(c_mottle.get('sigma_min', 2), c_mottle.get('sigma_max', 8)),
             downscale_factor=c_mottle.get('downscale', 8)
+        )
+
+    c_row = s2.get('row_noise', {})
+    if c_row.get('enabled', False) and random.random() < c_row.get('prob', 0.5):
+        out = add_row_band_noise(
+            out,
+            sigma_range=(c_row.get('sigma_min', 1.0), c_row.get('sigma_max', 8.0)),
+            channel_independent_prob=c_row.get('channel_independent_prob', 0.3)
+        )
+
+    c_grid = s2.get('periodic_grid_noise', {})
+    if c_grid.get('enabled', False) and random.random() < c_grid.get('prob', 0.5):
+        out = add_periodic_grid_noise(
+            out,
+            amplitude_range=(c_grid.get('amplitude_min', 0.5), c_grid.get('amplitude_max', 3.0)),
+            period_range=(c_grid.get('period_min', 2.0), c_grid.get('period_max', 8.0)),
+            channel_jitter=c_grid.get('channel_jitter', 0.35)
         )
 
     c_hot = s2.get('hot_pixels', {})

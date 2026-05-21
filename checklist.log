@@ -1,42 +1,53 @@
 # Checklist Log
 
-## Date: 2026-05-19 (Tuesday)
+## Date: 2026-05-21 (Thursday)
 ## Goal
-deploy-baseline Denoise 설정으로 정리하고 NAFNet/Restormer Teacher 학습 준비를 완료한다.
+NAFNet Teacher denoise 실험을 MC-G105 검증 기준에 맞게 재정렬한다.
 
 ---
 
-## 1. Deploy Baseline Reset
-- [x] 고배율 비행 결과 기준으로 v3 replacement 판단 철회
-- [x] `configs/data/denoise.yaml`을 deploy Denoise 저장 config 기준으로 복원
-- [x] `dataset_type: denoise` 유지 결정
-- [x] deploy 저장본과 degradation 내용 일치 여부 확인
+## 1. Current NAFNet Review
+- [x] NAFNet Teacher 중간 학습 로그 확인
+- [x] `best.pth` inference 실행 중 checkpoint prefix 문제 확인
+- [x] `tools/inference.py`에서 `module.` / `_orig_mod.` prefix 자동 제거 처리
+- [x] RAW / Deploy / NAFNet 중간 결과 육안 비교
+- [x] NAFNet 결과가 MC-G105 실영상에서 RAW texture/grid를 충분히 억제하지 못하는 문제 확인
+- [x] 기존 NAFNet 학습 중단
 
-## 2. Cleanup
-- [x] MC-G105 v1/v2/v3/generic/phase 실험 data config 제거
-- [x] MC-G105 v1/v2/v3/generic/phase train/finetune config 제거
-- [x] 구 NAFNet/Restormer/MTKD 실험 config 제거
-- [x] 관련 `docs/plans` md 제거
-- [x] `experiment.log`를 오늘 내용으로 덮어쓰기
+## 2. Config Comparison
+- [x] `csuav_deploy` SVFocus Deploy denoise checkpoint 설정 확인
+- [x] 기존 NAFNet Teacher 설정과 Deploy checkpoint loss 비교
+- [x] Deploy checkpoint는 `edge 0.05`, `ssim 0.1`, `perceptual off`였음을 확인
+- [x] 기존 NAFNet 설정은 `edge 0.15`, `ssim 0.5`, `perceptual on`으로 texture-preserving 압력이 강했음을 확인
+- [x] 1차 실험에서는 학습 data pipeline이 아니라 NAFNet loss를 먼저 재설계하기로 결정
 
-## 3. Teacher Configs
-- [x] NAFNet deploy-baseline Teacher config 생성
+## 3. Validation Dataset
+- [x] 기존 `val_denoise/LR`가 너무 깨끗해 validation 지표가 과대평가될 가능성 확인
+- [x] `examples/dataset_preparation/generate_denoise_val.py` 기본 config 경로 수정
+- [x] validation stress용 `row_noise`, `periodic_grid_noise` pipeline 옵션 추가
+- [x] `configs/data/denoise_mc_g105_val.yaml` 추가
+- [ ] partial `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise_mc_g105` 삭제 후 재생성
+- [ ] 재생성된 validation set HR-LR PSNR/MAE 확인
+- [ ] validation crop sheet 육안 확인
+
+## 4. NAFNet Teacher Config
+- [x] NAFNet 학습 설정 파일을 하나로 통합
   - [x] `configs/train/Denoise/nafnet_deploy_denoise_teacher.yaml`
-- [x] Restormer deploy-baseline Teacher config 생성
-  - [x] `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
-- [x] 두 config 모두 `configs/data/denoise.yaml` 사용
-- [x] Docker `sr` 환경에서 model build 확인
+- [x] 중복 conservative config 제거
+- [x] training degradation은 `configs/data/denoise.yaml` 유지
+- [x] validation root를 `val_denoise_mc_g105`로 변경
+- [x] NAFNet conservative loss 반영
+  - [x] `charbonnier 1.0`
+  - [x] `ssim 0.05`
+  - [x] `edge off`
+  - [x] `perceptual off`
+  - [x] `color_consistency 0.03`
+  - [x] `hot_pixel_masked 0.03`
+- [x] early stopping 기준을 `psnr max`로 변경
 
-## 4. Training Status
-- [/] NAFNet Teacher 학습 진행 중
-  - [/] PID: `1221159`
-  - [/] work dir: `checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_260519`
-  - [/] `training_log.csv`는 아직 첫 epoch 기록 전
-- [ ] Restormer Teacher 학습 시작
-- [ ] NAFNet 첫 epoch 로그 확인
-- [ ] `tmp/` train_root 사용 여부 최종 확인
-
-## 5. Handoff
-- [x] GitLab 커밋/푸시 완료
-- [x] GitLab -> GitHub 동기화
-- [x] GitHub 커밋/푸시
+## 5. Next Experiment
+- [ ] 새 validation set 생성
+- [ ] NAFNet Teacher conservative loss 재학습 시작
+- [ ] epoch 20 checkpoint 저장 후 MC-G105 고정 프레임 inference
+- [ ] RAW / Deploy / NAFNet conservative 비교 panel 생성
+- [ ] grid/chroma/flat-region high-frequency noise 개선 여부 판단
