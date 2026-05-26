@@ -1,5 +1,6 @@
 import os
 import csv
+from collections import OrderedDict
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -197,6 +198,32 @@ class Trainer(BaseEngine):
         
         self.best_metric_val = float('inf') if self.monitor_mode == 'min' else -float('inf')
 
+    @staticmethod
+    def _strip_state_dict_prefix(state_dict, prefix):
+        if not state_dict:
+            return state_dict
+
+        keys = list(state_dict.keys())
+        if all(key.startswith(prefix) for key in keys):
+            return OrderedDict((key[len(prefix):], value) for key, value in state_dict.items())
+
+        return state_dict
+
+    def _normalize_model_state_dict(self, state_dict):
+        model_keys = list(self.model.state_dict().keys())
+        checkpoint_keys = list(state_dict.keys())
+
+        if not model_keys or not checkpoint_keys:
+            return state_dict
+
+        model_uses_module_prefix = all(key.startswith("module.") for key in model_keys)
+        checkpoint_uses_module_prefix = all(key.startswith("module.") for key in checkpoint_keys)
+
+        if checkpoint_uses_module_prefix and not model_uses_module_prefix:
+            return self._strip_state_dict_prefix(state_dict, "module.")
+
+        return state_dict
+
     def prepare_accelerator(self, train_loader, val_loader=None):
         """
         Prepare model, optimizer, scheduler and loaders with Accelerator.
@@ -220,8 +247,9 @@ class Trainer(BaseEngine):
             
         print(f"[Trainer] Resuming from {checkpoint_path}...")
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
-        
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+
+        model_state_dict = self._normalize_model_state_dict(checkpoint['model_state_dict'])
+        self.model.load_state_dict(model_state_dict)
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         if 'scheduler_state_dict' in checkpoint:
             self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
@@ -390,7 +418,7 @@ class Trainer(BaseEngine):
         # Save unified state dict
         state = {
             'epoch': epoch,
-            'model_state_dict': self.model.state_dict(),
+            'model_state_dict': self.accelerator.unwrap_model(self.model).state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict(),
             'best_val_loss': self.best_val_loss,
@@ -400,12 +428,16 @@ class Trainer(BaseEngine):
         
         if is_best:
             best_path = os.path.join(self.checkpoint_dir, "best.pth")
-            torch.save(state, best_path)
-            metric_str = f"{self.monitor_metric}: {self.best_metric_val:.6f}"
-            print(f"Saved Best Checkpoint: {best_path} ({metric_str})")
+            if self.accelerator.is_main_process:
+                torch.save(state, best_path)
+                metric_str = f"{self.monitor_metric}: {self.best_metric_val:.6f}"
+                print(f"Saved Best Checkpoint: {best_path} ({metric_str})")
         else:
-            torch.save(state, save_path)
-            print(f"Saved checkpoint: {save_path}")
+            if self.accelerator.is_main_process:
+                torch.save(state, save_path)
+                print(f"Saved checkpoint: {save_path}")
+
+        self.accelerator.wait_for_everyone()
 
     def export_onnx(self, input_shape=(1, 3, 360, 640)):
         print("Exporting ONNX...")

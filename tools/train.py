@@ -21,7 +21,7 @@ from src.engine.gan_trainer import GANTrainer
 
 def get_args():
     parser = argparse.ArgumentParser(description="Unified SR/Denoise Training")
-    parser.add_argument("--config", type=str, required=True, help="Path to main train config file")
+    parser.add_argument("--config", type=str, help="Path to main train config file")
     parser.add_argument("--data_config", type=str, help="Path to data config file (override default)")
     parser.add_argument("--model", type=str, help="Model name (override config)")
     parser.add_argument("--task", type=str, choices=['sr', 'denoise', 'guide'], help="Task type (override config)")
@@ -32,7 +32,10 @@ def get_args():
     parser.add_argument("--batch_size", type=int, help="Override batch size")
     parser.add_argument("--lr", type=float, help="Override learning rate")
     parser.add_argument("--device", type=str, default="cuda", help="Device (cuda or cpu)")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.config and not args.resume:
+        parser.error("the following arguments are required: --config unless --resume is provided")
+    return args
 
 def infer_default_data_config_path(config: dict, train_config_path: str) -> str | None:
     """Infer the default data-config path from task and train-config location."""
