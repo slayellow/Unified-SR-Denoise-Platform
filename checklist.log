@@ -84,12 +84,15 @@
   - [/] tracked `__pycache__` generated files
 
 ## 5. Checkout Sync
-- [ ] GitLab commit for checkout handoff
-- [ ] GitLab push
-- [ ] GitLab -> GitHub rsync dry-run with protected exclusions
-- [ ] GitLab -> GitHub rsync real run
-- [ ] GitHub commit for checkout handoff
-- [ ] GitHub push
+- [x] GitLab commit for checkout handoff
+  - [x] `8552909 Fix NAFNet DDP validation handoff`
+- [x] GitLab push
+- [x] GitLab -> GitHub rsync dry-run with protected exclusions
+  - [x] changed files limited to `checklist.log`, `experiment.log`, `src/engine/trainer.py`
+- [x] GitLab -> GitHub rsync real run
+- [x] GitHub commit for checkout handoff
+  - [x] `9e8e917 Sync NAFNet DDP validation handoff`
+- [x] GitHub push
 
 ## 6. Next Work
 - [ ] Continue monitoring `resume_260526_after_rng_fix.log`
