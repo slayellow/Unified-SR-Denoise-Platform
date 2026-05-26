@@ -22,36 +22,44 @@ class BaseEngine:
         return data.to(self.device)
 
 class Validator(BaseEngine):
-    def __init__(self, model, criterion, device, writer=None, task='sr', is_guided_model=True):
+    def __init__(self, model, criterion, device, writer=None, task='sr', is_guided_model=True, accelerator=None):
         super().__init__(device)
         self.model = model
         self.criterion = criterion
         self.writer = writer
         self.task = task
         self.is_guided_model = is_guided_model
+        self.accelerator = accelerator
         
         # Initialize Metrics
-        print("[Validator] Initializing metrics (PSNR, SSIM, LPIPS, NIQE)...")
+        self._print("[Validator] Initializing metrics (PSNR, SSIM, LPIPS, NIQE)...")
         self.metric_psnr = pyiqa.create_metric('psnr', device=device)
         self.metric_ssim = pyiqa.create_metric('ssim', device=device)
         self.metric_lpips = pyiqa.create_metric('lpips', device=device)
         self.metric_niqe = pyiqa.create_metric('niqe', device=device)
 
+    def _print(self, message):
+        if self.accelerator is not None:
+            self.accelerator.print(message)
+        else:
+            print(message)
+
     def run(self, loader, epoch):
         self.model.eval()
-        val_loss = 0.0
+        val_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         
         # Metric accumulators
-        acc_psnr = 0.0
-        acc_ssim = 0.0
-        acc_lpips = 0.0
-        acc_niqe = 0.0
-        n_samples = 0
+        acc_psnr = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+        acc_ssim = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+        acc_lpips = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+        acc_niqe = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+        n_samples = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         
         with torch.no_grad():
-            for i, batch in enumerate(tqdm(loader, desc=f"Validation Epoch {epoch}")):
+            for i, batch in enumerate(tqdm(loader, desc=f"Validation Epoch {epoch}", disable=not self.accelerator.is_local_main_process)):
                 lr = batch['lr'].to(self.device)
                 hr = batch['hr'].to(self.device)
+                batch_size = lr.shape[0]
                 
                 if self.task == 'guide' and 'guide' in batch and self.is_guided_model:
                     guide = batch['guide'].to(self.device)
@@ -62,27 +70,32 @@ class Validator(BaseEngine):
                 
                 # Loss
                 loss, _ = self.criterion(sr, hr, lr) 
-                val_loss += loss.item()
+                val_loss += loss.detach().float() * batch_size
                 
                 # Metrics (Clamp 0-1 for safety)
                 sr_clamp = torch.clamp(sr, 0.0, 1.0)
                 hr_clamp = torch.clamp(hr, 0.0, 1.0)
                 
-                acc_psnr += self.metric_psnr(sr_clamp, hr_clamp).mean().item()
-                acc_ssim += self.metric_ssim(sr_clamp, hr_clamp).mean().item()
-                acc_lpips += self.metric_lpips(sr_clamp, hr_clamp).mean().item()
-                acc_niqe += self.metric_niqe(sr_clamp).mean().item() # NIQE is no-reference
+                acc_psnr += self.metric_psnr(sr_clamp, hr_clamp).mean().detach().float() * batch_size
+                acc_ssim += self.metric_ssim(sr_clamp, hr_clamp).mean().detach().float() * batch_size
+                acc_lpips += self.metric_lpips(sr_clamp, hr_clamp).mean().detach().float() * batch_size
+                acc_niqe += self.metric_niqe(sr_clamp).mean().detach().float() * batch_size # NIQE is no-reference
                 
-                n_samples += 1
+                n_samples += batch_size
                 
-        avg_val_loss = val_loss / len(loader)
-        avg_psnr = acc_psnr / n_samples
-        avg_ssim = acc_ssim / n_samples
-        avg_lpips = acc_lpips / n_samples
-        avg_niqe = acc_niqe / n_samples
+        stats = torch.stack([val_loss, acc_psnr, acc_ssim, acc_lpips, acc_niqe, n_samples])
+        if self.accelerator is not None:
+            stats = self.accelerator.reduce(stats, reduction="sum")
+
+        count = stats[5].clamp_min(1.0)
+        avg_val_loss = (stats[0] / count).item()
+        avg_psnr = (stats[1] / count).item()
+        avg_ssim = (stats[2] / count).item()
+        avg_lpips = (stats[3] / count).item()
+        avg_niqe = (stats[4] / count).item()
         
         if self.writer:
-            print(f"[Validation][Epoch {epoch}] Loss: {avg_val_loss:.6f} | PSNR: {avg_psnr:.4f} | SSIM: {avg_ssim:.4f} | LPIPS: {avg_lpips:.4f} | NIQE: {avg_niqe:.4f}")
+            self._print(f"[Validation][Epoch {epoch}] Loss: {avg_val_loss:.6f} | PSNR: {avg_psnr:.4f} | SSIM: {avg_ssim:.4f} | LPIPS: {avg_lpips:.4f} | NIQE: {avg_niqe:.4f}")
             self.writer.add_scalar("Loss/Val", avg_val_loss, epoch)
             self.writer.add_scalar("Metrics/PSNR", avg_psnr, epoch)
             self.writer.add_scalar("Metrics/SSIM", avg_ssim, epoch)
@@ -110,6 +123,8 @@ class Trainer(BaseEngine):
         grad_accum_steps = self.cfg['train'].get('gradient_accumulation_steps', 1)
         self.accelerator = Accelerator(gradient_accumulation_steps=grad_accum_steps)
         self.device = self.accelerator.device # Override base device
+        if not self.accelerator.is_main_process:
+            self.writer = None
         
         # Setup Loss
         # Accelerator handles device placement, but criterion is often created before prepare
@@ -186,7 +201,7 @@ class Trainer(BaseEngine):
         # Validator
         self.task = self.cfg.get('task', 'sr')
         self.is_guided_model = self.cfg.get('model', {}).get('guided', True)
-        self.validator = Validator(self.model, self.criterion, self.device, self.writer, task=self.task, is_guided_model=self.is_guided_model)
+        self.validator = Validator(self.model, self.criterion, self.device, self.writer, task=self.task, is_guided_model=self.is_guided_model, accelerator=self.accelerator)
 
         # Early Stopping
         early_stop_cfg = self.cfg['train'].get('early_stopping', {})
@@ -269,7 +284,8 @@ class Trainer(BaseEngine):
         running_loss = 0.0
         epoch_loss = 0.0
         
-        pbar = tqdm(loader, desc=f"Epoch {epoch}")
+        num_steps = 0
+        pbar = tqdm(loader, desc=f"Epoch {epoch}", disable=not self.accelerator.is_local_main_process)
         for i, batch in enumerate(pbar):
             lr = batch['lr'].to(self.device)
             hr = batch['hr'].to(self.device)
@@ -313,6 +329,7 @@ class Trainer(BaseEngine):
             
             running_loss += loss.item()
             epoch_loss += loss.item()
+            num_steps += 1
             
             if (i + 1) % log_interval == 0 and self.writer:
                 avg_loss = running_loss / log_interval
@@ -328,26 +345,31 @@ class Trainer(BaseEngine):
                 pbar.set_postfix({'loss': f"{avg_loss:.6f}", 'lr': f"{current_lr:.2e}"})
                 running_loss = 0.0
                 
-        # self.scheduler.step()
-        return epoch_loss / len(loader)
+        stats = torch.tensor([epoch_loss, num_steps], device=self.device, dtype=torch.float32)
+        stats = self.accelerator.reduce(stats, reduction="sum")
+        return (stats[0] / stats[1].clamp_min(1.0)).item()
 
     def fit(self, train_loader, val_loader=None, epochs=100):
         # Prepare components with accelerator
         train_loader, val_loader = self.prepare_accelerator(train_loader, val_loader)
         
-        print(f"Start training from epoch {self.start_epoch} to {epochs}...")
+        self.accelerator.print(f"Start training from epoch {self.start_epoch} to {epochs}...")
         
         # Initialize CSV logging
         csv_path = os.path.join(self.checkpoint_dir, "training_log.csv")
         file_exists = os.path.isfile(csv_path)
         
-        with open(csv_path, mode='a', newline='') as csv_file:
+        if self.accelerator.is_main_process:
+            csv_file = open(csv_path, mode='a', newline='')
             fieldnames = ['epoch', 'train_loss', 'val_loss', 'psnr', 'ssim', 'lpips', 'niqe', 'lr']
             writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-            
             if not file_exists:
                 writer.writeheader()
+        else:
+            csv_file = None
+            writer = None
 
+        try:
             for epoch in range(self.start_epoch, epochs + 1):
                 train_loss = self.train_epoch(train_loader, epoch)
                 
@@ -371,8 +393,9 @@ class Trainer(BaseEngine):
                     'niqe': val_metrics.get('niqe', ''),
                     'lr': current_lr
                 }
-                writer.writerow(log_row)
-                csv_file.flush()
+                if self.accelerator.is_main_process and writer is not None:
+                    writer.writerow(log_row)
+                    csv_file.flush()
                 
                 if self.scheduler_type == 'plateau':
                     if val_loss is not None:
@@ -398,9 +421,9 @@ class Trainer(BaseEngine):
                         self.early_stop_counter = 0
                     else:
                         self.early_stop_counter += 1
-                        print(f"[Trainer] EarlyStopping counter: {self.early_stop_counter} out of {self.patience} (Monitor: {self.monitor_metric})")
+                        self.accelerator.print(f"[Trainer] EarlyStopping counter: {self.early_stop_counter} out of {self.patience} (Monitor: {self.monitor_metric})")
                         if self.early_stop_counter >= self.patience:
-                            print("[Trainer] Early stopping triggered.")
+                            self.accelerator.print("[Trainer] Early stopping triggered.")
                             break
                 
                 if epoch % self.cfg['train']['save_interval'] == 0:
@@ -408,6 +431,9 @@ class Trainer(BaseEngine):
                     
                 # Always save last
                 self.save_checkpoint(epoch, is_best=False, filename="last.pth")
+        finally:
+            if csv_file is not None:
+                csv_file.close()
 
     def save_checkpoint(self, epoch, is_best=False, filename=None):
         if filename is None:

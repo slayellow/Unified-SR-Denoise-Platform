@@ -2,48 +2,99 @@
 
 ## Date: 2026-05-26 (Tuesday)
 ## Goal
-출근 check-in Flow를 완료하고 회사 GitLab 작업 기준을 GitHub 최신 소스와 맞춘다.
+출근 check-in Flow를 완료하고, NAFNet Teacher resume/validation failure를 조치한 뒤 퇴근 check-out Flow로 GitLab/GitHub에 handoff 상태를 남긴다.
 
 ---
 
 ## 1. Check-in Sync
 - [x] `/home/jshong/Code/commute-sync-workflow.md` 확인
 - [x] GitHub repo `main` 최신화
-- [x] GitLab repo `master` 현재 상태 확인
-- [x] GitLab 로컬 소스 변경 백업 커밋 생성
+- [x] GitLab repo `master` 상태 확인
+- [x] GitLab 로컬 resume 보정 변경 백업
   - [x] `f890c4a Backup local checkpoint resume fixes`
-- [x] GitLab 백업 커밋 push
-- [x] GitHub -> GitLab rsync dry-run 수행
-- [x] 보호 제외 항목 확인
-  - [x] `experiment.log`
-  - [x] `checklist.log`
-  - [x] `checkpoints/`
-  - [x] `logs/`
-  - [x] `tmp/`
-  - [x] `results/`
-  - [x] `__pycache__/`
-- [x] GitHub 기준 소스 2개 파일을 GitLab에 반영
-  - [x] `src/engine/trainer.py`
-  - [x] `tools/train.py`
-- [x] sync 커밋 생성 및 push
+- [x] GitHub -> GitLab source sync 수행
   - [x] `e0b9001 Sync source from GitHub check-in`
-
-## 2. Current State
-- [x] GitHub `main` pull 완료
-- [x] GitLab `master` check-in push 완료
-- [x] live training process 없음
-- [x] NAFNet Teacher conservative run은 epoch 27 부근에서 중단된 상태로 판단
-- [x] `f890c4a`의 checkpoint resume 보정 코드를 현재 HEAD에 복원
+- [x] GitLab history의 NAFNet resume fix 복원
   - [x] `37ce9c3 Backup local checkpoint resume fixes`
-- [/] `src/engine/__pycache__/trainer.cpython-310.pyc`는 출근 시점부터 modified 상태였고 커밋 제외
+  - [x] `c21d89d Document restored NAFNet resume fix`
+- [x] 재개 상태 기록
+  - [x] `e9d1e1a Record NAFNet resume state`
 
-## 3. Next Work
-- [ ] GitLab/GitHub 양쪽에 resume 보정코드 push 완료 확인
-- [ ] `last.pth`에서 NAFNet Teacher conservative run 재개 여부 판단
-- [ ] partial `/mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise_mc_g105` 삭제 후 재생성
-- [ ] 재생성된 validation set HR-LR PSNR/MAE 확인
-- [ ] validation crop sheet 육안 확인
-- [ ] NAFNet Teacher conservative loss 재학습 시작
-- [ ] epoch 20 checkpoint 저장 후 MC-G105 고정 프레임 inference
-- [ ] RAW / Deploy / NAFNet conservative 비교 panel 생성
+## 2. NAFNet Teacher Resume
+- [x] target checkpoint 확인
+  - [x] `checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521/last.pth`
+- [x] config provenance 확인
+  - [x] `train_config.yaml`
+  - [x] `data_config.yaml`
+- [x] Docker container `sr`에서 2-GPU resume
+  - [x] initial resume: epoch 28
+  - [x] log: `resume_260526.log`
+- [/] kernel `5.4.0` hang warning은 환경 리스크로 유지
+
+## 3. Incident Response - RNG/NCCL Failure
+- [x] failure tail 확인
+  - [x] epoch 30 시작 시 `Invalid mt19937 state`
+  - [x] NCCL collective ordering mismatch 확인
+- [x] root cause 정리
+  - [x] rank별 validation metric 불일치
+  - [x] best checkpoint 분기 불일치
+  - [x] `training_log.csv` rank 중복 row 증거 확인
+- [x] `src/engine/trainer.py` 수정
+  - [x] train loss / validation metrics rank reduce
+  - [x] best checkpoint / early stopping 판단 동기화
+  - [x] CSV / TensorBoard / tqdm main rank 제한
+- [x] 문법 검증
+  - [x] host `python3 -m py_compile src/engine/trainer.py tools/train.py`
+  - [x] container `python3 -m py_compile src/engine/trainer.py tools/train.py`
+- [x] patch 후 relaunch
+  - [x] `resume_260526_after_rng_fix.log`
+  - [x] resumed at epoch 30
+  - [x] GPU 0/1 active 확인
+- [x] epoch 30 validation/save 통과
+  - [x] `training_log.csv` epoch 30 single row
+  - [x] `last.pth` updated after epoch 30
+- [x] epoch 31 validation/save 통과
+  - [x] `training_log.csv` epoch 31 single row
+  - [x] `last.pth` updated at `2026-05-26 18:39:15 KST`
+- [x] new resume log에서 checkout 시점 오류 문자열 없음
+  - [x] `Traceback`
+  - [x] `RuntimeError`
+  - [x] `Invalid mt19937`
+  - [x] `NCCL`
+  - [x] `FAILED`
+  - [x] `timeout`
+
+## 4. Checkout State
+- [x] active process 확인
+  - [x] Docker container `sr`
+  - [x] container accelerate PID `300114`
+  - [x] worker PIDs `300245`, `300246`
+- [x] GPU 상태 확인
+  - [x] GPU 0 active
+  - [x] GPU 1 active
+- [/] live training 진행 중
+  - [/] current epoch: 32
+  - [/] current progress at check: about `1331 / 6158`, `22%`
+  - [x] latest completed epoch: 31
+  - [x] latest `last.pth`: `2026-05-26 18:39:15 KST`
+- [/] ignored artifacts are intentionally not committed
+  - [/] `checkpoints/`
+  - [/] `logs/`
+  - [/] `*.pth`
+  - [/] tracked `__pycache__` generated files
+
+## 5. Checkout Sync
+- [ ] GitLab commit for checkout handoff
+- [ ] GitLab push
+- [ ] GitLab -> GitHub rsync dry-run with protected exclusions
+- [ ] GitLab -> GitHub rsync real run
+- [ ] GitHub commit for checkout handoff
+- [ ] GitHub push
+
+## 6. Next Work
+- [ ] Continue monitoring `resume_260526_after_rng_fix.log`
+- [ ] Confirm epoch 32 validation/save completes cleanly
+- [ ] Confirm future `training_log.csv` rows remain single-row per epoch
+- [ ] If the run stalls without traceback, inspect kernel warning / process state / checkpoint timestamps first
+- [ ] RAW / Deploy / NAFNet conservative comparison panel 생성
 - [ ] grid/chroma/flat-region high-frequency noise 개선 여부 판단

@@ -2,75 +2,116 @@
 
 ## Date: 2026-05-26 (Tuesday)
 ## Topic
-출근 check-in flow 수행, NAFNet checkpoint resume 보정코드 복원.
+Check-in sync, NAFNet Teacher resume recovery, DDP validation collective fix, and checkout handoff.
 
 ## Summary
-`commute-sync-workflow.md`의 출근 Flow에 따라 GitHub 개인 repo를 먼저 최신화하고, 회사 GitLab repo의 로컬 변경을 백업한 뒤 GitHub 기준 소스를 GitLab 작업트리에 반영했다. 이후 GitLab history에만 남아 있던 NAFNet checkpoint resume 보정코드가 실제 학습 재개에 필요한 변경임을 확인하고 현재 HEAD에 다시 복원했다.
+`commute-sync-workflow.md` 기준으로 출근 check-in을 수행했고, GitHub 최신 소스와 회사 GitLab 작업 기준을 맞춘 뒤 NAFNet Teacher conservative run을 재개했다. 오후에는 epoch 30 진입 시 `Invalid mt19937 state` / NCCL timeout으로 학습이 한 번 중단되어 원인을 분석했고, DDP rank별 validation/checkpoint 분기 불일치를 막도록 `src/engine/trainer.py`를 수정했다. 수정 후 `last.pth`에서 epoch 30으로 재개했으며, 퇴근 시점에는 epoch 31까지 저장 완료 후 epoch 32가 진행 중이다.
 
 ## Work Done
 
-1. GitHub repo 최신화
-   - 대상: `/home/jshong/Code/Unified-SR-Denoise-Platform` (`main`)
-   - `git pull --ff-only` 결과 이미 최신 상태.
-   - 기준 commit: `dc7c692 Update NAFNet denoise validation and loss plan`
-
-2. GitLab repo 로컬 변경 백업
-   - 대상: `/home/jshong/Code/unfied-sr-denoise-platform` (`master`)
-   - 출근 시점 로컬 변경:
-     - `src/engine/trainer.py`
-     - `tools/train.py`
-     - `src/engine/__pycache__/trainer.cpython-310.pyc`
-   - 소스 변경 2개 파일만 백업 커밋으로 기록하고 push:
+1. Check-in sync
+   - GitHub repo: `/home/jshong/Code/Unified-SR-Denoise-Platform` (`main`)
+   - GitLab repo: `/home/jshong/Code/unfied-sr-denoise-platform` (`master`)
+   - GitHub `main`은 최신 상태였고, GitLab 로컬 resume 보정 변경은 백업 커밋으로 보존했다.
+   - GitHub -> GitLab 소스 반영 후 GitLab 작업 기준을 정리했다.
+   - 관련 GitLab commits:
      - `f890c4a Backup local checkpoint resume fixes`
-   - 백업 내용:
-     - DDP/Accelerate checkpoint 저장 시 `unwrap_model()` state dict 저장.
-     - resume 시 `module.` prefix state dict 호환 처리.
-     - `tools/train.py`에서 `--resume`만으로 실행 가능하도록 `--config` 필수 조건 완화.
-
-3. GitHub -> GitLab 소스 반영
-   - dry-run으로 반영 후보를 먼저 확인.
-   - 보호 제외:
-     - `.git/`
-     - `__pycache__/`
-     - `experiment.log`
-     - `checklist.log`
-     - `training_log.csv`
-     - `checkpoints/`
-     - `logs/`
-     - `tmp/`
-     - `results/`
-     - `*.pth`, `*.pt`, `*.onnx`, `*.engine`
-   - 실제 반영된 파일:
-     - `src/engine/trainer.py`
-     - `tools/train.py`
-   - GitLab 현재 소스는 GitHub 기준 파일 내용과 일치.
-   - sync 커밋 push 완료:
      - `e0b9001 Sync source from GitHub check-in`
-
-4. Training state 확인
-   - `accelerate`, `tools/train.py`, `torchrun` 계열 live training process 없음.
-   - NAFNet Teacher conservative run은 300 epoch 완료가 아니라 epoch 27 부근에서 중단된 상태로 판단.
-   - 대상 checkpoint:
-     - `checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521/last.pth`
-
-5. NAFNet checkpoint resume 보정코드 복원
-   - GitLab history의 백업 커밋:
-     - `f890c4a Backup local checkpoint resume fixes`
-   - 현재 HEAD에 재적용한 커밋:
      - `37ce9c3 Backup local checkpoint resume fixes`
-   - 복원 내용:
-     - `Trainer.resume()`에서 DDP/Accelerate checkpoint의 `module.` prefix를 자동 정규화.
-     - future checkpoint 저장 시 `self.accelerator.unwrap_model(self.model).state_dict()` 사용.
-     - checkpoint 저장은 main process에서만 수행하고 이후 `wait_for_everyone()` 호출.
-     - `tools/train.py`는 `--resume`이 있을 때 `--config` 없이도 실행 가능.
+     - `c21d89d Document restored NAFNet resume fix`
+     - `e9d1e1a Record NAFNet resume state`
 
-## Notes
+2. NAFNet Teacher conservative run resume
+   - Target checkpoint:
+     - `checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521/last.pth`
+   - Config provenance:
+     - `checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521/train_config.yaml`
+     - `checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521/data_config.yaml`
+   - Launch environment:
+     - Docker container: `sr` (`111ced63be74`)
+     - command: `accelerate launch --num_processes=2 tools/train.py --resume checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521/last.pth`
+   - Initial resume state:
+     - resumed from epoch 28 after earlier stopped run.
+     - kernel warning persisted: Linux kernel `5.4.0` is below Accelerate's recommended minimum `5.5.0`.
 
-- 회사 로컬 checkpoint resume 보정 코드는 GitLab history의 `f890c4a`에 백업되어 있었고, 현재는 `37ce9c3`으로 작업트리에 복원되어 있다.
-- 생성물인 `src/engine/__pycache__/trainer.cpython-310.pyc`는 출근 시점부터 modified 상태였고 커밋/rsync 대상에서 제외했다.
+3. DDP validation collective failure fix
+   - Failed log:
+     - `checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521/resume_260526.log`
+   - Symptom:
+     - epoch 29 validation completed, then epoch 30 start failed with `RuntimeError: Invalid mt19937 state`.
+     - NCCL watchdog showed rank mismatch: one rank entered RNG `BROADCAST`, the other was still in checkpoint/barrier-side collective work.
+   - Root cause:
+     - validation metrics were computed independently on each DDP rank.
+     - only the rank whose local PSNR exceeded `best_metric_val` entered `save_checkpoint(is_best=True)`.
+     - the other rank skipped best-checkpoint save and moved into the next epoch, so collective ordering diverged.
+   - Code change:
+     - `src/engine/trainer.py`
+     - train loss and validation metrics are reduced across all ranks with `accelerator.reduce(...)`.
+     - best checkpoint and early stopping decisions now use the same reduced metrics on every rank.
+     - CSV, TensorBoard, and tqdm output are restricted to the main rank.
+   - Verification:
+     - host: `python3 -m py_compile src/engine/trainer.py tools/train.py`
+     - container: `python3 -m py_compile src/engine/trainer.py tools/train.py`
+
+4. Relaunch after fix
+   - New log:
+     - `checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521/resume_260526_after_rng_fix.log`
+   - Relaunch command:
+     - `CUDA_VISIBLE_DEVICES=0,1 accelerate launch --num_processes=2 tools/train.py --resume checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521/last.pth`
+   - Resume checkpoint state:
+     - `last.pth` was epoch 29 before relaunch.
+     - resumed at epoch 30.
+   - Post-fix evidence:
+     - epoch 30 completed and saved.
+     - epoch 31 completed and saved.
+     - new `training_log.csv` rows after the fix are single main-rank rows instead of rank-duplicated rows.
+     - no `Traceback`, `RuntimeError`, `Invalid mt19937`, `NCCL`, `FAILED`, or `timeout` string found in the new resume log at checkout check.
+
+## Checkout State
+
+- Check time: `2026-05-26 18:51 KST`
+- Live process:
+  - container `sr` accelerate process running for about `2:09`.
+  - container accelerate PID: `300114`
+  - worker PIDs: `300245`, `300246`
+- Current progress:
+  - epoch `32`
+  - about `1331 / 6158` iterations, around `22%`
+  - current train loss snapshots around `0.033` to `0.038`
+  - LR around `4.49e-05`
+- GPU state:
+  - GPU 0: about `29.2GB`, utilization `97%`
+  - GPU 1: about `46.5GB`, utilization `98%`
+- Latest persisted epoch:
+  - epoch `31`
+  - `training_log.csv` updated at `2026-05-26 18:39:13 KST`
+  - `last.pth` updated at `2026-05-26 18:39:15 KST`
+- Latest completed metrics:
+  - epoch 31 train loss: `0.034338850528001785`
+  - epoch 31 val loss: `0.07962121814489365`
+  - epoch 31 PSNR: `23.124174118041992`
+  - epoch 31 SSIM: `0.7857143878936768`
+  - epoch 31 LPIPS: `0.29566851258277893`
+  - epoch 31 NIQE: `3.6142418384552`
+- Best checkpoint:
+  - `best.pth` timestamp remains `2026-05-26 16:12:53 KST`
+  - best metric recorded before checkout remains epoch 29 PSNR `23.253977012634277`.
+
+## Sync Notes
+
+- Commit/push target files for checkout:
+  - `src/engine/trainer.py`
+  - `experiment.log`
+  - `checklist.log`
+- Excluded from commit/sync:
+  - tracked `__pycache__` generated files remain dirty and are intentionally not staged.
+  - `checkpoints/`, resume logs, TensorBoard logs, and `.pth` files remain local/ignored artifacts.
+- GitLab -> GitHub rsync must keep the documented exclusions:
+  - `.git/`, `__pycache__/`, `checkpoints/`, `logs/`, `tmp/`, `*.pth`, `*.pt`, `*.onnx`, `*.engine`, `results/mc_g105_capture_*`.
 
 ## Next
 
-1. `last.pth`에서 NAFNet Teacher conservative run 재개 여부 판단.
-2. 기존 MC-G105 validation 재생성 및 NAFNet Teacher 재학습 준비를 이어서 진행.
-3. 퇴근 전 `experiment.log`, `checklist.log`, GitLab/GitHub mirror 상태를 다시 정리.
+1. Continue watching `resume_260526_after_rng_fix.log` until epoch 32 validation and `last.pth` save complete.
+2. Confirm future `training_log.csv` rows remain single-row per epoch.
+3. Keep kernel `5.4.0` hang warning in mind if training stalls without Python traceback.
+4. After enough epochs, compare RAW / Deploy / NAFNet conservative outputs for grid, chroma, and flat-region high-frequency noise.
