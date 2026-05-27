@@ -1,5 +1,5 @@
 task: denoise
-data_config_path: configs/data/denoise.yaml
+data_config_path: configs/data/denoise_mc_g105_val.yaml
 
 model:
   name: nafnet_denoise_teacher
@@ -24,12 +24,12 @@ data:
 train:
   epochs: 300
   batch_size: 8
-  lr: 5e-5
+  lr: 1e-4
   num_workers: 4
   gradient_accumulation_steps: 4
   patch_size: 256
   save_interval: 20
-  save_name: "train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521"
+  save_name: "train_nafnet_teacher_mc_g105_denoise_x1_width64_260527"
 
   pretrained_path: null
 
@@ -57,21 +57,21 @@ loss:
     eps: 0.001
   ssim:
     enabled: true
-    weight: 0.05
+    weight: 0.15
   edge:
-    enabled: false
-    weight: 0.0
+    enabled: true
+    weight: 0.08
     mode: 'gray'
   perceptual:
     enabled: false
     weight: 0.0
   color_consistency:
     enabled: true
-    weight: 0.03
+    weight: 0.02
     loss_type: 'l1'
   hot_pixel_masked:
     enabled: true
-    weight: 0.03
+    weight: 0.05
     threshold: 0.15
     base_loss: 'charbonnier'
     kernel_size: 3

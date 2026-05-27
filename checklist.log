@@ -1,103 +1,102 @@
 # Checklist Log
 
-## Date: 2026-05-26 (Tuesday)
+## Date: 2026-05-27 (Wednesday)
 ## Goal
-출근 check-in Flow를 완료하고, NAFNet Teacher resume/validation failure를 조치한 뒤 퇴근 check-out Flow로 GitLab/GitHub에 handoff 상태를 남긴다.
+퇴근 check-out Flow를 수행하고, 오늘의 MC-G105 denoise Teacher 판단/설정 변경/학습 진행 상태를 집에서도 이어볼 수 있게 정리한다.
 
 ---
 
-## 1. Check-in Sync
-- [x] `/home/jshong/Code/commute-sync-workflow.md` 확인
-- [x] GitHub repo `main` 최신화
-- [x] GitLab repo `master` 상태 확인
-- [x] GitLab 로컬 resume 보정 변경 백업
-  - [x] `f890c4a Backup local checkpoint resume fixes`
-- [x] GitHub -> GitLab source sync 수행
-  - [x] `e0b9001 Sync source from GitHub check-in`
-- [x] GitLab history의 NAFNet resume fix 복원
-  - [x] `37ce9c3 Backup local checkpoint resume fixes`
-  - [x] `c21d89d Document restored NAFNet resume fix`
-- [x] 재개 상태 기록
-  - [x] `e9d1e1a Record NAFNet resume state`
+## 1. Teacher Output Analysis
+- [x] RAW / Deploy / current NAFNet output 비교
+  - [x] RAW: `results/mc_g105_capture_frames/morning/cloudy/road_shaded/7x/`
+  - [x] Deploy: `results/260515_deploy`
+  - [x] NAFNet: `results/260527_nafnet`
+  - [x] 100 matched frames 확인
+- [x] current NAFNet Teacher candidate 보류 판단
+  - [x] RAW near-identity behavior 확인
+  - [x] road burst에서 denoise signal 부족 확인
+  - [x] checkpoint load failure 가능성 낮음으로 정리
+  - [x] conservative data/loss setup을 주요 원인으로 정리
+- [x] Deploy 모델은 baseline/reference로 유지
+  - [x] stronger flat-region denoise 장점 기록
+  - [x] detail/edge loss 위험 기록
 
-## 2. NAFNet Teacher Resume
-- [x] target checkpoint 확인
-  - [x] `checkpoints/train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521/last.pth`
-- [x] config provenance 확인
-  - [x] `train_config.yaml`
-  - [x] `data_config.yaml`
-- [x] Docker container `sr`에서 2-GPU resume
-  - [x] initial resume: epoch 28
-  - [x] log: `resume_260526.log`
-- [/] kernel `5.4.0` hang warning은 환경 리스크로 유지
+## 2. NAFNet MC-G105 Retraining Config
+- [x] 기존 train config를 직접 수정
+  - [x] `configs/train/Denoise/nafnet_deploy_denoise_teacher.yaml`
+  - [x] 새 train config 파일 생성하지 않음
+- [x] data config 변경
+  - [x] `configs/data/denoise.yaml`
+  - [x] `configs/data/denoise_mc_g105_val.yaml`
+  - [x] `dataset_type: denoise`
+  - [x] `clean_prob: 0.0`
+- [x] save name 변경
+  - [x] `train_nafnet_teacher_mc_g105_denoise_x1_width64_260527`
+- [x] loss/training 변경
+  - [x] `lr: 1e-4`
+  - [x] `ssim.weight: 0.15`
+  - [x] `edge.enabled: true`
+  - [x] `edge.weight: 0.08`
+  - [x] `color_consistency.weight: 0.02`
+  - [x] `hot_pixel_masked.weight: 0.05`
 
-## 3. Incident Response - RNG/NCCL Failure
-- [x] failure tail 확인
-  - [x] epoch 30 시작 시 `Invalid mt19937 state`
-  - [x] NCCL collective ordering mismatch 확인
-- [x] root cause 정리
-  - [x] rank별 validation metric 불일치
-  - [x] best checkpoint 분기 불일치
-  - [x] `training_log.csv` rank 중복 row 증거 확인
-- [x] `src/engine/trainer.py` 수정
-  - [x] train loss / validation metrics rank reduce
-  - [x] best checkpoint / early stopping 판단 동기화
-  - [x] CSV / TensorBoard / tqdm main rank 제한
-- [x] 문법 검증
-  - [x] host `python3 -m py_compile src/engine/trainer.py tools/train.py`
-  - [x] container `python3 -m py_compile src/engine/trainer.py tools/train.py`
-- [x] patch 후 relaunch
-  - [x] `resume_260526_after_rng_fix.log`
-  - [x] resumed at epoch 30
-  - [x] GPU 0/1 active 확인
-- [x] epoch 30 validation/save 통과
-  - [x] `training_log.csv` epoch 30 single row
-  - [x] `last.pth` updated after epoch 30
-- [x] epoch 31 validation/save 통과
-  - [x] `training_log.csv` epoch 31 single row
-  - [x] `last.pth` updated at `2026-05-26 18:39:15 KST`
-- [x] new resume log에서 checkout 시점 오류 문자열 없음
-  - [x] `Traceback`
-  - [x] `RuntimeError`
-  - [x] `Invalid mt19937`
-  - [x] `NCCL`
-  - [x] `FAILED`
-  - [x] `timeout`
+## 3. NAFNet Training Runtime
+- [x] User started MC-G105 NAFNet retraining
+- [x] Initial 2GPU run confirmed earlier
+  - [x] `--num_processes=2`
+  - [x] `--config configs/train/Denoise/nafnet_deploy_denoise_teacher.yaml`
+  - [x] `--data_config configs/data/denoise_mc_g105_val.yaml`
+- [x] GPU scheduling change handled by user
+  - [x] 2GPU run stopped after checkpoint was available
+  - [x] resumed with 1GPU from `last.pth`
+- [/] Current live run
+  - [/] command: `accelerate launch --num_processes=1 tools/train.py --resume checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527/last.pth`
+  - [/] accelerate PID: `167977`
+  - [/] worker PID: `168952`
+  - [/] running on GPU 1
+  - [x] latest completed epoch in log: `4`
+  - [x] latest `last.pth`: `2026-05-27 16:58:46 KST`
+  - [x] latest `best.pth`: `2026-05-27 16:58:41 KST`
 
-## 4. Checkout State
-- [x] active process 확인
-  - [x] Docker container `sr`
-  - [x] container accelerate PID `300114`
-  - [x] worker PIDs `300245`, `300246`
-- [x] GPU 상태 확인
-  - [x] GPU 0 active
-  - [x] GPU 1 active
-- [/] live training 진행 중
-  - [/] current epoch: 32
-  - [/] current progress at check: about `1331 / 6158`, `22%`
-  - [x] latest completed epoch: 31
-  - [x] latest `last.pth`: `2026-05-26 18:39:15 KST`
-- [/] ignored artifacts are intentionally not committed
-  - [/] `checkpoints/`
-  - [/] `logs/`
-  - [/] `*.pth`
-  - [/] tracked `__pycache__` generated files
+## 4. Restormer 1GPU MC-G105 Prep
+- [x] Existing Restormer train config updated
+  - [x] `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
+- [x] data config changed to MC-G105 config
+  - [x] `configs/data/denoise_mc_g105_val.yaml`
+- [x] 1GPU effective batch adjustment
+  - [x] `batch_size: 4`
+  - [x] `gradient_accumulation_steps: 16`
+  - [x] effective batch on 1GPU: `64`
+- [x] save name changed
+  - [x] `train_restormer_teacher_mc_g105_denoise_x1_dim48_1gpu_260527`
+- [ ] Restormer training not started yet
+- [ ] Start Restormer only after GPU availability is confirmed
 
 ## 5. Checkout Sync
-- [x] GitLab commit for checkout handoff
-  - [x] `8552909 Fix NAFNet DDP validation handoff`
-- [x] GitLab push
-- [x] GitLab -> GitHub rsync dry-run with protected exclusions
-  - [x] changed files limited to `checklist.log`, `experiment.log`, `src/engine/trainer.py`
-- [x] GitLab -> GitHub rsync real run
-- [x] GitHub commit for checkout handoff
-  - [x] `9e8e917 Sync NAFNet DDP validation handoff`
-- [x] GitHub push
+- [x] `/home/jshong/Code/commute-sync-workflow.md` 확인
+- [x] GitLab repo status 확인
+  - [x] branch: `master`
+  - [x] source/log changes identified
+  - [x] tracked `__pycache__` changes identified as generated artifacts
+- [x] GitHub repo status 확인
+  - [x] branch: `main`
+- [x] GitLab commit/push for checkout handoff
+- [x] GitLab -> GitHub rsync with protected exclusions
+- [x] GitHub commit/push for checkout handoff
 
 ## 6. Next Work
-- [ ] Continue monitoring `resume_260526_after_rng_fix.log`
-- [ ] Confirm epoch 32 validation/save completes cleanly
-- [ ] Confirm future `training_log.csv` rows remain single-row per epoch
-- [ ] If the run stalls without traceback, inspect kernel warning / process state / checkpoint timestamps first
-- [ ] RAW / Deploy / NAFNet conservative comparison panel 생성
-- [ ] grid/chroma/flat-region high-frequency noise 개선 여부 판단
+- [ ] Monitor NAFNet MC-G105 run on GPU 1
+- [ ] Confirm next `training_log.csv` rows and checkpoint timestamps
+- [ ] Generate fresh RAW / Deploy / new NAFNet inference outputs
+- [ ] Apply identity reject gate
+  - [ ] flat/shaded road luma high-frequency reduction versus RAW
+  - [ ] output not too close to RAW in road burst
+- [ ] Apply over-denoise reject gate
+  - [ ] lane markings
+  - [ ] sign text
+  - [ ] wires/poles
+  - [ ] vehicles
+  - [ ] foliage boundaries
+- [ ] If NAFNet still remains near-identity after the pilot window, prioritize Restormer Teacher validation
+- [ ] Start Restormer 1GPU MC-G105 run when GPU is available
+- [ ] Defer MTKD student training until a Teacher passes MC-G105 gates
