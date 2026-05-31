@@ -1,132 +1,111 @@
 # Experiment Log
 
-## Date: 2026-05-27 (Wednesday)
+## Date: 2026-05-31 (Sunday)
 ## Topic
-MC-G105 denoise Teacher 재학습 방향 전환, NAFNet MC-G105 retraining, Restormer 1GPU 준비, checkout handoff.
+출근/퇴근 sync, Restormer MC-G105 batch-size correction, NAFNet/Restormer live training handoff.
 
 ## Summary
 
-오늘은 기존 NAFNet Teacher 결과를 RAW / Deploy / NAFNet 세트로 비교했고, 현재 `results/260527_nafnet` 결과가 Teacher target으로는 부적합하다고 판단했다. 핵심 이유는 Deploy 대비 denoise가 약한 정도를 넘어, 특히 `road_shaded/7x` 도로 구간에서 RAW와 거의 동일한 near-identity 출력이 관찰됐기 때문이다.
+오늘 출근 시 `/home/jshong/Code/commute-sync-workflow.md` 기준으로 check-in Flow를 수행했다. GitHub `main`은 이미 최신이었고, GitHub -> GitLab rsync는 보호 제외 규칙 적용 후 실질 변경이 없었다.
 
-분석 결과 checkpoint load failure 가능성은 낮고, 더 유력한 원인은 기존 NAFNet 설정이 MC-G105 noise 특성 대비 너무 보수적이었다는 점이다. NAFNet 구조는 residual identity prior로 시작하고, 기존 loss는 Charbonnier 중심에 edge term이 꺼져 있었으며, `configs/data/denoise.yaml`은 Deploy baseline degradation이지만 MC-G105-specific row/grid/chroma/shading/signal-instability 성분을 충분히 담지 않는다.
+Restormer MC-G105 run은 이전에 `batch_size: 4` 설정에서 GPU 48GB에 가까운 메모리를 사용해 중단된 것으로 판단했다. 따라서 Restormer train config를 `batch_size: 2`, `gradient_accumulation_steps: 32`로 변경했다. effective batch는 `2 * 32 = 64`로 유지한다.
 
-이에 따라 기존 NAFNet train config를 새 파일 없이 직접 수정했고, `configs/data/denoise_mc_g105_val.yaml`을 data config로 사용하도록 전환했다. 사용자는 수정 이후 NAFNet 재학습을 시작했고, 중간에 GPU 확보 필요로 2GPU run을 중단한 뒤 GPU 1 단독으로 resume했다.
+사용자는 Restormer를 이어받기 resume이 아니라 같은 save_name으로 scratch restart했다. 그 결과 기존 Restormer `last.pth` / `best.pth` / `training_log.csv`는 현재 checkpoint 폴더에서 새 run 기준으로 초기화됐다. 이는 현재 의도된 상태로 둔다.
 
-Restormer도 같은 MC-G105 조건에서 비교할 수 있도록 기존 Restormer train config를 수정했다. Restormer는 아직 실행하지 않았고, 1GPU에서 effective batch를 기존 2GPU 기준과 맞추도록 `gradient_accumulation_steps`를 조정해 둔 상태다.
+퇴근 시점에는 NAFNet과 Restormer가 모두 live training 상태다. checkpoint 폴더와 TensorBoard event는 git sync 대상이 아니므로, 현재 상태는 이 파일과 `checklist.log`에 durable handoff로 남긴다.
 
-## RAW / Deploy / NAFNet Teacher 판단
-
-- Compared frame sets:
-  - RAW: `results/mc_g105_capture_frames/morning/cloudy/road_shaded/7x/`
-  - Deploy: `results/260515_deploy`
-  - NAFNet inference: `results/260527_nafnet`
-- Common frames: `100`
-- Current NAFNet result:
-  - RAW와 매우 가까운 near-identity behavior.
-  - road burst에서 output change가 사실상 매우 작음.
-  - Teacher로 바로 쓰면 student가 RAW-like noise를 배울 위험이 큼.
-- Deploy result:
-  - NAFNet보다 flat/shaded road luma noise를 더 강하게 줄임.
-  - 다만 detail/edge 손실 위험이 있어 Teacher upper-bound 또는 baseline reference로 보는 것이 맞음.
-- Decision:
-  - current NAFNet output is rejected as a main Teacher target for now.
-  - NAFNet은 포기하지 않고 MC-G105-specific degradation/loss로 재학습한다.
-  - Restormer는 structured noise 후보 Teacher로 별도 검증한다.
-
-## NAFNet Config Changes
-
-- Updated file:
-  - `configs/train/Denoise/nafnet_deploy_denoise_teacher.yaml`
-- No new NAFNet train config file was created.
-- Data config:
-  - before: `configs/data/denoise.yaml`
-  - after: `configs/data/denoise_mc_g105_val.yaml`
-  - loaded data config: `dataset_type: denoise`, `clean_prob: 0.0`
-- Save name:
-  - before: `train_nafnet_teacher_deploy_denoise_x1_width64_conservative_260521`
-  - after: `train_nafnet_teacher_mc_g105_denoise_x1_width64_260527`
-- Training/loss:
-  - `lr: 5e-5 -> 1e-4`
-  - `ssim.weight: 0.05 -> 0.15`
-  - `edge.enabled: false -> true`
-  - `edge.weight: 0.08`
-  - `color_consistency.weight: 0.03 -> 0.02`
-  - `hot_pixel_masked.weight: 0.03 -> 0.05`
-
-## NAFNet MC-G105 Training State
-
-- Check time: `2026-05-27 18:06 KST`
-- Active command:
-  - `accelerate launch --num_processes=1 tools/train.py --resume checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527/last.pth`
-- Process state:
-  - accelerate PID: `167977`
-  - worker PID: `168952`
-  - dataloader child PIDs observed: `1325119`, `1325121`, `1325124`, `1325129`
-- GPU state:
-  - NAFNet worker PID `168952` is on GPU 1.
-  - GPU 1 memory used: about `26868 MiB`
-  - GPU 1 utilization: `100%`
-- Checkpoint/work dir:
-  - `checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527`
-  - `train_config.yaml` and `data_config.yaml` snapshots exist.
-  - `last.pth` timestamp: `2026-05-27 16:58:46 KST`
-  - `best.pth` timestamp: `2026-05-27 16:58:41 KST`
-- Latest completed metrics in `training_log.csv`:
-  - epoch 1: PSNR `23.269260`, SSIM `0.780108`, LPIPS `0.315798`, NIQE `3.631408`
-  - epoch 2: PSNR `22.730532`, SSIM `0.772396`, LPIPS `0.276787`, NIQE `3.512305`
-  - epoch 3: PSNR `23.464539`, SSIM `0.800552`, LPIPS `0.241889`, NIQE `3.612962`
-  - epoch 4: PSNR `24.255589`, SSIM `0.800593`, LPIPS `0.230883`, NIQE `3.546239`
-
-## Restormer Config Changes
-
-- Updated file:
-  - `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
-- Data config:
-  - before: `configs/data/denoise.yaml`
-  - after: `configs/data/denoise_mc_g105_val.yaml`
-- 1GPU effective batch adjustment:
-  - `batch_size: 4`
-  - `gradient_accumulation_steps: 8 -> 16`
-  - effective batch on 1GPU: `4 * 16 = 64`
-- Save name:
-  - before: `train_restormer_teacher_deploy_denoise_x1_dim48_260519`
-  - after: `train_restormer_teacher_mc_g105_denoise_x1_dim48_1gpu_260527`
-- Restormer training has not been started yet at checkout.
-- Suggested launch command when ready:
-  - `CUDA_VISIBLE_DEVICES=1 accelerate launch --num_processes=1 tools/train.py --config configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
-
-## Git / Sync Notes
+## Git / Sync State
 
 - GitLab repo:
   - path: `/home/jshong/Code/unfied-sr-denoise-platform`
   - branch: `master`
-  - intentional source/log changes:
-    - `configs/train/Denoise/nafnet_deploy_denoise_teacher.yaml`
-    - `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
-    - `experiment.log`
-    - `checklist.log`
-  - tracked generated cache files are still dirty and intentionally excluded from checkout commit/sync:
-    - `src/engine/__pycache__/trainer.cpython-310.pyc`
-    - `src/engine/__pycache__/trainer.cpython-38.pyc`
-    - `src/models/__pycache__/__init__.cpython-38.pyc`
-    - `tools/__pycache__/train.cpython-38.pyc`
-- Checkout sync should continue to exclude:
-  - `__pycache__/`
-  - `.git/`
-  - `checkpoints/`
-  - `logs/`
-  - `tmp/`
-  - `*.pth`, `*.pt`, `*.onnx`, `*.engine`
-  - `results/mc_g105_capture_*`
+  - latest pre-checkout commit before this log update: `bd55531 Record Restormer config sync verification`
+- GitHub repo:
+  - path: `/home/jshong/Code/Unified-SR-Denoise-Platform`
+  - branch: `main`
+  - latest pre-checkout commit before sync: `13f658e Record MC-G105 teacher checkout handoff`
+- Source change to preserve:
+  - `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
+  - `batch_size: 4 -> 2`
+  - `gradient_accumulation_steps: 16 -> 32`
+- Generated tracked artifacts still dirty and intentionally not included in source/log commits:
+  - `src/engine/__pycache__/trainer.cpython-310.pyc`
+  - `src/engine/__pycache__/trainer.cpython-38.pyc`
+  - `src/models/__pycache__/__init__.cpython-38.pyc`
+  - `tools/__pycache__/train.cpython-38.pyc`
+
+## Runtime Snapshot
+
+- Check time: `2026-05-31 09:31-09:32 KST`
+- GPU state:
+  - GPU 0: Restormer, about `26864 MiB`, utilization about `99%`
+  - GPU 1: NAFNet, about `26868 MiB`, utilization about `100%`
+  - GPU 2/3: occupied by another user's YOLO job
+  - GPU 4: idle
+
+## NAFNet MC-G105 Training State
+
+- Status: live
+- Command:
+  - `accelerate launch --num_processes=1 tools/train.py --resume checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527/last.pth`
+- Process state:
+  - accelerate PID: `167977`
+  - worker PID: `168952`
+  - dataloader child PIDs observed: `3937182`, `3937183`, `3937184`, `3937185`
+- Checkpoint/work dir:
+  - `checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527`
+  - latest `best.pth`: `2026-05-31 06:46:39 KST`
+  - latest `last.pth`: `2026-05-31 08:41:00 KST`
+  - latest `training_log.csv`: `2026-05-31 08:40:59 KST`
+- Latest completed CSV epoch:
+  - epoch `45`
+  - train_loss `0.08791359513998032`
+  - val_loss `0.0805930495262146`
+  - PSNR `27.150239944458008`
+  - SSIM `0.8379124402999878`
+  - LPIPS `0.21373842656612396`
+  - NIQE `4.109069347381592`
+  - lr `9.431586878259919e-05`
+- TensorBoard evidence:
+  - latest train scalar observed at `2026-05-31 09:32:28 KST`
+  - this confirms training continued after the epoch 45 checkpoint/log write.
+
+## Restormer MC-G105 Training State
+
+- Status: live
+- Current launch command:
+  - `accelerate launch --num_processes=1 tools/train.py --config configs/train/Denoise/restormer_deploy_denoise_teacher.yaml --data_config configs/data/denoise_mc_g105_val.yaml`
+- Process state:
+  - accelerate PID: `3965623`
+  - worker PID: `3965821`
+  - dataloader child PIDs observed: `3966518`, `3966520`, `3966522`, `3966523`
+- Config:
+  - `data_config_path: configs/data/denoise_mc_g105_val.yaml`
+  - `epochs: 300`
+  - `batch_size: 2`
+  - `gradient_accumulation_steps: 32`
+  - effective batch: `64`
+  - `save_name: train_restormer_teacher_mc_g105_denoise_x1_dim48_1gpu_260527`
+- Checkpoint/work dir:
+  - `checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_1gpu_260527`
+  - new `train_config.yaml`: `2026-05-31 09:00:18 KST`
+  - new `data_config.yaml`: `2026-05-31 09:00:18 KST`
+  - new `training_log.csv`: `0 bytes` as of `2026-05-31 09:00:20 KST`
+  - no new `last.pth` / `best.pth` has been written yet in the current scratch restart.
+- TensorBoard evidence:
+  - event file: `logs/events.out.tfevents.1780185618.8b6b703a7725.2186.0`
+  - `Loss/Total` scalar count observed: `249`
+  - latest train scalar observed at `2026-05-31 09:32:16 KST`
+  - latest observed `Loss/Total`: `0.4480792284011841`
+- Important handoff note:
+  - this run is not a resume from the previous Restormer `last.pth`.
+  - current run is a scratch restart with the corrected batch size.
 
 ## Next
 
-1. Keep NAFNet MC-G105 run alive on GPU 1 unless GPU scheduling changes again.
-2. After a short pilot window, generate fresh RAW / Deploy / NAFNet MC-G105 comparison outputs.
-3. Apply identity reject gate:
-   - output must move away from RAW in flat/shaded road regions.
-   - smooth-region luma high-frequency should drop meaningfully versus RAW.
-4. Apply over-denoise reject gate:
-   - lane markings, sign text, wires/poles, vehicles, and foliage boundaries should not degrade to or below Deploy detail loss.
-5. Start Restormer 1GPU MC-G105 run only after confirming GPU availability.
-6. Do not begin MTKD student training until at least one Teacher passes the MC-G105 pilot gates.
+1. Keep both live runs alive unless GPU scheduling changes.
+2. For Restormer, first checkpoint to watch is epoch 1 completion:
+   - `training_log.csv` should receive the first row.
+   - `last.pth` and likely `best.pth` should be created.
+3. If Restormer stops again, inspect stdout/stderr if available, `training_log.csv`, TensorBoard event time, and checkpoint timestamps before restarting.
+4. After either Teacher reaches a useful pilot point, generate fresh MC-G105 comparison outputs and check identity/over-denoise gates before MTKD student training.

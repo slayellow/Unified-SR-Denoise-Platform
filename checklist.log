@@ -1,102 +1,83 @@
 # Checklist Log
 
-## Date: 2026-05-27 (Wednesday)
+## Date: 2026-05-31 (Sunday)
 ## Goal
-퇴근 check-out Flow를 수행하고, 오늘의 MC-G105 denoise Teacher 판단/설정 변경/학습 진행 상태를 집에서도 이어볼 수 있게 정리한다.
+퇴근 check-out Flow를 수행하고, Restormer batch 2 scratch restart 및 NAFNet/Restormer live training 상태를 집에서도 이어볼 수 있게 정리한다.
 
 ---
 
-## 1. Teacher Output Analysis
-- [x] RAW / Deploy / current NAFNet output 비교
-  - [x] RAW: `results/mc_g105_capture_frames/morning/cloudy/road_shaded/7x/`
-  - [x] Deploy: `results/260515_deploy`
-  - [x] NAFNet: `results/260527_nafnet`
-  - [x] 100 matched frames 확인
-- [x] current NAFNet Teacher candidate 보류 판단
-  - [x] RAW near-identity behavior 확인
-  - [x] road burst에서 denoise signal 부족 확인
-  - [x] checkpoint load failure 가능성 낮음으로 정리
-  - [x] conservative data/loss setup을 주요 원인으로 정리
-- [x] Deploy 모델은 baseline/reference로 유지
-  - [x] stronger flat-region denoise 장점 기록
-  - [x] detail/edge loss 위험 기록
+## 1. Check-in / Source Sync
+- [x] `/home/jshong/Code/commute-sync-workflow.md` 확인
+- [x] 출근 check-in Flow 수행
+  - [x] GitHub `main` pull 확인
+  - [x] GitHub -> GitLab rsync 확인
+  - [x] protected artifacts preserved
+- [x] Restormer stop cause investigated
+  - [x] prior `batch_size: 4` run likely used near-full A6000 memory
+  - [x] previous run did not finish normally
+  - [x] previous run reached after epoch 2 training and before/during epoch 2 validation logging
 
-## 2. NAFNet MC-G105 Retraining Config
-- [x] 기존 train config를 직접 수정
-  - [x] `configs/train/Denoise/nafnet_deploy_denoise_teacher.yaml`
-  - [x] 새 train config 파일 생성하지 않음
-- [x] data config 변경
-  - [x] `configs/data/denoise.yaml`
+## 2. Restormer Config Correction
+- [x] Existing Restormer train config updated
+  - [x] `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
+- [x] memory-safe 1GPU setting applied
+  - [x] `batch_size: 2`
+  - [x] `gradient_accumulation_steps: 32`
+  - [x] effective batch: `64`
+- [x] MC-G105 data config retained
   - [x] `configs/data/denoise_mc_g105_val.yaml`
-  - [x] `dataset_type: denoise`
-  - [x] `clean_prob: 0.0`
-- [x] save name 변경
-  - [x] `train_nafnet_teacher_mc_g105_denoise_x1_width64_260527`
-- [x] loss/training 변경
-  - [x] `lr: 1e-4`
-  - [x] `ssim.weight: 0.15`
-  - [x] `edge.enabled: true`
-  - [x] `edge.weight: 0.08`
-  - [x] `color_consistency.weight: 0.02`
-  - [x] `hot_pixel_masked.weight: 0.05`
+- [x] save name retained
+  - [x] `train_restormer_teacher_mc_g105_denoise_x1_dim48_1gpu_260527`
 
-## 3. NAFNet Training Runtime
-- [x] User started MC-G105 NAFNet retraining
-- [x] Initial 2GPU run confirmed earlier
-  - [x] `--num_processes=2`
-  - [x] `--config configs/train/Denoise/nafnet_deploy_denoise_teacher.yaml`
-  - [x] `--data_config configs/data/denoise_mc_g105_val.yaml`
-- [x] GPU scheduling change handled by user
-  - [x] 2GPU run stopped after checkpoint was available
-  - [x] resumed with 1GPU from `last.pth`
-- [/] Current live run
+## 3. NAFNet Runtime Handoff
+- [/] NAFNet MC-G105 training live
   - [/] command: `accelerate launch --num_processes=1 tools/train.py --resume checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527/last.pth`
   - [/] accelerate PID: `167977`
   - [/] worker PID: `168952`
-  - [/] running on GPU 1
-  - [x] latest completed epoch in log: `4`
-  - [x] latest `last.pth`: `2026-05-27 16:58:46 KST`
-  - [x] latest `best.pth`: `2026-05-27 16:58:41 KST`
+  - [/] GPU: `1`
+- [x] latest completed NAFNet CSV epoch checked
+  - [x] epoch: `45`
+  - [x] PSNR: `27.150239944458008`
+  - [x] SSIM: `0.8379124402999878`
+  - [x] LPIPS: `0.21373842656612396`
+  - [x] NIQE: `4.109069347381592`
+- [x] latest NAFNet checkpoint timestamps checked
+  - [x] `best.pth`: `2026-05-31 06:46:39 KST`
+  - [x] `last.pth`: `2026-05-31 08:41:00 KST`
+- [x] TensorBoard confirms NAFNet continued after epoch 45
+  - [x] latest train scalar observed: `2026-05-31 09:32:28 KST`
 
-## 4. Restormer 1GPU MC-G105 Prep
-- [x] Existing Restormer train config updated
-  - [x] `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
-- [x] data config changed to MC-G105 config
-  - [x] `configs/data/denoise_mc_g105_val.yaml`
-- [x] 1GPU effective batch adjustment
-  - [x] `batch_size: 4`
-  - [x] `gradient_accumulation_steps: 16`
-  - [x] effective batch on 1GPU: `64`
-- [x] save name changed
-  - [x] `train_restormer_teacher_mc_g105_denoise_x1_dim48_1gpu_260527`
-- [ ] Restormer training not started yet
-- [ ] Start Restormer only after GPU availability is confirmed
+## 4. Restormer Runtime Handoff
+- [/] Restormer MC-G105 training live
+  - [/] command: `accelerate launch --num_processes=1 tools/train.py --config configs/train/Denoise/restormer_deploy_denoise_teacher.yaml --data_config configs/data/denoise_mc_g105_val.yaml`
+  - [/] accelerate PID: `3965623`
+  - [/] worker PID: `3965821`
+  - [/] GPU: `0`
+- [x] Restormer restart type recorded
+  - [x] scratch restart, not resume
+  - [x] previous Restormer `last.pth` / `best.pth` no longer present in current checkpoint folder
+  - [x] current `training_log.csv` is new and still empty
+- [x] Restormer live event checked
+  - [x] `Loss/Total` scalar count: `249`
+  - [x] latest train scalar observed: `2026-05-31 09:32:16 KST`
+  - [x] latest observed `Loss/Total`: `0.4480792284011841`
+- [ ] Wait for Restormer epoch 1 completion
+  - [ ] `training_log.csv` first row
+  - [ ] `last.pth`
+  - [ ] `best.pth` if validation improves from initial state
 
 ## 5. Checkout Sync
-- [x] `/home/jshong/Code/commute-sync-workflow.md` 확인
-- [x] GitLab repo status 확인
-  - [x] branch: `master`
-  - [x] source/log changes identified
-  - [x] tracked `__pycache__` changes identified as generated artifacts
-- [x] GitHub repo status 확인
-  - [x] branch: `main`
-- [x] GitLab commit/push for checkout handoff
+- [x] `experiment.log` updated for today's handoff
+- [x] `checklist.log` updated for today's handoff
+- [x] GitLab commit/push
 - [x] GitLab -> GitHub rsync with protected exclusions
-- [x] GitHub commit/push for checkout handoff
+- [x] GitHub commit/push
 
 ## 6. Next Work
-- [ ] Monitor NAFNet MC-G105 run on GPU 1
-- [ ] Confirm next `training_log.csv` rows and checkpoint timestamps
-- [ ] Generate fresh RAW / Deploy / new NAFNet inference outputs
+- [ ] Keep NAFNet and Restormer runs alive unless GPU scheduling changes
+- [ ] Re-check Restormer after epoch 1 validation/checkpoint write
+- [ ] If Restormer stops again, inspect logs/checkpoints/events before restart
+- [ ] Generate fresh MC-G105 Teacher comparison outputs when either Teacher reaches a useful pilot point
 - [ ] Apply identity reject gate
-  - [ ] flat/shaded road luma high-frequency reduction versus RAW
-  - [ ] output not too close to RAW in road burst
 - [ ] Apply over-denoise reject gate
-  - [ ] lane markings
-  - [ ] sign text
-  - [ ] wires/poles
-  - [ ] vehicles
-  - [ ] foliage boundaries
-- [ ] If NAFNet still remains near-identity after the pilot window, prioritize Restormer Teacher validation
-- [ ] Start Restormer 1GPU MC-G105 run when GPU is available
-- [ ] Defer MTKD student training until a Teacher passes MC-G105 gates
+- [ ] Defer MTKD student training until a Teacher passes gates

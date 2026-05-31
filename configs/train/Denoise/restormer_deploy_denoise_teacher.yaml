@@ -25,10 +25,10 @@ data:
 
 train:
   epochs: 300
-  batch_size: 4
+  batch_size: 2
   lr: 5e-5
   num_workers: 4
-  gradient_accumulation_steps: 16
+  gradient_accumulation_steps: 32
   patch_size: 256
   save_interval: 20
   save_name: "train_restormer_teacher_mc_g105_denoise_x1_dim48_1gpu_260527"
