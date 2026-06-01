@@ -102,3 +102,45 @@
 - [ ] Compare tone-safe Restormer against old Restormer E3, NAFNet, NAFNet_Lumi, and Deploy
 - [ ] Gate Teacher candidates by tone drift, detail preservation, denoise strength, and mixed 5x/7x texture amplification
 - [ ] Defer MTKD student training until Teacher candidates pass real MC-G105 gates
+
+## 8. 2026-06-03 Tone Drift Evaluation
+- [ ] 고정 42-frame probe set 확정
+  - [ ] RAW input
+  - [ ] Deploy output
+  - [ ] NAFNet output
+  - [ ] NAFNet_Lumi output
+  - [ ] Restormer tone-safe output if epoch 3 is available
+- [ ] Low-frequency luma drift 정량화
+  - [ ] YCrCb Y 채널 추출
+  - [ ] Gaussian low-pass Y 생성
+  - [ ] `mean dY_low = mean(lowpass(Y_teacher) - lowpass(Y_raw))` 계산
+  - [ ] `median dY_low` 계산
+  - [ ] `p95(abs(dY_low))` 계산
+  - [ ] scene별 `road_shaded`, `mixed 5x/7x`, `foliage`, `building` 분리 확인
+- [ ] Chroma / color drift 정량화
+  - [ ] `mean delta Cr`, `mean delta Cb` 계산
+  - [ ] `p95(abs(delta Cr))`, `p95(abs(delta Cb))` 계산
+  - [ ] green/magenta bias가 특정 방향으로 계속 밀리는지 확인
+  - [ ] saturation 과도 감소 여부 확인
+- [ ] Denoise 효과와 tone drift 동시 평가
+  - [ ] luma high-frequency energy ratio 계산
+  - [ ] chroma high-frequency energy ratio 계산
+  - [ ] Sobel edge p90 retention 계산
+  - [ ] flat/shaded road ROI noise 감소 여부 확인
+  - [ ] 차선/표지판/전선/기둥/차량 edge 유지 여부 확인
+- [ ] Worst-case frame review
+  - [ ] `mean dY_low`가 가장 음수인 frame 확인
+  - [ ] `p95(abs(dY_low))`가 큰 frame 확인
+  - [ ] chroma shift가 큰 frame 확인
+  - [ ] high-frequency가 RAW보다 증가한 frame 확인
+  - [ ] edge가 Deploy보다 크게 줄어든 frame 확인
+- [ ] NAFNet 원본 Teacher 사용 여부 판단
+  - [ ] `mean dY_low`가 대체로 `-5` 안쪽인지 확인
+  - [ ] shadow / 차선 / 표지판 visibility가 유지되는지 확인
+  - [ ] texture가 Deploy보다 자연스럽고 noise가 RAW보다 줄었는지 확인
+  - [ ] 조건 통과 시 NAFNet 원본을 primary Teacher 후보로 유지
+  - [ ] 조건 실패 시 NAFNet tone-safe 재학습 또는 Lumi fallback 검토
+- [ ] NAFNet_Lumi 사용 여부 판단
+  - [ ] NAFNet 원본 tone down이 정성적으로 더 좋으면 Lumi는 Teacher 후보에서 제외
+  - [ ] NAFNet 원본이 scene별 tone drift가 크면 Lumi는 분석/보조 후보로 유지
+  - [ ] NAFNet과 NAFNet_Lumi를 동시에 MTKD Teacher로 넣는 것은 보류
