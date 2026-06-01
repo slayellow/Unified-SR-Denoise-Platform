@@ -77,10 +77,17 @@
 - [x] GitHub-only tracked stale files 확인
   - [x] GitHub에만 남아 있는 tracked checkpoint metadata: `66` files
   - [x] checkout sync에서 GitHub 쪽 삭제 대상으로 처리
-- [/] GitLab commit/push
-- [/] GitLab -> GitHub rsync
-- [/] GitHub stale tracked checkpoint files cleanup
-- [/] GitHub commit/push
+- [x] GitLab commit/push
+  - [x] commit: `ef0e4eb Record MC-G105 teacher tone-safe handoff`
+  - [x] push: `origin/master`
+- [x] GitLab -> GitHub rsync
+  - [x] copied source/config/log changes
+  - [x] excluded `__pycache__`, `.git`, `checkpoints/`, `logs/`, `tmp/`, model binaries, and large capture/result trees
+- [x] GitHub stale tracked checkpoint files cleanup
+  - [x] removed `66` GitHub-only tracked checkpoint metadata files
+- [x] GitHub commit/push
+  - [x] commit: `1932ab8 Sync MC-G105 teacher tone-safe handoff`
+  - [x] push: `origin/main`
 
 ## 6. Generated Artifacts
 - [/] Generated tracked `__pycache__` files remain dirty and are intentionally not included in source/log commits

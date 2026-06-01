@@ -111,13 +111,14 @@ Restormer는 기존 3 epoch checkpoint를 42장 대표 샘플로 probe했으며,
   - path: `/home/jshong/Code/unfied-sr-denoise-platform`
   - branch: `master`
   - source of truth for today's checkout
+  - checkout commit pushed: `ef0e4eb Record MC-G105 teacher tone-safe handoff`
 - GitHub repo:
   - path: `/home/jshong/Code/Unified-SR-Denoise-Platform`
   - branch: `main`
-  - will be synced from GitLab after GitLab commit/push
+  - checkout sync commit pushed: `1932ab8 Sync MC-G105 teacher tone-safe handoff`
 - GitHub cleanup:
-  - GitHub has `66` tracked checkpoint metadata files that no longer exist in GitLab.
-  - These will be removed from GitHub during checkout sync so GitHub no longer carries stale GitLab-deleted checkpoint folders/files.
+  - GitHub had `66` tracked checkpoint metadata files that no longer existed in GitLab.
+  - These were removed from GitHub during checkout sync so GitHub no longer carries stale GitLab-deleted checkpoint folders/files.
 - Generated tracked artifacts still dirty and intentionally not included in source/log commits:
   - `src/engine/__pycache__/trainer.cpython-310.pyc`
   - `src/engine/__pycache__/trainer.cpython-38.pyc`
