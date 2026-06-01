@@ -1,83 +1,97 @@
 # Checklist Log
 
-## Date: 2026-05-31 (Sunday)
+## Date: 2026-06-01 (Monday)
 ## Goal
-퇴근 check-out Flow를 수행하고, Restormer batch 2 scratch restart 및 NAFNet/Restormer live training 상태를 집에서도 이어볼 수 있게 정리한다.
+퇴근 check-out Flow를 수행하고, MC-G105 Teacher 재평가/Restormer tone-safe restart 상태를 GitLab/GitHub 양쪽에 남긴다.
 
 ---
 
-## 1. Check-in / Source Sync
-- [x] `/home/jshong/Code/commute-sync-workflow.md` 확인
-- [x] 출근 check-in Flow 수행
-  - [x] GitHub `main` pull 확인
-  - [x] GitHub -> GitLab rsync 확인
-  - [x] protected artifacts preserved
-- [x] Restormer stop cause investigated
-  - [x] prior `batch_size: 4` run likely used near-full A6000 memory
-  - [x] previous run did not finish normally
-  - [x] previous run reached after epoch 2 training and before/during epoch 2 validation logging
+## 1. Teacher Evaluation / Analysis
+- [x] RAW, Deploy, NAFNet, NAFNet_Lumi 비교
+- [x] NAFNet 원본의 색감/texture 보존 장점을 팀 리뷰 의견에 반영
+- [x] NAFNet 원본의 tone down risk 기록
+- [x] NAFNet_Lumi를 tone-safe candidate로 정리
+- [x] Restormer 기존 epoch 3 probe 수행
+- [x] Restormer 기존 epoch 3도 tone down이 커서 바로 MTKD tone anchor로 쓰지 않기로 판단
 
-## 2. Restormer Config Correction
-- [x] Existing Restormer train config updated
-  - [x] `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
-- [x] memory-safe 1GPU setting applied
-  - [x] `batch_size: 2`
-  - [x] `gradient_accumulation_steps: 32`
-  - [x] effective batch: `64`
-- [x] MC-G105 data config retained
-  - [x] `configs/data/denoise_mc_g105_val.yaml`
-- [x] save name retained
-  - [x] `train_restormer_teacher_mc_g105_denoise_x1_dim48_1gpu_260527`
+## 2. Analysis Utilities
+- [x] `examples/analysis/infer_mc_g105_capture_tree.py` 추가
+  - [x] recursive input tree inference
+  - [x] output folder structure 보존
+  - [x] status CSV 지원
+  - [x] tile inference 지원
+- [x] `examples/analysis/postprocess_luma_guard.py` 추가
+  - [x] RAW 기준 luma low-frequency guard
+  - [x] recursive folder structure 보존
+  - [x] NAFNet_Lumi 생성 경로 확보
 
-## 3. NAFNet Runtime Handoff
+## 3. Restormer Tone-Safe Restart
+- [x] 새 degradation pipeline 생성
+  - [x] `configs/data/denoise_mc_g105_tone_safe.yaml`
+  - [x] `clean_prob: 0.1`
+  - [x] `eo_shading` 완화
+  - [x] `signal_instability` 완화
+  - [x] `color_cast` 범위 대칭화
+  - [x] `highlight_clipping` 완화
+  - [x] row/grid/chroma/noise 계열 유지
+- [x] Restormer train config 수정
+  - [x] `data_config_path: configs/data/denoise_mc_g105_tone_safe.yaml`
+  - [x] `lr: 1e-4`
+  - [x] `save_name: train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
+  - [x] `batch_size: 2` 유지
+  - [x] `gradient_accumulation_steps: 32` 유지
+- [/] Tone-safe Restormer training live
+  - [/] command: `accelerate launch --num_processes=1 tools/train.py --config configs/train/Denoise/restormer_deploy_denoise_teacher.yaml --data_config configs/data/denoise_mc_g105_tone_safe.yaml`
+  - [/] accelerate PID: `2225235`
+  - [/] worker PID: `2225703`
+  - [/] GPU: `0`
+  - [/] checkpoint dir: `checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
+  - [/] `training_log.csv` exists but no completed epoch yet
+  - [/] `last.pth` not yet created
+
+## 4. NAFNet Runtime Handoff
 - [/] NAFNet MC-G105 training live
   - [/] command: `accelerate launch --num_processes=1 tools/train.py --resume checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527/last.pth`
   - [/] accelerate PID: `167977`
   - [/] worker PID: `168952`
   - [/] GPU: `1`
 - [x] latest completed NAFNet CSV epoch checked
-  - [x] epoch: `45`
-  - [x] PSNR: `27.150239944458008`
-  - [x] SSIM: `0.8379124402999878`
-  - [x] LPIPS: `0.21373842656612396`
-  - [x] NIQE: `4.109069347381592`
+  - [x] epoch: `62`
+  - [x] PSNR: `27.288328170776367`
+  - [x] SSIM: `0.8396063446998596`
+  - [x] LPIPS: `0.21288099884986877`
+  - [x] NIQE: `4.097515106201172`
 - [x] latest NAFNet checkpoint timestamps checked
-  - [x] `best.pth`: `2026-05-31 06:46:39 KST`
-  - [x] `last.pth`: `2026-05-31 08:41:00 KST`
-- [x] TensorBoard confirms NAFNet continued after epoch 45
-  - [x] latest train scalar observed: `2026-05-31 09:32:28 KST`
+  - [x] `last.pth`: `2026-06-01 17:07 KST`
+  - [x] `best.pth`: `2026-05-31 10:35 KST`
+  - [x] `training_log.csv`: `2026-06-01 17:07 KST`
 
-## 4. Restormer Runtime Handoff
-- [/] Restormer MC-G105 training live
-  - [/] command: `accelerate launch --num_processes=1 tools/train.py --config configs/train/Denoise/restormer_deploy_denoise_teacher.yaml --data_config configs/data/denoise_mc_g105_val.yaml`
-  - [/] accelerate PID: `3965623`
-  - [/] worker PID: `3965821`
-  - [/] GPU: `0`
-- [x] Restormer restart type recorded
-  - [x] scratch restart, not resume
-  - [x] previous Restormer `last.pth` / `best.pth` no longer present in current checkpoint folder
-  - [x] current `training_log.csv` is new and still empty
-- [x] Restormer live event checked
-  - [x] `Loss/Total` scalar count: `249`
-  - [x] latest train scalar observed: `2026-05-31 09:32:16 KST`
-  - [x] latest observed `Loss/Total`: `0.4480792284011841`
-- [ ] Wait for Restormer epoch 1 completion
-  - [ ] `training_log.csv` first row
-  - [ ] `last.pth`
-  - [ ] `best.pth` if validation improves from initial state
+## 5. Check-out / Repo Sync
+- [x] `/home/jshong/Code/commute-sync-workflow.md` 확인
+- [x] GitLab repo 상태 확인
+  - [x] path: `/home/jshong/Code/unfied-sr-denoise-platform`
+  - [x] branch: `master`
+- [x] GitHub repo 상태 확인
+  - [x] path: `/home/jshong/Code/Unified-SR-Denoise-Platform`
+  - [x] branch: `main`
+- [x] GitHub-only tracked stale files 확인
+  - [x] GitHub에만 남아 있는 tracked checkpoint metadata: `66` files
+  - [x] checkout sync에서 GitHub 쪽 삭제 대상으로 처리
+- [/] GitLab commit/push
+- [/] GitLab -> GitHub rsync
+- [/] GitHub stale tracked checkpoint files cleanup
+- [/] GitHub commit/push
 
-## 5. Checkout Sync
-- [x] `experiment.log` updated for today's handoff
-- [x] `checklist.log` updated for today's handoff
-- [x] GitLab commit/push
-- [x] GitLab -> GitHub rsync with protected exclusions
-- [x] GitHub commit/push
+## 6. Generated Artifacts
+- [/] Generated tracked `__pycache__` files remain dirty and are intentionally not included in source/log commits
+  - [/] `src/engine/__pycache__/trainer.cpython-310.pyc`
+  - [/] `src/engine/__pycache__/trainer.cpython-38.pyc`
+  - [/] `src/models/__pycache__/__init__.cpython-38.pyc`
+  - [/] `tools/__pycache__/train.cpython-38.pyc`
 
-## 6. Next Work
-- [ ] Keep NAFNet and Restormer runs alive unless GPU scheduling changes
-- [ ] Re-check Restormer after epoch 1 validation/checkpoint write
-- [ ] If Restormer stops again, inspect logs/checkpoints/events before restart
-- [ ] Generate fresh MC-G105 Teacher comparison outputs when either Teacher reaches a useful pilot point
-- [ ] Apply identity reject gate
-- [ ] Apply over-denoise reject gate
-- [ ] Defer MTKD student training until a Teacher passes gates
+## 7. Next Work
+- [ ] Let NAFNet and tone-safe Restormer continue running overnight
+- [ ] After Restormer tone-safe epoch 3, run the same 42-frame probe
+- [ ] Compare tone-safe Restormer against old Restormer E3, NAFNet, NAFNet_Lumi, and Deploy
+- [ ] Gate Teacher candidates by tone drift, detail preservation, denoise strength, and mixed 5x/7x texture amplification
+- [ ] Defer MTKD student training until Teacher candidates pass real MC-G105 gates

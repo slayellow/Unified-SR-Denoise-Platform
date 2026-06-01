@@ -1,45 +1,58 @@
 # Experiment Log
 
-## Date: 2026-05-31 (Sunday)
+## Date: 2026-06-01 (Monday)
 ## Topic
-출근/퇴근 sync, Restormer MC-G105 batch-size correction, NAFNet/Restormer live training handoff.
+MC-G105 NAFNet/Restormer Teacher evaluation, tone-safe Restormer restart, and check-out sync handoff.
 
 ## Summary
 
-오늘 출근 시 `/home/jshong/Code/commute-sync-workflow.md` 기준으로 check-in Flow를 수행했다. GitHub `main`은 이미 최신이었고, GitHub -> GitLab rsync는 보호 제외 규칙 적용 후 실질 변경이 없었다.
+오늘은 MC-G105 denoise Teacher 후보를 실제 capture 결과 기준으로 재평가했다. RAW, Deploy, NAFNet, NAFNet_Lumi 결과를 비교했고, 팀 리뷰에서는 NAFNet 원본이 Deploy보다 색감과 texture를 더 잘 살리고 뭉개짐이 덜하다는 의견이 있었다. 이에 따라 Deploy는 production baseline/guardrail로 두고, NAFNet 계열을 Teacher 후보 중심으로 보는 방향이 더 타당하다고 판단했다.
 
-Restormer MC-G105 run은 이전에 `batch_size: 4` 설정에서 GPU 48GB에 가까운 메모리를 사용해 중단된 것으로 판단했다. 따라서 Restormer train config를 `batch_size: 2`, `gradient_accumulation_steps: 32`로 변경했다. effective batch는 `2 * 32 = 64`로 유지한다.
+다만 NAFNet 원본은 전역 tone down이 관찰됐기 때문에, `postprocess_luma_guard.py`를 추가해 원본 folder structure를 보존하면서 luma low-frequency를 RAW 기준으로 보정하는 실험 경로를 만들었다. NAFNet_Lumi는 tone drift를 크게 줄였지만, 일부 mixed 5x/7x 장면에서는 texture amplification 가능성이 있어 selective Teacher 후보로 보는 것이 안전하다.
 
-사용자는 Restormer를 이어받기 resume이 아니라 같은 save_name으로 scratch restart했다. 그 결과 기존 Restormer `last.pth` / `best.pth` / `training_log.csv`는 현재 checkpoint 폴더에서 새 run 기준으로 초기화됐다. 이는 현재 의도된 상태로 둔다.
+Restormer는 기존 3 epoch checkpoint를 42장 대표 샘플로 probe했으며, 기대와 달리 Restormer epoch 3도 NAFNet보다 강한 tone down을 보였다. 이 결과를 바탕으로 Restormer를 tone anchor로 바로 쓰지 않고, degradation pipeline에서 tone 변형 요소를 완화한 새 실험으로 재시작했다.
 
-퇴근 시점에는 NAFNet과 Restormer가 모두 live training 상태다. checkpoint 폴더와 TensorBoard event는 git sync 대상이 아니므로, 현재 상태는 이 파일과 `checklist.log`에 durable handoff로 남긴다.
+## Code / Config Changes
 
-## Git / Sync State
+- Added `examples/analysis/infer_mc_g105_capture_tree.py`
+  - MC-G105 capture tree 전체를 recursive inference한다.
+  - input relative path를 output root 아래 동일하게 보존한다.
+  - `--tile_size`, `--tile_overlap`, `--skip_existing`, `--status_csv`, `--dry_run`을 지원한다.
+- Added `examples/analysis/postprocess_luma_guard.py`
+  - Teacher output의 Y low-frequency를 RAW 기준으로 보정한다.
+  - 원본 folder tree와 동일한 output structure를 생성한다.
+  - NAFNet의 detail/chroma 특성은 유지하면서 전역 luma drift만 줄이는 목적이다.
+- Added `configs/data/denoise_mc_g105_tone_safe.yaml`
+  - `clean_prob: 0.1`로 identity/tone anchor를 추가했다.
+  - `eo_shading`, `signal_instability`, `color_cast`, `highlight_clipping`을 완화했다.
+  - row/grid/chroma/noise 계열은 유지해 MC-G105 sensor noise 특성은 남겼다.
+- Updated `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
+  - `data_config_path: configs/data/denoise_mc_g105_tone_safe.yaml`
+  - `lr: 1e-4`
+  - `save_name: train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
+  - `batch_size: 2`, `gradient_accumulation_steps: 32` 유지
 
-- GitLab repo:
-  - path: `/home/jshong/Code/unfied-sr-denoise-platform`
-  - branch: `master`
-  - latest pre-checkout commit before this log update: `bd55531 Record Restormer config sync verification`
-- GitHub repo:
-  - path: `/home/jshong/Code/Unified-SR-Denoise-Platform`
-  - branch: `main`
-  - latest pre-checkout commit before sync: `13f658e Record MC-G105 teacher checkout handoff`
-- Source change to preserve:
-  - `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
-  - `batch_size: 4 -> 2`
-  - `gradient_accumulation_steps: 16 -> 32`
-- Generated tracked artifacts still dirty and intentionally not included in source/log commits:
-  - `src/engine/__pycache__/trainer.cpython-310.pyc`
-  - `src/engine/__pycache__/trainer.cpython-38.pyc`
-  - `src/models/__pycache__/__init__.cpython-38.pyc`
-  - `tools/__pycache__/train.cpython-38.pyc`
+## Teacher Evaluation Notes
+
+- Deploy
+  - Qualcomm chip에서 운용 중인 production baseline이다.
+  - tone/edge 안정성은 높지만, 팀 리뷰 기준 일부 장면에서 뭉개짐이 상대적으로 강하다.
+- NAFNet
+  - 색감과 texture 보존 관점에서 가장 유력한 Teacher 방향으로 재평가했다.
+  - 원본 그대로는 tone down risk가 있어, 후처리 또는 MTKD 설계에서 tone guard가 필요하다.
+- NAFNet_Lumi
+  - luma drift를 크게 줄인 tone-safe candidate이다.
+  - 일부 mixed 5x/7x 장면에서는 texture amplification 여부를 계속 gating해야 한다.
+- Restormer
+  - 기존 epoch 3 probe에서는 tone anchor로 쓰기 어려웠다.
+  - 새 tone-safe pipeline + LR 1e-4 run에서 다시 3 epoch/10 epoch probe를 진행한다.
 
 ## Runtime Snapshot
 
-- Check time: `2026-05-31 09:31-09:32 KST`
+- Check time: `2026-06-01 17:55:38 KST`
 - GPU state:
-  - GPU 0: Restormer, about `26864 MiB`, utilization about `99%`
-  - GPU 1: NAFNet, about `26868 MiB`, utilization about `100%`
+  - GPU 0: Restormer tone-safe worker PID `2225703`, about `26858 MiB`, utilization `99%`
+  - GPU 1: NAFNet worker PID `168952`, about `26862 MiB`, utilization `97%`
   - GPU 2/3: occupied by another user's YOLO job
   - GPU 4: idle
 
@@ -51,61 +64,70 @@ Restormer MC-G105 run은 이전에 `batch_size: 4` 설정에서 GPU 48GB에 가�
 - Process state:
   - accelerate PID: `167977`
   - worker PID: `168952`
-  - dataloader child PIDs observed: `3937182`, `3937183`, `3937184`, `3937185`
+  - GPU: `1`
 - Checkpoint/work dir:
   - `checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527`
-  - latest `best.pth`: `2026-05-31 06:46:39 KST`
-  - latest `last.pth`: `2026-05-31 08:41:00 KST`
-  - latest `training_log.csv`: `2026-05-31 08:40:59 KST`
+  - latest `last.pth`: `2026-06-01 17:07 KST`
+  - latest `best.pth`: `2026-05-31 10:35 KST`
+  - latest `training_log.csv`: `2026-06-01 17:07 KST`
 - Latest completed CSV epoch:
-  - epoch `45`
-  - train_loss `0.08791359513998032`
-  - val_loss `0.0805930495262146`
-  - PSNR `27.150239944458008`
-  - SSIM `0.8379124402999878`
-  - LPIPS `0.21373842656612396`
-  - NIQE `4.109069347381592`
-  - lr `9.431586878259919e-05`
-- TensorBoard evidence:
-  - latest train scalar observed at `2026-05-31 09:32:28 KST`
-  - this confirms training continued after the epoch 45 checkpoint/log write.
+  - epoch `62`
+  - train_loss `0.0862635001540184`
+  - val_loss `0.07939599454402924`
+  - PSNR `27.288328170776367`
+  - SSIM `0.8396063446998596`
+  - LPIPS `0.21288099884986877`
+  - NIQE `4.097515106201172`
+  - lr `8.951824286816574e-05`
 
-## Restormer MC-G105 Training State
+## Restormer Tone-Safe MC-G105 Training State
 
-- Status: live
-- Current launch command:
-  - `accelerate launch --num_processes=1 tools/train.py --config configs/train/Denoise/restormer_deploy_denoise_teacher.yaml --data_config configs/data/denoise_mc_g105_val.yaml`
+- Status: live, scratch restart
+- Command:
+  - `accelerate launch --num_processes=1 tools/train.py --config configs/train/Denoise/restormer_deploy_denoise_teacher.yaml --data_config configs/data/denoise_mc_g105_tone_safe.yaml`
 - Process state:
-  - accelerate PID: `3965623`
-  - worker PID: `3965821`
-  - dataloader child PIDs observed: `3966518`, `3966520`, `3966522`, `3966523`
+  - accelerate PID: `2225235`
+  - worker PID: `2225703`
+  - GPU: `0`
 - Config:
-  - `data_config_path: configs/data/denoise_mc_g105_val.yaml`
-  - `epochs: 300`
+  - `data_config_path: configs/data/denoise_mc_g105_tone_safe.yaml`
+  - `lr: 1e-4`
   - `batch_size: 2`
   - `gradient_accumulation_steps: 32`
   - effective batch: `64`
-  - `save_name: train_restormer_teacher_mc_g105_denoise_x1_dim48_1gpu_260527`
+  - `save_name: train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
 - Checkpoint/work dir:
-  - `checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_1gpu_260527`
-  - new `train_config.yaml`: `2026-05-31 09:00:18 KST`
-  - new `data_config.yaml`: `2026-05-31 09:00:18 KST`
-  - new `training_log.csv`: `0 bytes` as of `2026-05-31 09:00:20 KST`
-  - no new `last.pth` / `best.pth` has been written yet in the current scratch restart.
-- TensorBoard evidence:
-  - event file: `logs/events.out.tfevents.1780185618.8b6b703a7725.2186.0`
-  - `Loss/Total` scalar count observed: `249`
-  - latest train scalar observed at `2026-05-31 09:32:16 KST`
-  - latest observed `Loss/Total`: `0.4480792284011841`
-- Important handoff note:
-  - this run is not a resume from the previous Restormer `last.pth`.
-  - current run is a scratch restart with the corrected batch size.
+  - `checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
+  - `train_config.yaml` and `data_config.yaml` copied at `2026-06-01 17:46 KST`
+  - `training_log.csv` exists but is still empty at checkout time
+  - `last.pth` not yet created at checkout time
+- Important note:
+  - This is not a resume from the earlier Restormer epoch 3 run.
+  - First probe target: after epoch 3, compare `dY`, `LF`, `HP`, and `Edge` against RAW/Deploy/NAFNet on the same representative MC-G105 sample set.
+
+## Git / Sync State
+
+- GitLab repo:
+  - path: `/home/jshong/Code/unfied-sr-denoise-platform`
+  - branch: `master`
+  - source of truth for today's checkout
+- GitHub repo:
+  - path: `/home/jshong/Code/Unified-SR-Denoise-Platform`
+  - branch: `main`
+  - will be synced from GitLab after GitLab commit/push
+- GitHub cleanup:
+  - GitHub has `66` tracked checkpoint metadata files that no longer exist in GitLab.
+  - These will be removed from GitHub during checkout sync so GitHub no longer carries stale GitLab-deleted checkpoint folders/files.
+- Generated tracked artifacts still dirty and intentionally not included in source/log commits:
+  - `src/engine/__pycache__/trainer.cpython-310.pyc`
+  - `src/engine/__pycache__/trainer.cpython-38.pyc`
+  - `src/models/__pycache__/__init__.cpython-38.pyc`
+  - `tools/__pycache__/train.cpython-38.pyc`
 
 ## Next
 
-1. Keep both live runs alive unless GPU scheduling changes.
-2. For Restormer, first checkpoint to watch is epoch 1 completion:
-   - `training_log.csv` should receive the first row.
-   - `last.pth` and likely `best.pth` should be created.
-3. If Restormer stops again, inspect stdout/stderr if available, `training_log.csv`, TensorBoard event time, and checkpoint timestamps before restarting.
-4. After either Teacher reaches a useful pilot point, generate fresh MC-G105 comparison outputs and check identity/over-denoise gates before MTKD student training.
+1. Let NAFNet and tone-safe Restormer continue running overnight unless GPU scheduling changes.
+2. When tone-safe Restormer reaches epoch 3, run the same 42-frame probe and compare against the earlier Restormer E3 result.
+3. Key Restormer pass criterion: `dY` within about `-5` at minimum, preferably near `-2 ~ +2`, while preserving meaningful noise suppression.
+4. Keep Deploy as production baseline/guardrail, not the preferred Teacher if NAFNet detail preservation remains visually superior.
+5. Prepare MTKD only after at least one Teacher candidate passes tone/detail/noise gates on real MC-G105 captures.

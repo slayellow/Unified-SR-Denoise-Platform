@@ -1,5 +1,5 @@
 task: denoise
-data_config_path: configs/data/denoise_mc_g105_val.yaml
+data_config_path: configs/data/denoise_mc_g105_tone_safe.yaml
 
 model:
   name: restormer_denoise_teacher
@@ -26,12 +26,12 @@ data:
 train:
   epochs: 300
   batch_size: 2
-  lr: 5e-5
+  lr: 1e-4
   num_workers: 4
   gradient_accumulation_steps: 32
   patch_size: 256
   save_interval: 20
-  save_name: "train_restormer_teacher_mc_g105_denoise_x1_dim48_1gpu_260527"
+  save_name: "train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601"
 
   pretrained_path: null
 
