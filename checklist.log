@@ -1,146 +1,156 @@
 # Checklist Log
 
-## Date: 2026-06-01 (Monday)
+## Date: 2026-06-02 (Tuesday)
 ## Goal
-퇴근 check-out Flow를 수행하고, MC-G105 Teacher 재평가/Restormer tone-safe restart 상태를 GitLab/GitHub 양쪽에 남긴다.
+퇴근 check-out Flow를 수행하고, MC-G105 Teacher probe 판단과 live training 상태를 GitLab/GitHub에 남긴다.
 
 ---
 
-## 1. Teacher Evaluation / Analysis
-- [x] RAW, Deploy, NAFNet, NAFNet_Lumi 비교
-- [x] NAFNet 원본의 색감/texture 보존 장점을 팀 리뷰 의견에 반영
-- [x] NAFNet 원본의 tone down risk 기록
-- [x] NAFNet_Lumi를 tone-safe candidate로 정리
-- [x] Restormer 기존 epoch 3 probe 수행
-- [x] Restormer 기존 epoch 3도 tone down이 커서 바로 MTKD tone anchor로 쓰지 않기로 판단
-
-## 2. Analysis Utilities
-- [x] `examples/analysis/infer_mc_g105_capture_tree.py` 추가
-  - [x] recursive input tree inference
-  - [x] output folder structure 보존
-  - [x] status CSV 지원
-  - [x] tile inference 지원
-- [x] `examples/analysis/postprocess_luma_guard.py` 추가
-  - [x] RAW 기준 luma low-frequency guard
-  - [x] recursive folder structure 보존
-  - [x] NAFNet_Lumi 생성 경로 확보
-
-## 3. Restormer Tone-Safe Restart
-- [x] 새 degradation pipeline 생성
-  - [x] `configs/data/denoise_mc_g105_tone_safe.yaml`
-  - [x] `clean_prob: 0.1`
-  - [x] `eo_shading` 완화
-  - [x] `signal_instability` 완화
-  - [x] `color_cast` 범위 대칭화
-  - [x] `highlight_clipping` 완화
-  - [x] row/grid/chroma/noise 계열 유지
-- [x] Restormer train config 수정
-  - [x] `data_config_path: configs/data/denoise_mc_g105_tone_safe.yaml`
-  - [x] `lr: 1e-4`
-  - [x] `save_name: train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
-  - [x] `batch_size: 2` 유지
-  - [x] `gradient_accumulation_steps: 32` 유지
-- [/] Tone-safe Restormer training live
-  - [/] command: `accelerate launch --num_processes=1 tools/train.py --config configs/train/Denoise/restormer_deploy_denoise_teacher.yaml --data_config configs/data/denoise_mc_g105_tone_safe.yaml`
-  - [/] accelerate PID: `2225235`
-  - [/] worker PID: `2225703`
-  - [/] GPU: `0`
-  - [/] checkpoint dir: `checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
-  - [/] `training_log.csv` exists but no completed epoch yet
-  - [/] `last.pth` not yet created
-
-## 4. NAFNet Runtime Handoff
-- [/] NAFNet MC-G105 training live
-  - [/] command: `accelerate launch --num_processes=1 tools/train.py --resume checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527/last.pth`
-  - [/] accelerate PID: `167977`
-  - [/] worker PID: `168952`
-  - [/] GPU: `1`
-- [x] latest completed NAFNet CSV epoch checked
-  - [x] epoch: `62`
-  - [x] PSNR: `27.288328170776367`
-  - [x] SSIM: `0.8396063446998596`
-  - [x] LPIPS: `0.21288099884986877`
-  - [x] NIQE: `4.097515106201172`
-- [x] latest NAFNet checkpoint timestamps checked
-  - [x] `last.pth`: `2026-06-01 17:07 KST`
-  - [x] `best.pth`: `2026-05-31 10:35 KST`
-  - [x] `training_log.csv`: `2026-06-01 17:07 KST`
-
-## 5. Check-out / Repo Sync
+## 1. Check-out Flow
 - [x] `/home/jshong/Code/commute-sync-workflow.md` 확인
 - [x] GitLab repo 상태 확인
   - [x] path: `/home/jshong/Code/unfied-sr-denoise-platform`
   - [x] branch: `master`
+  - [x] tracked deletion: `results/mc_g105_analysis/all` 105 files
+  - [x] generated tracked `__pycache__` modifications observed and excluded from commit scope
 - [x] GitHub repo 상태 확인
   - [x] path: `/home/jshong/Code/Unified-SR-Denoise-Platform`
   - [x] branch: `main`
-- [x] GitHub-only tracked stale files 확인
-  - [x] GitHub에만 남아 있는 tracked checkpoint metadata: `66` files
-  - [x] checkout sync에서 GitHub 쪽 삭제 대상으로 처리
+  - [x] clean before checkout sync
 - [x] GitLab commit/push
-  - [x] commit: `ef0e4eb Record MC-G105 teacher tone-safe handoff`
-  - [x] push: `origin/master`
-- [x] GitLab -> GitHub rsync
-  - [x] copied source/config/log changes
-  - [x] excluded `__pycache__`, `.git`, `checkpoints/`, `logs/`, `tmp/`, model binaries, and large capture/result trees
-- [x] GitHub stale tracked checkpoint files cleanup
-  - [x] removed `66` GitHub-only tracked checkpoint metadata files
+- [x] GitLab -> GitHub rsync with exclusions
 - [x] GitHub commit/push
-  - [x] commit: `1932ab8 Sync MC-G105 teacher tone-safe handoff`
-  - [x] push: `origin/main`
 
-## 6. Generated Artifacts
-- [/] Generated tracked `__pycache__` files remain dirty and are intentionally not included in source/log commits
+## 2. Fixed 42-Frame Probe Set
+- [x] Fixed 42-frame probe set finalized
+  - [x] root: `results/260602_mc_g105_probe_42`
+  - [x] selection: one deterministic frame per `time/weather/scene/zoom` leaf
+  - [x] RAW: `42` images
+  - [x] Deploy: `42` images
+  - [x] NAFNet existing snapshot: `42` images
+  - [x] `manifest.csv` created
+  - [x] `selection_policy.txt` created
+- [x] Original 2700-frame raw folder removed
+  - [x] removed path: `results/mc_g105_capture_frames`
+  - [x] source folder size before deletion: about `8.9G`
+- [x] Probe outputs confirmed ignored by Git
+  - [x] `results/260602_mc_g105_probe_42/` is ignored
+
+## 3. Latest Teacher Probe Inference
+- [x] NAFNet latest checkpoint inferred on 42-frame probe
+  - [x] checkpoint: `checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527/last.pth`
+  - [x] checkpoint epoch: `71`
+  - [x] output: `results/260602_mc_g105_probe_42/nafnet_last_e071`
+  - [x] processed: `42`
+  - [x] failed: `0`
+  - [x] status CSV: `results/260602_mc_g105_probe_42/nafnet_last_e071_status.csv`
+- [x] Restormer tone-safe latest checkpoint inferred on 42-frame probe
+  - [x] checkpoint: `checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601/last.pth`
+  - [x] checkpoint epoch: `1`
+  - [x] output: `results/260602_mc_g105_probe_42/restormer_last_e001`
+  - [x] processed: `42`
+  - [x] failed: `0`
+  - [x] status CSV: `results/260602_mc_g105_probe_42/restormer_last_e001_status.csv`
+- [x] Comparison artifacts generated
+  - [x] report: `results/260602_mc_g105_probe_42/comparison_current/comparison_report.md`
+  - [x] per-image CSV: `results/260602_mc_g105_probe_42/comparison_current/comparison_per_image.csv`
+  - [x] variant summary CSV: `results/260602_mc_g105_probe_42/comparison_current/summary_by_variant.csv`
+  - [x] scene summary CSV: `results/260602_mc_g105_probe_42/comparison_current/summary_by_scene_variant.csv`
+  - [x] key-case contact sheet: `results/260602_mc_g105_probe_42/comparison_current/contact_sheet_key_cases.jpg`
+  - [x] center-crop contact sheet: `results/260602_mc_g105_probe_42/comparison_current/contact_sheet_center_crops.jpg`
+
+## 4. Probe Judgment
+- [x] RAW / Deploy / NAFNet e71 / Restormer e1 comparison completed
+- [x] NAFNet e71 current judgment
+  - [x] detail and edge preservation better than Deploy
+  - [x] still has tone-down risk
+  - [x] probe mean `delta_y_mean`: `-6.619`
+  - [x] probe `lowfreq_y_mae`: `6.757`
+  - [x] probe `nonedge_hf_ratio`: `0.915`
+  - [x] probe `strong_edge_ratio`: `0.984`
+- [x] Restormer e1 current judgment
+  - [x] tone-safe direction looks safer
+  - [x] denoise is still weak and output is close to RAW
+  - [x] probe mean `delta_y_mean`: `1.500`
+  - [x] probe `lowfreq_y_mae`: `1.517`
+  - [x] probe `nonedge_hf_ratio`: `0.983`
+  - [x] probe `strong_edge_ratio`: `0.978`
+- [x] Teacher ranking at checkout
+  - [x] current practical Teacher candidate: `NAFNet e71`
+  - [x] current monitor candidate: `Restormer tone-safe`, wait for later epochs
+  - [x] Deploy remains production baseline, not preferred Teacher target because of smoothing
+
+## 5. NAFNet Tone-Safe Decision
+- [x] Confirmed current NAFNet still uses `configs/data/denoise_mc_g105_val.yaml`
+- [x] Confirmed Restormer uses `configs/data/denoise_mc_g105_tone_safe.yaml`
+- [x] Decision recorded
+  - [x] Do not interrupt current NAFNet immediately
+  - [x] Continue current NAFNet and re-check at epoch 80 or 100
+  - [x] Keep NAFNet tone-safe pipeline as a valid follow-up plan
+  - [x] If fixed probe still shows large negative Y shift, start separate tone-safe NAFNet fine-tune with a new `save_name`
+- [/] NAFNet tone gate remains active
+  - [/] watch `road_shaded`, `building`, `flat`
+  - [/] acceptance target: mean Y shift should move closer to neutral, ideally around `-3` or better before Teacher use
+
+## 6. NAFNet Runtime Handoff
+- [/] NAFNet MC-G105 training live
+  - [/] launch mode: resume
+  - [/] command: `accelerate launch --num_processes=1 tools/train.py --resume checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527/last.pth`
+  - [/] accelerate PID: `167977`
+  - [/] main worker PID: `168952`
+  - [/] child workers: `3690904`, `3690906`, `3690909`, `3690912`
+  - [/] GPU: `1`
+- [x] latest completed NAFNet CSV epoch checked
+  - [x] epoch: `71`
+  - [x] PSNR: `27.305063247680664`
+  - [x] SSIM: `0.840343713760376`
+  - [x] LPIPS: `0.20120041072368622`
+  - [x] NIQE: `3.9625232219696045`
+  - [x] lr: `8.646198293969953e-05`
+- [x] latest NAFNet checkpoint timestamps checked
+  - [x] `last.pth`: `2026-06-02 10:18 KST`
+  - [x] `best.pth`: `2026-05-31 10:35 KST`
+  - [x] `training_log.csv`: `2026-06-02 10:18 KST`
+
+## 7. Restormer Runtime Handoff
+- [/] Tone-safe Restormer MC-G105 training live
+  - [/] launch mode: scratch restart, not resume
+  - [/] command: `accelerate launch --num_processes=1 tools/train.py --config configs/train/Denoise/restormer_deploy_denoise_teacher.yaml --data_config configs/data/denoise_mc_g105_tone_safe.yaml`
+  - [/] accelerate PID: `2225235`
+  - [/] main worker PID: `2225703`
+  - [/] child workers: `2751925`, `2751926`, `2751927`, `2751928`
+  - [/] GPU: `0`
+  - [/] GPU memory close to A6000 ceiling
+- [x] Restormer config recorded
+  - [x] `data_config_path: configs/data/denoise_mc_g105_tone_safe.yaml`
+  - [x] `lr: 1e-4`
+  - [x] `batch_size: 2`
+  - [x] `gradient_accumulation_steps: 32`
+  - [x] effective batch: `64`
+  - [x] `save_name: train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
+- [x] latest completed Restormer CSV epoch checked
+  - [x] epoch: `1`
+  - [x] PSNR: `24.355131149291992`
+  - [x] SSIM: `0.8034186363220215`
+  - [x] LPIPS: `0.26657748222351074`
+  - [x] NIQE: `3.7979326248168945`
+  - [x] lr: `0.0001`
+- [x] latest Restormer checkpoint timestamps checked
+  - [x] `last.pth`: `2026-06-02 04:26 KST`
+  - [x] `best.pth`: `2026-06-02 04:26 KST`
+  - [x] `training_log.csv`: `2026-06-02 04:26 KST`
+
+## 8. Next Work
+- [ ] Let NAFNet and tone-safe Restormer continue running
+- [ ] Re-run fixed 42-frame probe when NAFNet reaches epoch 80 or 100
+- [ ] Re-run fixed 42-frame probe when Restormer reaches epoch 3 and again around epoch 10
+- [ ] If NAFNet tone drift remains high, create a separate tone-safe NAFNet fine-tune experiment
+- [ ] Keep probe comparison folders local/ignored unless a lightweight report needs to be committed
+- [ ] Do not start MTKD Student training until Teacher candidates pass real MC-G105 tone/detail gates
+
+## 9. Dirty Generated Artifacts
+- [/] Generated tracked `__pycache__` files remain dirty and are intentionally excluded from commit
   - [/] `src/engine/__pycache__/trainer.cpython-310.pyc`
   - [/] `src/engine/__pycache__/trainer.cpython-38.pyc`
   - [/] `src/models/__pycache__/__init__.cpython-38.pyc`
   - [/] `tools/__pycache__/train.cpython-38.pyc`
-
-## 7. Next Work
-- [ ] Let NAFNet and tone-safe Restormer continue running overnight
-- [ ] After Restormer tone-safe epoch 3, run the same 42-frame probe
-- [ ] Compare tone-safe Restormer against old Restormer E3, NAFNet, NAFNet_Lumi, and Deploy
-- [ ] Gate Teacher candidates by tone drift, detail preservation, denoise strength, and mixed 5x/7x texture amplification
-- [ ] Defer MTKD student training until Teacher candidates pass real MC-G105 gates
-
-## 8. 2026-06-03 Tone Drift Evaluation
-- [ ] 고정 42-frame probe set 확정
-  - [ ] RAW input
-  - [ ] Deploy output
-  - [ ] NAFNet output
-  - [ ] NAFNet_Lumi output
-  - [ ] Restormer tone-safe output if epoch 3 is available
-- [ ] Low-frequency luma drift 정량화
-  - [ ] YCrCb Y 채널 추출
-  - [ ] Gaussian low-pass Y 생성
-  - [ ] `mean dY_low = mean(lowpass(Y_teacher) - lowpass(Y_raw))` 계산
-  - [ ] `median dY_low` 계산
-  - [ ] `p95(abs(dY_low))` 계산
-  - [ ] scene별 `road_shaded`, `mixed 5x/7x`, `foliage`, `building` 분리 확인
-- [ ] Chroma / color drift 정량화
-  - [ ] `mean delta Cr`, `mean delta Cb` 계산
-  - [ ] `p95(abs(delta Cr))`, `p95(abs(delta Cb))` 계산
-  - [ ] green/magenta bias가 특정 방향으로 계속 밀리는지 확인
-  - [ ] saturation 과도 감소 여부 확인
-- [ ] Denoise 효과와 tone drift 동시 평가
-  - [ ] luma high-frequency energy ratio 계산
-  - [ ] chroma high-frequency energy ratio 계산
-  - [ ] Sobel edge p90 retention 계산
-  - [ ] flat/shaded road ROI noise 감소 여부 확인
-  - [ ] 차선/표지판/전선/기둥/차량 edge 유지 여부 확인
-- [ ] Worst-case frame review
-  - [ ] `mean dY_low`가 가장 음수인 frame 확인
-  - [ ] `p95(abs(dY_low))`가 큰 frame 확인
-  - [ ] chroma shift가 큰 frame 확인
-  - [ ] high-frequency가 RAW보다 증가한 frame 확인
-  - [ ] edge가 Deploy보다 크게 줄어든 frame 확인
-- [ ] NAFNet 원본 Teacher 사용 여부 판단
-  - [ ] `mean dY_low`가 대체로 `-5` 안쪽인지 확인
-  - [ ] shadow / 차선 / 표지판 visibility가 유지되는지 확인
-  - [ ] texture가 Deploy보다 자연스럽고 noise가 RAW보다 줄었는지 확인
-  - [ ] 조건 통과 시 NAFNet 원본을 primary Teacher 후보로 유지
-  - [ ] 조건 실패 시 NAFNet tone-safe 재학습 또는 Lumi fallback 검토
-- [ ] NAFNet_Lumi 사용 여부 판단
-  - [ ] NAFNet 원본 tone down이 정성적으로 더 좋으면 Lumi는 Teacher 후보에서 제외
-  - [ ] NAFNet 원본이 scene별 tone drift가 크면 Lumi는 분석/보조 후보로 유지
-  - [ ] NAFNet과 NAFNet_Lumi를 동시에 MTKD Teacher로 넣는 것은 보류

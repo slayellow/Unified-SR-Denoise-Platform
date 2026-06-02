@@ -1,94 +1,95 @@
 # Experiment Log
 
-## Date: 2026-06-01 (Monday)
+## Date: 2026-06-02 (Tuesday)
 ## Topic
-MC-G105 NAFNet/Restormer Teacher evaluation, tone-safe Restormer restart, and check-out sync handoff.
+MC-G105 Teacher probe-set finalization, latest NAFNet/Restormer comparison, and checkout handoff.
 
 ## Summary
 
-오늘은 MC-G105 denoise Teacher 후보를 실제 capture 결과 기준으로 재평가했다. RAW, Deploy, NAFNet, NAFNet_Lumi 결과를 비교했고, 팀 리뷰에서는 NAFNet 원본이 Deploy보다 색감과 texture를 더 잘 살리고 뭉개짐이 덜하다는 의견이 있었다. 이에 따라 Deploy는 production baseline/guardrail로 두고, NAFNet 계열을 Teacher 후보 중심으로 보는 방향이 더 타당하다고 판단했다.
+오늘은 MC-G105 Teacher 후보 판단을 위해 기존 2700-frame capture set을 고정 42-frame probe set으로 축소 확정했다. 선택 기준은 `time/weather/scene/zoom` leaf 42개에서 각 1장씩 뽑는 deterministic rule로 정리했고, 원본 2700장 폴더 `results/mc_g105_capture_frames`는 삭제했다. 새 probe set은 `results/260602_mc_g105_probe_42`에 보관 중이며 Git ignore 대상이다.
 
-다만 NAFNet 원본은 전역 tone down이 관찰됐기 때문에, `postprocess_luma_guard.py`를 추가해 원본 folder structure를 보존하면서 luma low-frequency를 RAW 기준으로 보정하는 실험 경로를 만들었다. NAFNet_Lumi는 tone drift를 크게 줄였지만, 일부 mixed 5x/7x 장면에서는 texture amplification 가능성이 있어 selective Teacher 후보로 보는 것이 안전하다.
+이후 현재 학습된 checkpoint 기준으로 probe 42장에 대해 NAFNet과 Restormer를 재추론했다. NAFNet은 `last.pth` epoch 71, Restormer tone-safe는 `last.pth` epoch 1을 기준으로 사용했다. 두 모델 모두 42장 추론 성공, 실패 0건이었다. 비교 산출물은 `results/260602_mc_g105_probe_42/comparison_current`에 생성했다.
 
-Restormer는 기존 3 epoch checkpoint를 42장 대표 샘플로 probe했으며, 기대와 달리 Restormer epoch 3도 NAFNet보다 강한 tone down을 보였다. 이 결과를 바탕으로 Restormer를 tone anchor로 바로 쓰지 않고, degradation pipeline에서 tone 변형 요소를 완화한 새 실험으로 재시작했다.
+비교 결과 현재 Teacher 후보 가치는 `NAFNet > Restormer`로 판단했다. NAFNet e71은 Deploy보다 detail/edge 보존이 좋고 덜 뭉개지지만, RAW 대비 평균 Y가 `-6.619`, low-frequency luma MAE가 `6.757`로 아직 tone-down risk가 남아 있다. Restormer e1은 평균 Y 변화가 `+1.500`으로 tone 측면은 안전하지만, non-edge high-frequency ratio가 `0.983`이라 아직 denoise가 거의 학습되지 않은 RAW-like 상태에 가깝다.
 
-## Code / Config Changes
+NAFNet tone-safe pipeline 전환안은 유지할 가치가 있다고 판단했다. 다만 NAFNet e71이 기존 probe 내 예전 NAFNet 대비 평균 Y가 약 `+3.55` 밝아져 tone-down이 완화되는 경향도 확인됐으므로, 현재 NAFNet run은 즉시 중단하지 않고 epoch 80 또는 100까지 추가 관찰한다. 그 시점에도 RAW 대비 tone drift가 크면 `denoise_mc_g105_tone_safe.yaml` 계열로 NAFNet 별도 fine-tune 실험을 분리해서 진행하는 것이 좋다.
 
-- Added `examples/analysis/infer_mc_g105_capture_tree.py`
-  - MC-G105 capture tree 전체를 recursive inference한다.
-  - input relative path를 output root 아래 동일하게 보존한다.
-  - `--tile_size`, `--tile_overlap`, `--skip_existing`, `--status_csv`, `--dry_run`을 지원한다.
-- Added `examples/analysis/postprocess_luma_guard.py`
-  - Teacher output의 Y low-frequency를 RAW 기준으로 보정한다.
-  - 원본 folder tree와 동일한 output structure를 생성한다.
-  - NAFNet의 detail/chroma 특성은 유지하면서 전역 luma drift만 줄이는 목적이다.
-- Added `configs/data/denoise_mc_g105_tone_safe.yaml`
-  - `clean_prob: 0.1`로 identity/tone anchor를 추가했다.
-  - `eo_shading`, `signal_instability`, `color_cast`, `highlight_clipping`을 완화했다.
-  - row/grid/chroma/noise 계열은 유지해 MC-G105 sensor noise 특성은 남겼다.
-- Updated `configs/train/Denoise/restormer_deploy_denoise_teacher.yaml`
-  - `data_config_path: configs/data/denoise_mc_g105_tone_safe.yaml`
-  - `lr: 1e-4`
-  - `save_name: train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
-  - `batch_size: 2`, `gradient_accumulation_steps: 32` 유지
+GitLab working tree에는 과거 tracked 결과물 `results/mc_g105_analysis/all` 삭제분 105개가 남아 있었다. 이는 large/result artifact cleanup 방향에 맞춰 이번 checkout commit에 포함한다. 생성된 `__pycache__` 수정분은 실행 부산물이므로 커밋 대상에서 제외한다.
 
-## Teacher Evaluation Notes
+## Probe Set
 
-- Deploy
-  - Qualcomm chip에서 운용 중인 production baseline이다.
-  - tone/edge 안정성은 높지만, 팀 리뷰 기준 일부 장면에서 뭉개짐이 상대적으로 강하다.
-- NAFNet
-  - 색감과 texture 보존 관점에서 가장 유력한 Teacher 방향으로 재평가했다.
-  - 원본 그대로는 tone down risk가 있어, 후처리 또는 MTKD 설계에서 tone guard가 필요하다.
-- NAFNet_Lumi
-  - luma drift를 크게 줄인 tone-safe candidate이다.
-  - 일부 mixed 5x/7x 장면에서는 texture amplification 여부를 계속 gating해야 한다.
-- Restormer
-  - 기존 epoch 3 probe에서는 tone anchor로 쓰기 어려웠다.
-  - 새 tone-safe pipeline + LR 1e-4 run에서 다시 3 epoch/10 epoch probe를 진행한다.
+- Root: `results/260602_mc_g105_probe_42`
+- RAW: `42` images
+- Deploy: `42` images
+- Existing NAFNet snapshot folder: `42` images
+- Latest NAFNet e71 output: `results/260602_mc_g105_probe_42/nafnet_last_e071`
+- Latest Restormer e1 output: `results/260602_mc_g105_probe_42/restormer_last_e001`
+- Manifest: `results/260602_mc_g105_probe_42/manifest.csv`
+- Selection policy: `results/260602_mc_g105_probe_42/selection_policy.txt`
+- Comparison report: `results/260602_mc_g105_probe_42/comparison_current/comparison_report.md`
+- Contact sheets:
+  - `results/260602_mc_g105_probe_42/comparison_current/contact_sheet_key_cases.jpg`
+  - `results/260602_mc_g105_probe_42/comparison_current/contact_sheet_center_crops.jpg`
+- Note: probe outputs are ignored by Git and are not pushed.
 
-## Runtime Snapshot
+## Latest Probe Comparison
 
-- Check time: `2026-06-01 17:55:38 KST`
-- GPU state:
-  - GPU 0: Restormer tone-safe worker PID `2225703`, about `26858 MiB`, utilization `99%`
-  - GPU 1: NAFNet worker PID `168952`, about `26862 MiB`, utilization `97%`
-  - GPU 2/3: occupied by another user's YOLO job
-  - GPU 4: idle
+| Variant | n | delta_y_mean | lowfreq_y_mae | rgb_mae | nonedge_hf_ratio | strong_edge_ratio | green_excess_delta | chroma_std_delta |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Deploy | 42 | 0.215 | 0.245 | 2.369 | 0.702 | 0.944 | -0.065 | -0.017 |
+| NAFNet e71 last | 42 | -6.619 | 6.757 | 7.472 | 0.915 | 0.984 | -0.502 | -0.194 |
+| Restormer e1 last | 42 | 1.500 | 1.517 | 2.078 | 0.983 | 0.978 | -0.933 | -0.132 |
+
+## Interpretation
+
+- Deploy:
+  - Strongest flat/non-edge denoise.
+  - Also the strongest smoothing/detail suppression.
+  - Useful as production baseline but not ideal Teacher target if preserving texture/detail is important.
+- NAFNet e71:
+  - Better edge/detail preservation than Deploy.
+  - Still carries visible global tone-down risk, especially `road_shaded` and `building`.
+  - Current best Teacher candidate, but tone gate must remain active.
+- Restormer e1:
+  - Tone-safe direction appears safer for luma.
+  - Too early to judge as Teacher because output remains close to RAW and denoise effect is weak.
 
 ## NAFNet MC-G105 Training State
 
 - Status: live
+- Launch mode: resume
 - Command:
   - `accelerate launch --num_processes=1 tools/train.py --resume checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527/last.pth`
-- Process state:
+- Process snapshot at checkout:
   - accelerate PID: `167977`
-  - worker PID: `168952`
-  - GPU: `1`
-- Checkpoint/work dir:
-  - `checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_260527`
-  - latest `last.pth`: `2026-06-01 17:07 KST`
-  - latest `best.pth`: `2026-05-31 10:35 KST`
-  - latest `training_log.csv`: `2026-06-01 17:07 KST`
+  - main worker PID: `168952`
+  - child workers observed: `3690904`, `3690906`, `3690909`, `3690912`
+  - GPU memory snapshot: GPU 1 about `26868 MiB`
+- Latest checkpoint/log snapshot:
+  - `last.pth`: `2026-06-02 10:18 KST`
+  - `best.pth`: `2026-05-31 10:35 KST`
+  - `training_log.csv`: `2026-06-02 10:18 KST`
 - Latest completed CSV epoch:
-  - epoch `62`
-  - train_loss `0.0862635001540184`
-  - val_loss `0.07939599454402924`
-  - PSNR `27.288328170776367`
-  - SSIM `0.8396063446998596`
-  - LPIPS `0.21288099884986877`
-  - NIQE `4.097515106201172`
-  - lr `8.951824286816574e-05`
+  - epoch `71`
+  - train_loss `0.08565834909677505`
+  - val_loss `0.07912912964820862`
+  - PSNR `27.305063247680664`
+  - SSIM `0.840343713760376`
+  - LPIPS `0.20120041072368622`
+  - NIQE `3.9625232219696045`
+  - lr `8.646198293969953e-05`
 
 ## Restormer Tone-Safe MC-G105 Training State
 
-- Status: live, scratch restart
+- Status: live
+- Launch mode: scratch restart, not resume
 - Command:
   - `accelerate launch --num_processes=1 tools/train.py --config configs/train/Denoise/restormer_deploy_denoise_teacher.yaml --data_config configs/data/denoise_mc_g105_tone_safe.yaml`
-- Process state:
+- Process snapshot at checkout:
   - accelerate PID: `2225235`
-  - worker PID: `2225703`
-  - GPU: `0`
+  - main worker PID: `2225703`
+  - child workers observed: `2751925`, `2751926`, `2751927`, `2751928`
+  - GPU memory snapshot: GPU 0 about `47912 MiB`
 - Config:
   - `data_config_path: configs/data/denoise_mc_g105_tone_safe.yaml`
   - `lr: 1e-4`
@@ -96,39 +97,53 @@ Restormer는 기존 3 epoch checkpoint를 42장 대표 샘플로 probe했으며,
   - `gradient_accumulation_steps: 32`
   - effective batch: `64`
   - `save_name: train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
-- Checkpoint/work dir:
-  - `checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
-  - `train_config.yaml` and `data_config.yaml` copied at `2026-06-01 17:46 KST`
-  - `training_log.csv` exists but is still empty at checkout time
-  - `last.pth` not yet created at checkout time
-- Important note:
-  - This is not a resume from the earlier Restormer epoch 3 run.
-  - First probe target: after epoch 3, compare `dY`, `LF`, `HP`, and `Edge` against RAW/Deploy/NAFNet on the same representative MC-G105 sample set.
+- Latest checkpoint/log snapshot:
+  - `last.pth`: `2026-06-02 04:26 KST`
+  - `best.pth`: `2026-06-02 04:26 KST`
+  - `training_log.csv`: `2026-06-02 04:26 KST`
+- Latest completed CSV epoch:
+  - epoch `1`
+  - train_loss `0.29701879620552063`
+  - val_loss `0.25998014211654663`
+  - PSNR `24.355131149291992`
+  - SSIM `0.8034186363220215`
+  - LPIPS `0.26657748222351074`
+  - NIQE `3.7979326248168945`
+  - lr `0.0001`
+- Note:
+  - Restormer remains close to A6000 memory ceiling; monitor checkpoint/log freshness and OOM risk.
 
-## Git / Sync State
+## Git / Sync Notes
 
 - GitLab repo:
   - path: `/home/jshong/Code/unfied-sr-denoise-platform`
   - branch: `master`
-  - source of truth for today's checkout
-  - checkout commit pushed: `ef0e4eb Record MC-G105 teacher tone-safe handoff`
 - GitHub repo:
   - path: `/home/jshong/Code/Unified-SR-Denoise-Platform`
   - branch: `main`
-  - checkout sync commit pushed: `1932ab8 Sync MC-G105 teacher tone-safe handoff`
-- GitHub cleanup:
-  - GitHub had `66` tracked checkpoint metadata files that no longer existed in GitLab.
-  - These were removed from GitHub during checkout sync so GitHub no longer carries stale GitLab-deleted checkpoint folders/files.
-- Generated tracked artifacts still dirty and intentionally not included in source/log commits:
-  - `src/engine/__pycache__/trainer.cpython-310.pyc`
-  - `src/engine/__pycache__/trainer.cpython-38.pyc`
-  - `src/models/__pycache__/__init__.cpython-38.pyc`
-  - `tools/__pycache__/train.cpython-38.pyc`
+- Checkout action:
+  - update `experiment.log`
+  - update `checklist.log`
+  - commit/push GitLab
+  - rsync GitLab to GitHub with workflow exclusions
+  - commit/push GitHub
+- Intended commit scope:
+  - `experiment.log`
+  - `checklist.log`
+  - deletion of tracked `results/mc_g105_analysis/all` artifacts
+- Intentionally excluded from commit/sync:
+  - `checkpoints/`
+  - `logs/`
+  - `tmp/`
+  - `*.pth`, `*.pt`, `*.onnx`, `*.engine`
+  - `__pycache__/`
+  - ignored probe/capture result folders
 
 ## Next
 
-1. Let NAFNet and tone-safe Restormer continue running overnight unless GPU scheduling changes.
-2. When tone-safe Restormer reaches epoch 3, run the same 42-frame probe and compare against the earlier Restormer E3 result.
-3. Key Restormer pass criterion: `dY` within about `-5` at minimum, preferably near `-2 ~ +2`, while preserving meaningful noise suppression.
-4. Keep Deploy as production baseline/guardrail, not the preferred Teacher if NAFNet detail preservation remains visually superior.
-5. Prepare MTKD only after at least one Teacher candidate passes tone/detail/noise gates on real MC-G105 captures.
+1. Keep NAFNet and Restormer live unless GPU scheduling or OOM requires intervention.
+2. Re-run the same 42-frame probe when NAFNet reaches epoch 80 or 100.
+3. Re-run the same 42-frame probe when Restormer tone-safe reaches a meaningful checkpoint, at least epoch 3 and preferably epoch 10.
+4. For NAFNet, gate Teacher acceptance on both detail preservation and luma drift.
+5. If NAFNet remains below about `-3` mean Y shift on the fixed probe, prepare a separate tone-safe NAFNet fine-tune instead of overwriting the current run.
+6. Do not start MTKD Student training until Teacher outputs pass the real MC-G105 probe gates.
