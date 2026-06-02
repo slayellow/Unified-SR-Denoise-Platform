@@ -123,13 +123,13 @@ GitLab working tree에는 과거 tracked 결과물 `results/mc_g105_analysis/all
   - branch: `main`
 - Checkout action:
   - update `experiment.log`
-  - update `checklist.log`
+  - update `denoise_checklist.md`
   - commit/push GitLab
   - rsync GitLab to GitHub with workflow exclusions
   - commit/push GitHub
 - Intended commit scope:
   - `experiment.log`
-  - `checklist.log`
+  - `denoise_checklist.md`
   - deletion of tracked `results/mc_g105_analysis/all` artifacts
 - Intentionally excluded from commit/sync:
   - `checkpoints/`
