@@ -22,7 +22,7 @@ class CharbonnierLoss(nn.Module):
     """L1 Loss variation that is more robust to outliers"""
     def __init__(self, eps=1e-3):
         super(CharbonnierLoss, self).__init__()
-        self.eps = eps
+        self.eps = float(eps)
 
     def forward(self, x, y):
         diff = x - y
@@ -40,7 +40,7 @@ class EdgeLoss(nn.Module):
     def __init__(self, mode='gray', threshold=0.2): # threshold 파라미터 추가
         super(EdgeLoss, self).__init__()
         self.mode = mode
-        self.threshold = threshold
+        self.threshold = float(threshold)
         
         # Sobel Kernel
         k_x = torch.tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]).float().view(1, 1, 3, 3)
@@ -205,9 +205,9 @@ class HotPixelMaskedLoss(nn.Module):
     """
     def __init__(self, threshold=0.15, base_loss='charbonnier', kernel_size=3):
         super(HotPixelMaskedLoss, self).__init__()
-        self.threshold = threshold
+        self.threshold = float(threshold)
         self.base_loss = base_loss
-        self.kernel_size = kernel_size
+        self.kernel_size = int(kernel_size)
 
     def forward(self, pred, target, input_tensor):
         if input_tensor is None:
@@ -346,19 +346,19 @@ class UnifiedLoss(nn.Module):
         cfg_mse = config.get('mse', {})
         if cfg_mse.get('enabled', False):
             self.loss_funcs['mse'] = nn.MSELoss()
-            self.weights['mse'] = cfg_mse.get('weight', 1.0)
+            self.weights['mse'] = float(cfg_mse.get('weight', 1.0))
         
         # 1. Standard L1 Loss
         cfg_l1 = config.get('l1', {})
         if cfg_l1.get('enabled', False):
             self.loss_funcs['l1'] = nn.L1Loss()
-            self.weights['l1'] = cfg_l1.get('weight', 1.0)
+            self.weights['l1'] = float(cfg_l1.get('weight', 1.0))
 
         # 2. Charbonnier
         cfg_char = config.get('charbonnier', {})
         if cfg_char.get('enabled', False):
             self.loss_funcs['charbonnier'] = CharbonnierLoss(eps=cfg_char.get('eps', 1e-3))
-            self.weights['charbonnier'] = cfg_char.get('weight', 1.0)
+            self.weights['charbonnier'] = float(cfg_char.get('weight', 1.0))
             
         # 3. Edge Loss
         cfg_edge = config.get('edge', {})
@@ -367,20 +367,20 @@ class UnifiedLoss(nn.Module):
                 mode=cfg_edge.get('mode', 'gray'),
                 threshold=cfg_edge.get('threshold', 0.2)
             )
-            self.weights['edge'] = cfg_edge.get('weight', 0.05)
+            self.weights['edge'] = float(cfg_edge.get('weight', 0.05))
             
         # 4. SSIM Loss
         cfg_ssim = config.get('ssim', {})
         if cfg_ssim.get('enabled', False):
             self.loss_funcs['ssim'] = SSIMLoss()
-            self.weights['ssim'] = cfg_ssim.get('weight', 0.1)
+            self.weights['ssim'] = float(cfg_ssim.get('weight', 0.1))
             
         # 5. Perceptual Loss
         cfg_perc = config.get('perceptual', {})
         if cfg_perc.get('enabled', False):
             self.loss_funcs['perceptual'] = PerceptualLoss()
 
-            self.weights['perceptual'] = cfg_perc.get('weight', 0.01)
+            self.weights['perceptual'] = float(cfg_perc.get('weight', 0.01))
 
         # 6. Color Consistency Loss
         cfg_color = config.get('color_consistency', {})
@@ -388,7 +388,7 @@ class UnifiedLoss(nn.Module):
             self.loss_funcs['color_consistency'] = ColorConsistencyLoss(
                 loss_type=cfg_color.get('loss_type', 'l1')
             )
-            self.weights['color_consistency'] = cfg_color.get('weight', 0.05)
+            self.weights['color_consistency'] = float(cfg_color.get('weight', 0.05))
 
         # 7. Hot Pixel Masked Loss
         cfg_hot = config.get('hot_pixel_masked', {})
@@ -398,13 +398,13 @@ class UnifiedLoss(nn.Module):
                 base_loss=cfg_hot.get('base_loss', 'charbonnier'),
                 kernel_size=cfg_hot.get('kernel_size', 3)
             )
-            self.weights['hot_pixel_masked'] = cfg_hot.get('weight', 0.1)
+            self.weights['hot_pixel_masked'] = float(cfg_hot.get('weight', 0.1))
 
         # 8. TV Loss
         cfg_tv = config.get('tv', {})
         if cfg_tv.get('enabled', False):
             self.loss_funcs['tv'] = TVLoss(tv_loss_weight=1.0) # Weight handled in UnifiedLoss wrapper
-            self.weights['tv'] = cfg_tv.get('weight', 0.1)
+            self.weights['tv'] = float(cfg_tv.get('weight', 0.1))
 
     def forward(self, pred, target, input_tensor=None):
         total_loss = 0.0

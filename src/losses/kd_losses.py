@@ -80,6 +80,14 @@ def highpass(x: torch.Tensor, kernel_size: int = 5) -> torch.Tensor:
     return x - low
 
 
+def lowpass(x: torch.Tensor, kernel_size: int = 15) -> torch.Tensor:
+    if kernel_size < 3:
+        return x
+    if kernel_size % 2 == 0:
+        kernel_size += 1
+    return F.avg_pool2d(x, kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
+
+
 def build_residual_weight(noisy: torch.Tensor, clean: torch.Tensor, cfg: dict) -> torch.Tensor:
     if not cfg.get("enabled", True):
         return torch.ones(noisy.shape[0], 1, noisy.shape[2], noisy.shape[3], device=noisy.device, dtype=noisy.dtype)
@@ -251,6 +259,33 @@ class OnlineMultiTeacherKDLoss(nn.Module):
                 )
                 total_loss = total_loss + frequency_weight * term
                 loss_parts[f"kd_{teacher_name}_frequency"] = term.detach()
+
+            tone_luma_weight = self._term_weight(teacher_name, "tone_luma")
+            tone_chroma_weight = self._term_weight(teacher_name, "tone_chroma")
+            if tone_luma_weight > 0 or tone_chroma_weight > 0:
+                kernel_size = int(self.kd_config.get("tone_kernel_size", 15))
+                student_y, student_cb, student_cr = rgb_to_ycbcr(student_out)
+                teacher_y, teacher_cb, teacher_cr = rgb_to_ycbcr(teacher_out)
+
+                if tone_luma_weight > 0:
+                    term = charbonnier_loss(
+                        lowpass(student_y, kernel_size=kernel_size),
+                        lowpass(teacher_y, kernel_size=kernel_size),
+                        eps=float(self.kd_config.get("eps", 1e-3)),
+                    )
+                    total_loss = total_loss + tone_luma_weight * term
+                    loss_parts[f"kd_{teacher_name}_tone_luma"] = term.detach()
+
+                if tone_chroma_weight > 0:
+                    student_chroma = torch.cat([student_cb, student_cr], dim=1)
+                    teacher_chroma = torch.cat([teacher_cb, teacher_cr], dim=1)
+                    term = charbonnier_loss(
+                        lowpass(student_chroma, kernel_size=kernel_size),
+                        lowpass(teacher_chroma, kernel_size=kernel_size),
+                        eps=float(self.kd_config.get("eps", 1e-3)),
+                    )
+                    total_loss = total_loss + tone_chroma_weight * term
+                    loss_parts[f"kd_{teacher_name}_tone_chroma"] = term.detach()
 
         loss_parts["total"] = total_loss.detach()
         return total_loss, loss_parts

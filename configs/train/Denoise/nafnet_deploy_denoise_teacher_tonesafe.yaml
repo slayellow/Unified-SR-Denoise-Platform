@@ -1,0 +1,85 @@
+task: denoise
+data_config_path: configs/data/denoise_mc_g105_tone_safe.yaml
+
+model:
+  name: nafnet_denoise_teacher
+  scale: 1
+  dim: 64
+  img_channel: 3
+  middle_blk_num: 12
+  enc_blk_nums: [2, 2, 4, 8]
+  dec_blk_nums: [2, 2, 2, 2]
+  dw_expand: 2
+  ffn_expand: 2
+  drop_out_rate: 0.0
+  clamp_output: false
+
+data:
+  type: eo
+  train_root:
+    - /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/tmp/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val_denoise/LR
+
+train:
+  epochs: 300
+  batch_size: 8
+  lr: 1e-4
+  num_workers: 4
+  gradient_accumulation_steps: 4
+  patch_size: 256
+  save_interval: 20
+  save_name: "train_nafnet_teacher_mc_g105_denoise_x1_width64_tonesafe_lr1e4_260605"
+
+  pretrained_path: null
+
+  optimizer:
+    type: AdamW
+    betas: [0.9, 0.999]
+  weight_decay: 1e-4
+  grad_clip: 1.0
+
+  early_stopping:
+    patience: 50
+    min_delta: 0.01
+    monitor: 'psnr'
+    mode: 'max'
+
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 300
+    eta_min: 1e-7
+
+loss:
+  charbonnier:
+    enabled: true
+    weight: 1.0
+    eps: 0.001
+  ssim:
+    enabled: true
+    weight: 0.15
+  edge:
+    enabled: true
+    weight: 0.08
+    mode: 'gray'
+  perceptual:
+    enabled: false
+    weight: 0.0
+  color_consistency:
+    enabled: true
+    weight: 0.02
+    loss_type: 'l1'
+  hot_pixel_masked:
+    enabled: true
+    weight: 0.05
+    threshold: 0.15
+    base_loss: 'charbonnier'
+    kernel_size: 3
+  l1:
+    enabled: false
+    weight: 1.0
+  tv:
+    enabled: false
+    weight: 0.1
+
+export_onnx: false

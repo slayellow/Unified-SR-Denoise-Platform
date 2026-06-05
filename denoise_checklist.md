@@ -228,3 +228,116 @@
   - [/] `src/engine/__pycache__/trainer.cpython-38.pyc`
   - [/] `src/models/__pycache__/__init__.cpython-38.pyc`
   - [/] `tools/__pycache__/train.cpython-38.pyc`
+
+## 12. 2026-06-05 MTKD/STKD 결정 및 Student Launch
+
+- [x] 오늘 목표 변경 반영
+  - [x] 월요일 10시 KST까지 Student 결과 확인이 가능한 방향으로 전환
+  - [x] NAFNet/Restormer를 더 기다리기보다 현재 checkpoint 기준 Teacher 가치 판정
+- [x] 최신 Teacher probe 재실행
+  - [x] NAFNet `last.pth` epoch 108 추론 완료
+  - [x] 출력: `results/260602_mc_g105_probe_42/nafnet_last_e108`
+  - [x] Restormer `last.pth` epoch 8 추론 완료
+  - [x] 출력: `results/260602_mc_g105_probe_42/restormer_last_e008`
+  - [x] 비교 리포트: `results/260602_mc_g105_probe_42/comparison_20260605_teacher_gate/comparison_report.md`
+- [x] Teacher gate 판정
+  - [x] NAFNet e108: full-output Teacher로 보류
+  - [x] 사유: `delta_y_mean=-8.664`, `lowfreq_y_mae=8.795`로 tone-down risk가 큼
+  - [x] Restormer e8: denoise Teacher로 보류
+  - [x] 사유: `rgb_mae=0.274`, `lowfreq_y_mae=0.175`, `nonedge_hf_ratio=0.996`으로 RAW-like에 가까움
+  - [x] NAFNet+Restormer MTKD는 이번 deadline run에서 보류
+- [x] Deadline-safe 방향 결정
+  - [x] Deploy block3 advanced 모델을 단일 Teacher로 쓰는 STKD 선택
+  - [x] Student는 `block2 + use_advanced_rep: true`
+  - [x] supervised clean HR anchor를 primary objective로 유지
+  - [x] Deploy output KD는 낮은 weight로 제한
+  - [x] residual/edge/frequency KD는 보조 항으로 적용
+- [x] STKD config 생성
+  - [x] `configs/train/Denoise/svfocusdenoise_block2_adv_stkd_deploy_mcg105.yaml`
+  - [x] epochs: `160`
+  - [x] batch_size: `128`
+  - [x] num_workers: `8`
+  - [x] data config: `configs/data/denoise_mc_g105_tone_safe.yaml`
+  - [x] save name: `train_svfocusdenoise_adv_x1_dim32_block2_stkd_deploy_mcg105_tonesafe_260605`
+- [x] STKD smoke test 완료
+  - [x] runtime: container `sr_2`
+  - [x] GPU: `4`
+  - [x] dataset length: `10,444`
+  - [x] student params: `44,035`
+  - [x] teacher params: `60,547`
+  - [x] 1-batch KD loss 정상 계산
+- [x] STKD Student 학습 시작 후 중단 및 정리
+  - [x] 최초 명령어: `CUDA_VISIBLE_DEVICES=4 accelerate launch --num_processes=1 tools/train_kd.py --config configs/train/Denoise/svfocusdenoise_block2_adv_stkd_deploy_mcg105.yaml`
+  - [x] log: `logs/train_stkd_deploy_mcg105_260605.log`
+  - [x] runtime: container `sr_2`, GPU `4`
+  - [x] checkpoint directory는 사용자 지시에 따라 삭제 완료
+  - [x] 2026-06-05 현재 활성 학습 아님. 최신 launch 상태는 아래 Student 2-run 섹션 기준
+- [x] Deploy-only STKD follow-up 항목은 ToneGuard MTKD + NAFNet-only STKD follow-up으로 대체
+
+## 13. 2026-06-05 Student 2-Run Restart
+
+- [x] 이전 deploy-only STKD 방향은 사용자 판단을 위해 중단 및 정리
+  - [x] 기존 STKD checkpoint directory 삭제 완료
+  - [x] 현재 활성 학습은 ToneGuard MTKD와 NAFNet-only STKD 비교 구성
+- [x] MTKD 코드 및 config 준비
+  - [x] `src/losses/kd_losses.py`: Restormer tone guard용 low-frequency luma/chroma KD 항 추가
+  - [x] ToneGuard config: `configs/train/Denoise/svfocusdenoise_block2_adv_mtkd_toneguard_mcg105.yaml`
+  - [x] Weak Restormer branch는 비교 가치 낮다고 판단하여 활성 config로 남기지 않음
+  - [x] NAFNet-only STKD config: `configs/train/Denoise/svfocusdenoise_block2_adv_stkd_nafnet_mcg105.yaml`
+  - [x] ToneGuard MTKD: `batch_size: 24`, `gradient_accumulation_steps: 3`, effective batch `144`
+  - [x] NAFNet-only STKD: `batch_size: 96`, `gradient_accumulation_steps: 2`, effective batch `192`
+  - [x] 둘 다 `lr=1.0e-4`, `epochs: 160`
+- [x] 2026-06-05 13시 기준 재시작 상태 확인
+  - [x] runtime container: `sr`
+  - [x] ToneGuard MTKD: GPUs `0,1`, worker PIDs `131578`, `131600`, VRAM 약 `19.3GB/GPU`
+  - [x] Weak Restormer MTKD: GPU `4`, main PID `4145363`, VRAM 약 `19.1GB` 확인 후 중단
+  - [x] NAFNet-only STKD: GPU `4`, main PID in container `1585`, VRAM 약 `6.2GB` 확인 후 사용자 수동 실행을 위해 중단
+  - [x] GPUs `2,3`은 별도 `yolov12` process가 점유 중
+  - [x] 13:16 KST 기준 현재 활성 run은 ToneGuard MTKD와 NAFNet-only STKD
+- [x] ToneGuard MTKD 중단 전 상태 정리
+  - [x] 목적: NAFNet detail/residual 특성을 주로 가져오고 Restormer는 tone luma/chroma guard로만 사용
+  - [x] 명령어: `CUDA_VISIBLE_DEVICES=0,1 accelerate launch --num_processes=2 tools/train_kd.py --config configs/train/Denoise/svfocusdenoise_block2_adv_mtkd_toneguard_mcg105.yaml`
+  - [x] log: `logs/train_mtkd_toneguard_260605.log`
+  - [x] checkpoint dir: `checkpoints/train_svfocusdenoise_adv_x1_dim32_block2_mtkd_nafnet_restormer_toneguard_260605`
+  - [x] effective batch: `24 * 2 GPUs * 3 accum = 144`
+- [x] Weak Restormer MTKD 중단
+  - [x] 사유: Restormer를 약하게 추가하는 비교군보다 NAFNet 단일 Teacher가 tone-down trade-off를 보기 좋음
+  - [x] 중단 전 log: `logs/train_mtkd_weak_restormer_260605.log`
+  - [x] 중단 전 checkpoint dir: `checkpoints/train_svfocusdenoise_adv_x1_dim32_block2_mtkd_nafnet_weak_restormer_260605`
+- [x] NAFNet-only STKD 중단 전 상태 정리
+  - [x] 목적: NAFNet의 detail/residual/edge/frequency 특성을 단일 Teacher로 따른 Student 비교군
+  - [x] Tone-down은 어느 정도 감안하고, ToneGuard MTKD와 정성/정량 비교
+  - [x] 명령어: `CUDA_VISIBLE_DEVICES=4 accelerate launch --num_processes=1 tools/train_kd.py --config configs/train/Denoise/svfocusdenoise_block2_adv_stkd_nafnet_mcg105.yaml`
+  - [x] log: `logs/train_stkd_nafnet_mcg105_260605.log`
+  - [x] checkpoint dir: `checkpoints/train_svfocusdenoise_adv_x1_dim32_block2_stkd_nafnet_mcg105_260605`
+  - [x] effective batch: `96 * 1 GPU * 2 accum = 192`
+  - [x] Codex launch smoke/live check: epoch 1 중간까지 정상 진행 확인 후 중단
+  - [x] 사용자 수동 launch 확인: container PID `1734`, GPU `4`, VRAM 약 `22.4GB`
+  - [x] epoch 1 진행 확인: `109` steps/epoch, `lr=1.00e-04`, 약 `2.36s/it`
+- [x] KD 첫 epoch 완료 및 `last.pth` 생성 확인
+  - [x] ToneGuard MTKD: epoch 1 완료, `best.pth`/`last.pth` 저장, val loss `0.194343`, PSNR `21.1493`
+  - [x] NAFNet-only STKD: 사용자 정성 확인 후 실험 중단, epoch 1 완료 대기 항목은 폐기
+- [x] KD epoch 2 시작 후 VRAM/step time 재확인
+  - [x] ToneGuard MTKD: epoch 2 시작, 약 `19.3GB/GPU`, 약 `2.2s/it`
+  - [x] NAFNet-only STKD: 사용자 정성 확인 후 실험 중단, 추가 VRAM/step time 추적 폐기
+- [x] epoch 3-5 기준 평균 epoch time 확인 항목 폐기
+- [x] 월요일 10시 전 Student 비교 계획 폐기: Denoise KD는 재설계 후 별도 실험으로 전환
+
+## 14. 2026-06-05 Denoise KD 중단 및 Teacher 재개
+
+- [x] KD 적용 결과 판단 정리
+  - [x] 현재 `dim32 block2` Student는 Teacher의 전체 denoise/tone/detail 복원 능력을 흡수하기에는 체급이 작음
+  - [x] KD 접근 자체를 폐기하기보다, Student 크기와 KD target 범위를 다시 설계하는 방향으로 보류
+  - [x] 논문 기준상 denoise KD Student는 보통 수십 K가 아니라 수백 K 이상부터 의미 있는 기준선으로 다루는 것으로 정리
+- [x] 현재 학습 중이던 Denoise KD run 정리
+  - [x] ToneGuard MTKD 중단: `configs/train/Denoise/svfocusdenoise_block2_adv_mtkd_toneguard_mcg105.yaml`
+  - [x] NAFNet-only STKD 중단: `configs/train/Denoise/svfocusdenoise_block2_adv_stkd_nafnet_mcg105.yaml`
+  - [x] 2026-06-05 KST 기준 GPU 0/1/2/3/4 메모리 해제 확인
+- [/] Teacher 학습 재개 계획
+  - [/] Restormer: 기존 tone-safe checkpoint에서 resume
+  - [/] NAFNet: tone-safe degradation config로 scratch 재학습
+  - [x] NAFNet tone-safe scratch config 추가: `configs/train/Denoise/nafnet_deploy_denoise_teacher_tonesafe.yaml`
+  - [x] GPU 계획 적용: Restormer GPU 2, NAFNet GPU 3
+  - [/] Restormer live: `logs/train_restormer_teacher_tonesafe_resume_gpu2_260605.log`, epoch 9 약 `745/49260`, VRAM 약 `27.0GB`
+  - [/] NAFNet live: `logs/train_nafnet_teacher_tonesafe_scratch_gpu3_260605.log`, epoch 1 약 `1051/12315`, VRAM 약 `26.9GB`
+  - [ ] 월요일 오전 Teacher validation/checkpoint 상태 확인

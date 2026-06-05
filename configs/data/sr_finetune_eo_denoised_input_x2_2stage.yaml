@@ -1,0 +1,175 @@
+dataset_type: sr
+clean_prob: 0.05
+
+crop_size: 256
+use_flip: true
+use_rot: true
+
+# Operational assumption:
+#   Raw image -> Denoise -> x2 SR.
+#
+# x2 loses less information than x4, so this degradation is milder than the x4
+# denoised-input config. It still keeps two stages to cover optical/MTF blur,
+# resize mismatch, low-pass behavior, mild compression, and weak denoise
+# aftereffects without turning SR into another denoiser.
+degradation:
+  stage1:
+    unprocess_noise:
+      enabled: false
+      prob: 0.0
+      read_noise_max: 0.01
+      shot_noise_max: 2.0
+
+    turbulence:
+      enabled: true
+      prob: 0.03
+      alpha: [1, 4]
+      sigma: [2, 4]
+
+    blur:
+      enabled: true
+      prob: 0.65
+      kernel_probs: [0.46, 0.34, 0.08, 0.04, 0.05, 0.03]
+      kernel_sizes: [7, 9, 11, 13, 15]
+      sigma: [0.10, 1.20]
+      betag: [0.8, 3.0]
+      betap: [1.0, 1.6]
+
+    resize:
+      enabled: true
+      prob: 0.25
+      scale_min: 0.85
+      scale_max: 1.0
+      interpolations: ["cv2.INTER_AREA", "cv2.INTER_LINEAR", "cv2.INTER_CUBIC"]
+
+    gaussian_noise:
+      enabled: true
+      prob: 0.08
+      sigma_min: 0.2
+      sigma_max: 1.2
+      gray_prob: 0.7
+
+    poisson_noise:
+      enabled: true
+      prob: 0.05
+      scale_min: 0.02
+      scale_max: 0.4
+      gray_prob: 0.7
+
+    jpeg:
+      enabled: true
+      prob: 0.15
+      quality_min: 90
+      quality_max: 98
+
+    sinc:
+      enabled: true
+      prob: 0.15
+      kernel_sizes: [7, 9, 11, 13, 15]
+
+  stage2:
+    blur:
+      enabled: true
+      prob: 0.15
+      kernel_probs: [0.52, 0.28, 0.08, 0.04, 0.05, 0.03]
+      kernel_sizes: [7, 9, 11, 13]
+      sigma: [0.05, 0.45]
+      betag: [0.8, 3.0]
+      betap: [1.0, 1.6]
+
+    target_resize:
+      enabled: true
+      interpolations: ["cv2.INTER_AREA", "cv2.INTER_LINEAR", "cv2.INTER_CUBIC", "cv2.INTER_LANCZOS4"]
+
+    ir_noise:
+      enabled: false
+      non_uniformity:
+        enabled: false
+        prob: 0.0
+        amp_min: 0.1
+        amp_max: 0.3
+      thermal_noise:
+        enabled: false
+        sigma_min: 5
+        sigma_max: 20
+        gray_prob: 0.9
+      vertical_line:
+        enabled: false
+        prob: 0.0
+        intensity_min: 2
+        intensity_max: 10
+
+    detail_attenuation:
+      enabled: true
+      prob: 0.25
+      blur_sigma: [0.10, 0.45]
+      detail_blend: [0.03, 0.18]
+      contrast: [0.95, 1.00]
+
+    signal_instability:
+      enabled: true
+      prob: 0.10
+      gain: [0.99, 1.02]
+      gamma: [0.99, 1.02]
+      channel_gain: [0.995, 1.005]
+
+    eo_shading:
+      enabled: true
+      prob: 0.10
+      strength: [0.01, 0.05]
+      sigma: [0.80, 1.45]
+      center_offset: [-0.06, 0.06]
+      diagonal_prob: 0.10
+      chroma_strength: [0.0, 0.005]
+
+    common_noise:
+      enabled: true
+      prob: 0.04
+      sigma_min: 0.2
+      sigma_max: 1.0
+      gray_prob: 0.7
+
+    chroma_noise:
+      enabled: true
+      prob: 0.03
+      sigma_min: 0.4
+      sigma_max: 2.0
+      downscale: 4
+
+    chroma_mottle:
+      enabled: false
+      prob: 0.0
+      sigma_min: 1.0
+      sigma_max: 3.0
+      downscale: 8
+
+    row_noise:
+      enabled: false
+      prob: 0.0
+      sigma_min: 0.5
+      sigma_max: 2.0
+      channel_independent_prob: 0.2
+
+    periodic_grid_noise:
+      enabled: false
+      prob: 0.0
+      amplitude_min: 0.2
+      amplitude_max: 1.0
+      period_min: 2.0
+      period_max: 8.0
+      channel_jitter: 0.2
+
+    hot_pixels:
+      enabled: false
+      prob: 0.0
+      density_min: 0.0001
+      density_max: 0.001
+      blob_prob: 0.2
+      blob_radius_min: 1
+      blob_radius_max: 2
+
+    final_jpeg:
+      enabled: true
+      prob: 0.25
+      quality_min: 86
+      quality_max: 98

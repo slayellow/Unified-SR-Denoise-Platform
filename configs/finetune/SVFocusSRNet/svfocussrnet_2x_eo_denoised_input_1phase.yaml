@@ -1,0 +1,87 @@
+task: sr
+
+model:
+  name: svfocussrnet
+  scale: 2
+  dim: 32
+  n_resblocks: 8
+  use_advanced_rep: false
+
+data:
+  type: eo
+  train_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/LRx2
+
+data_config_path: configs/data/sr_finetune_eo_denoised_input_x2_2stage.yaml
+
+train:
+  epochs: 80
+  batch_size: 16
+  lr: 3e-5
+  num_workers: 4
+  gradient_accumulation_steps: 2
+  patch_size: 256
+  save_interval: 10
+  save_name: finetune_svfocussrnet_eo_sr_x2_denoised_input_1phase_2stage_deg_epoch80_bs16_ga2_lr3e-5
+
+  # 1-Phase finetune from the current deployed x2 GPU checkpoint.
+  # No separate pixel-only warmup phase is used here.
+  pretrained_path: checkpoints/csuav_deploy/finetune_svfocussrnet_eo_sr_x2_dim32_epoch100_bs_16_ga_2_lr_5e-5/best.pth
+
+  optimizer:
+    type: AdamW
+    betas: [0.9, 0.999]
+
+  weight_decay: 0.0
+  grad_clip: 1.0
+
+  early_stopping:
+    patience: 12
+    min_delta: 0.0001
+
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 80
+    eta_min: 1e-7
+
+loss:
+  l1:
+    enabled: false
+    weight: 1.0
+
+  charbonnier:
+    enabled: true
+    weight: 1.0
+    eps: 1e-3
+
+  # x2 already has more recoverable signal than x4, so keep perceptual and edge
+  # conservative to avoid unnecessary sharpening.
+  perceptual:
+    enabled: true
+    weight: 0.004
+
+  edge:
+    enabled: true
+    weight: 0.015
+    mode: gray
+    threshold: 0.25
+
+  ssim:
+    enabled: true
+    weight: 0.12
+
+  tv:
+    enabled: true
+    weight: 0.008
+
+  color_consistency:
+    enabled: true
+    weight: 0.03
+    loss_type: l1
+
+  hot_pixel_masked:
+    enabled: false
+    weight: 0.0
+
+export_onnx: false

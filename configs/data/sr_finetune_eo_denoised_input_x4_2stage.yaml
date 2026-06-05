@@ -1,0 +1,184 @@
+dataset_type: sr
+clean_prob: 0.03
+
+crop_size: 256
+use_flip: true
+use_rot: true
+
+# Operational assumption:
+#   Raw image -> Denoise -> x4 SR.
+#
+# This keeps a two-stage degradation pipeline because x4 real-sensor inputs
+# still suffer from mixed optical blur, low-pass filtering, resize/aliasing,
+# ISP/compression, and denoise-aftereffect. Heavy raw sensor defects are kept
+# weak or disabled because the upstream Denoise model should handle them.
+degradation:
+  stage1:
+    unprocess_noise:
+      enabled: false
+      prob: 0.0
+      read_noise_max: 0.01
+      shot_noise_max: 3.0
+
+    # Rare weak turbulence for long-distance EO views.
+    turbulence:
+      enabled: true
+      prob: 0.05
+      alpha: [2, 7]
+      sigma: [2, 5]
+
+    # Main optical/MTF degradation. Bias toward anisotropic and moderate blur
+    # so the model learns structure restoration rather than plain sharpening.
+    blur:
+      enabled: true
+      prob: 0.80
+      kernel_probs: [0.42, 0.36, 0.08, 0.06, 0.05, 0.03]
+      kernel_sizes: [7, 9, 11, 13, 15, 17]
+      sigma: [0.15, 1.8]
+      betag: [0.7, 3.0]
+      betap: [1.0, 1.8]
+
+    # Intermediate resize keeps the two-stage x4 mismatch behavior, but avoids
+    # the very aggressive random scale range used for generic synthetic SR.
+    resize:
+      enabled: true
+      prob: 0.35
+      scale_min: 0.75
+      scale_max: 1.0
+      interpolations: ["cv2.INTER_AREA", "cv2.INTER_LINEAR", "cv2.INTER_CUBIC"]
+
+    gaussian_noise:
+      enabled: true
+      prob: 0.12
+      sigma_min: 0.2
+      sigma_max: 1.8
+      gray_prob: 0.7
+
+    poisson_noise:
+      enabled: true
+      prob: 0.08
+      scale_min: 0.02
+      scale_max: 0.6
+      gray_prob: 0.7
+
+    jpeg:
+      enabled: true
+      prob: 0.20
+      quality_min: 88
+      quality_max: 98
+
+    sinc:
+      enabled: true
+      prob: 0.25
+      kernel_sizes: [7, 9, 11, 13, 15, 17]
+
+  stage2:
+    # Mild second blur represents post-denoise/ISP residual smoothing and final
+    # sampling blur. It is intentionally weaker than stage1.
+    blur:
+      enabled: true
+      prob: 0.25
+      kernel_probs: [0.50, 0.30, 0.08, 0.04, 0.05, 0.03]
+      kernel_sizes: [7, 9, 11, 13]
+      sigma: [0.10, 0.75]
+      betag: [0.8, 3.0]
+      betap: [1.0, 1.6]
+
+    target_resize:
+      enabled: true
+      interpolations: ["cv2.INTER_AREA", "cv2.INTER_LINEAR", "cv2.INTER_CUBIC", "cv2.INTER_LANCZOS4"]
+
+    ir_noise:
+      enabled: false
+      non_uniformity:
+        enabled: false
+        prob: 0.0
+        amp_min: 0.1
+        amp_max: 0.3
+      thermal_noise:
+        enabled: false
+        sigma_min: 5
+        sigma_max: 20
+        gray_prob: 0.9
+      vertical_line:
+        enabled: false
+        prob: 0.0
+        intensity_min: 2
+        intensity_max: 10
+
+    # Mild denoise-aftereffect: softened local detail and reduced contrast in
+    # uncertain texture regions, without turning SR into a denoiser.
+    detail_attenuation:
+      enabled: true
+      prob: 0.35
+      blur_sigma: [0.15, 0.75]
+      detail_blend: [0.05, 0.25]
+      contrast: [0.93, 1.00]
+
+    signal_instability:
+      enabled: true
+      prob: 0.15
+      gain: [0.98, 1.03]
+      gamma: [0.98, 1.03]
+      channel_gain: [0.99, 1.01]
+
+    eo_shading:
+      enabled: true
+      prob: 0.15
+      strength: [0.02, 0.08]
+      sigma: [0.75, 1.40]
+      center_offset: [-0.08, 0.08]
+      diagonal_prob: 0.15
+      chroma_strength: [0.0, 0.008]
+
+    common_noise:
+      enabled: true
+      prob: 0.06
+      sigma_min: 0.2
+      sigma_max: 1.2
+      gray_prob: 0.7
+
+    chroma_noise:
+      enabled: true
+      prob: 0.04
+      sigma_min: 0.5
+      sigma_max: 2.5
+      downscale: 4
+
+    chroma_mottle:
+      enabled: false
+      prob: 0.0
+      sigma_min: 1.0
+      sigma_max: 3.0
+      downscale: 8
+
+    row_noise:
+      enabled: false
+      prob: 0.0
+      sigma_min: 0.5
+      sigma_max: 2.0
+      channel_independent_prob: 0.2
+
+    periodic_grid_noise:
+      enabled: false
+      prob: 0.0
+      amplitude_min: 0.2
+      amplitude_max: 1.0
+      period_min: 2.0
+      period_max: 8.0
+      channel_jitter: 0.2
+
+    hot_pixels:
+      enabled: false
+      prob: 0.0
+      density_min: 0.0001
+      density_max: 0.001
+      blob_prob: 0.2
+      blob_radius_min: 1
+      blob_radius_max: 2
+
+    final_jpeg:
+      enabled: true
+      prob: 0.35
+      quality_min: 82
+      quality_max: 96

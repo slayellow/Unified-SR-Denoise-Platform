@@ -1,0 +1,54 @@
+{
+  "frames": 42,
+  "models": [
+    {
+      "model": "deploy",
+      "niqe": 5.453346025346137,
+      "brisque": 33.420713878813245,
+      "piqe": 28.69100722812471,
+      "flat_hf_ratio": 0.8279338279201409,
+      "strong_edge_grad_ratio": 0.9233523124488455,
+      "sharpness_ratio": 0.6096506844047005,
+      "edge_density_ratio": 0.770792624832005,
+      "hf_energy_ratio": 0.8741784316826001,
+      "ringing_ratio": 1.0680227942104583,
+      "raw_output_lowfreq_luma_mae": 0.24938026106073743,
+      "raw_output_chroma_mae": 0.556279433625085,
+      "raw_output_diff_p95": 7.523809523809524,
+      "risk_score": 0.5238095238095238
+    },
+    {
+      "model": "mtkd",
+      "niqe": 6.415088317599844,
+      "brisque": 52.88421194893973,
+      "piqe": 63.93343598502023,
+      "flat_hf_ratio": 0.63907477031098,
+      "strong_edge_grad_ratio": 0.726229451781602,
+      "sharpness_ratio": 0.31249736528872446,
+      "edge_density_ratio": 0.493787130620862,
+      "hf_energy_ratio": 0.6528110716378386,
+      "ringing_ratio": 1.1029164484201799,
+      "raw_output_lowfreq_luma_mae": 5.781393755049932,
+      "raw_output_chroma_mae": 1.4536267831211998,
+      "raw_output_diff_p95": 16.285714285714285,
+      "risk_score": 2.7857142857142856
+    },
+    {
+      "model": "stkd",
+      "niqe": 6.095799492925564,
+      "brisque": 42.36976114908854,
+      "piqe": 44.788239683423726,
+      "flat_hf_ratio": 0.6865338957599764,
+      "strong_edge_grad_ratio": 0.8008902196231785,
+      "sharpness_ratio": 0.35767479463412205,
+      "edge_density_ratio": 0.5622801961963046,
+      "hf_energy_ratio": 0.7240197669384419,
+      "ringing_ratio": 1.099134097456542,
+      "raw_output_lowfreq_luma_mae": 4.663824382282439,
+      "raw_output_chroma_mae": 1.1948676123505546,
+      "raw_output_diff_p95": 13.714285714285714,
+      "risk_score": 2.261904761904762
+    }
+  ],
+  "checkpoint_mode": "best.pth at analysis time"
+}
