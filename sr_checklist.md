@@ -1,255 +1,130 @@
-# SR MTKD 준비 체크리스트
+# SR Finetune 평가 체크리스트
 
 ## 개요
 
 | 항목 | 내용 |
 |---|---|
-| 작성일 | 2026-06-02 |
-| 목적 | Super Resolution MTKD 적용 전, 현재 x4 baseline/deploy GPU 모델의 문제 양상 정의 |
-| 핵심 판단 | Teacher 모델 학습은 baseline failure mode와 real sensor/domain mismatch를 분리한 뒤 진행 |
+| 작성일 | 2026-06-06 |
+| 다음 확인일 | 2026-06-08 월요일 |
+| 현재 결론 | SR x2/x4 finetune은 진행 중이며, 월요일에는 real sensor 입력에서 Deploy SR 대비 개선 여부를 판단한다. |
+| 핵심 비교 | 기존 Deploy Denoise 출력을 고정 입력으로 두고 Deploy SR과 Finetune SR을 비교한다. |
 
 ---
 
-## 1. 현재 확인된 기준
+## 1. 현재 결정
 
-- [x] GitHub repo 최신 상태 기준으로 확인
-- [x] 실제 checkpoint config 경로 확인: `checkpoints/csuav_deploy`
-- [x] `checkpoints/csuav_deploy`의 SR train/finetune `data_config.yaml`과 현재 `configs/data` 설정 비교
-- [x] 파일 바이트 기준으로는 동일하지 않음
-- [x] 실제 degradation 동작 기준으로는 동일함
-
-### Degradation Baseline 판정
-
-| 대상 | 현재 config | 판정 |
-|---|---|---|
-| SR train x2/x4 | `configs/data/sr_train.yaml` | 동작 동일 |
-| SR finetune EO x2/x4 | `configs/data/sr_finetune_eo.yaml` | 동작 동일 |
-| SR finetune IR x2/x4 | `configs/data/sr_finetune_ir.yaml` | 동작 동일 |
-
-### 주의 사항
-
-| 항목 | 내용 |
-|---|---|
-| `data_config.yaml` | 현재 `configs/data` 설정을 degradation baseline으로 사용 가능 |
-| `train_config.yaml` | 현재 `configs/train`, `configs/finetune` 설정과 전체 동일하지 않음 |
-| 기존 `csuav_deploy` checkpoint | `n_resblocks: 8` 계열 |
-| 현재 block4 config | `configs/train/SVFocusSRNet/*dim32_block4*.yaml`은 기존 deploy 재현 기준과 분리 필요 |
-
----
-
-## 2. MTKD Teacher 후보
-
-- [ ] Mamba 계열
-- [ ] EvaSR
-- [ ] MaIR
-
-### 현재 판단
-
-- [x] Teacher 학습/MTKD 설계 전에 현재 deploy 계열 x4 GPU baseline의 실패 양상 분석이 우선
-- [x] x2보다 x4가 정보 손실이 크므로 baseline 문제 분석은 x4부터 진행
-- [x] 먼저 PyTorch GPU FP32 결과를 확인해야 모델 한계와 ONNX/NPU/quantization 이슈를 분리할 수 있음
-
----
-
-## 3. LR/HR 기준 정리
-
-### 실제 임무장비 입력
-
-- 실제 드론 임무장비 Raw/Image 입력에는 대응되는 HR/GT가 없음
-- 따라서 real input만으로 PSNR/SSIM 기반 정답 비교는 불가능
-- real input 분석은 no-reference 지표와 시각적 failure 분류 중심으로 진행
-
-### 필요한 검증 트랙
-
-| 트랙 | 데이터 | 목적 |
-|---|---|---|
-| Synthetic GT benchmark | HR 원본에서 degradation pipeline으로 LRx4 생성 | 모델 자체 성능과 failure mode 정량 분석 |
-| Real sensor validation | 실제 임무장비 Raw/Image 입력 | 실사용 분포에서 domain mismatch와 artifact 증폭 확인 |
-
----
-
-## 4. 회사에서 준비할 데이터/파일
-
-### 필수 준비 항목
-
-- [ ] 현재 deploy 기준 x4 PyTorch checkpoint 경로 확인
-  - EO/IR 구분
-  - x4 구분
-  - `.pth` weight 실제 위치
-- [ ] checkpoint 생성 당시 config 확보
-  - `train_config.yaml`
-  - `data_config.yaml`
-- [ ] Synthetic benchmark용 HR 이미지 폴더 선정
-  - 최소 20장
-  - 가능하면 50장 이상
-  - 건물, 간판, 글자, 도로선, 전선, 격자, 나뭇잎, 평탄 영역 포함
-- [ ] 실제 임무장비 Raw/Image 입력 샘플 폴더 선정
-  - HR 없음
-  - 주/야간, 고주파 장면, 평탄 장면, 원거리 구조물 포함
-
-### 권장 결과 폴더 구조
-
-```text
-results/sr_x4_baseline_analysis/
-  synthetic/
-    HR/
-    LRx4/
-    bicubic/
-    pred_deploy_gpu/
-    metrics/
-    comparisons/
-  real_sensor/
-    input/
-    bicubic/
-    pred_deploy_gpu/
-    metrics_no_ref/
-    comparisons/
-  configs/
-    train_config.yaml
-    data_config.yaml
-  notes/
-    failure_summary.md
-```
-
----
-
-## 5. Synthetic GT Benchmark 작업
-
-- [ ] 현재 baseline degradation config로 HR -> LRx4 생성
-- [ ] 동일 LRx4 입력에 대해 bicubic 결과 생성
-- [ ] 동일 LRx4 입력에 대해 deploy x4 GPU 모델 추론
-- [ ] `LRx4 / Bicubic / Deploy GPU / HR` 비교 이미지 생성
-- [ ] 정량 지표 계산
-  - PSNR
+- [x] x4 real sensor baseline 분석 완료
+- [x] Deploy SR은 Bicubic 대비 no-reference IQA는 개선하지만 edge boost/ringing/false texture risk가 큼
+- [x] SR 개선은 raw noise 제거보다 Denoise 후단 입력을 가정하고 진행
+- [x] 현재 finetune 방향은 conservative 1-phase finetune
+- [x] 2-stage degradation은 유지
+- [x] loss는 hallucination/ringing을 줄이는 방향으로 구성
+  - Charbonnier
   - SSIM
-  - LPIPS
-  - Edge/gradient similarity
-  - High-frequency energy
-  - Error map
-- [ ] 실패 유형 분류
-  - edge collapse
-  - texture loss
-  - oversmoothing
-  - ringing
-  - aliasing
-  - color/tone shift
-  - degradation mismatch 의심
+  - TV
+  - color consistency
+  - 약한 perceptual/edge loss
 
 ---
 
-## 6. Real Sensor Validation 작업
+## 2. 월요일 핵심 평가
 
-- [x] 실제 Raw/Image 입력에 대해 center crop `320x180` 생성
-- [x] 실제 Raw/Image 입력에 대해 bicubic x4 결과 생성
-- [x] 실제 Raw/Image 입력에 대해 deploy x4 GPU 모델 추론
-- [x] `Input / Bicubic / Deploy GPU / Diff heatmap` 비교 이미지 생성
-- [x] no-reference 지표 계산
-  - 계산 완료: NIQE, BRISQUE, PIQE (`pyiqa`), sharpness, edge density, high-frequency energy, ringing score, local contrast, color/tone shift proxy
-- [x] 시각적 failure 분류
-  - noise amplification
-  - sensor artifact amplification
-  - false texture
-  - edge oversharpening
-  - edge smoothing
-  - color/tone instability
+월요일 평가는 SR 모델 차이를 분리하기 위해 입력을 고정한다.
 
-### 2026-06-05 Real Sensor x4 검증 결과
+| 비교축 | 입력 | SR 모델 | 목적 |
+|---|---|---|---|
+| Baseline | 기존 Deploy Denoise 출력 | Deploy SR | 현재 생산 기준 |
+| Candidate | 기존 Deploy Denoise 출력 | Finetune SR | finetune 개선 여부 판단 |
 
-| 항목 | 내용 |
+### 기준 입력
+
+| 항목 | 경로/기준 |
 |---|---|
-| 입력 | `results/260602_mc_g105_probe_42/raw` |
-| 샘플 수 | 42장 |
-| 처리 기준 | 원본 `1920x1080` 중앙 `320x180` crop 후 x4 SR `1280x720` 생성 |
-| Deploy x4 config | `checkpoints/csuav_deploy/finetune_svfocussrnet_eo_sr_x4_dim32_epoch100_bs_16_ga_2_lr_5e-5/train_config.yaml` |
-| Deploy x4 checkpoint | `checkpoints/csuav_deploy/finetune_svfocussrnet_eo_sr_x4_dim32_epoch100_bs_16_ga_2_lr_5e-5/best.pth` |
-| 결과 폴더 | `results/sr_x4_baseline_analysis/real_sensor` |
-| 보고서 | `results/sr_x4_baseline_analysis/real_sensor/report.html`, `report.md` |
-| 비교 이미지 | `results/sr_x4_baseline_analysis/real_sensor/comparisons/overview_top_risk.jpg` |
-| 지표 표 | `metrics/per_image_metrics.csv`, `metrics/summary_by_scene.csv`, `metrics/summary_by_zoom.csv` |
-
-요약:
-
-- Deploy GPU x4는 Bicubic 대비 평균 sharpness ratio `2.33`, edge density ratio `1.95`로 edge/detail을 적극적으로 살리는 경향이 있음.
-- 평균 low-frequency luma MAE `0.45`, chroma MAE `0.68`로 큰 tone/color drift 신호는 낮음.
-- No-reference IQA는 낮을수록 좋은 방향이며, Deploy가 Bicubic 대비 평균 NIQE `8.86 -> 8.18`, BRISQUE `67.22 -> 48.72`, PIQE `79.46 -> 60.93`으로 개선됨.
-- failure label count: `edge_oversharpening_or_ringing` 35장, `noise_or_false_texture_amplification` 11장, `large_local_deviation_from_bicubic` 10장, `no_strong_failure_signal` 7장.
-- NIQE/BRISQUE/PIQE는 `sr` container의 `pyiqa` 구현으로 계산했으며, HR/GT 없는 no-reference 지표이므로 top-risk frame 정성 확인과 함께 해석해야 함.
+| fixed probe raw | `results/260602_mc_g105_probe_42/raw` |
+| 기존 Deploy Denoise 출력 | `results/260602_mc_g105_probe_42/deploy` |
+| SR real sensor 분석 결과 | `results/sr_x4_baseline_analysis/real_sensor` |
+| 기존 분석 스크립트 | `tools/analyze_sr_real_sensor_x4.py` |
 
 ---
 
-## 7. 판단 기준
+## 3. 평가 방식
 
-### Synthetic에서도 성능이 나쁠 때
+실제 real sensor 입력에는 HR/GT가 없으므로 PSNR/SSIM 중심으로 판단하지 않는다.
 
-| 판단 | 후속 방향 |
+| 평가 항목 | 판단 기준 |
 |---|---|
-| 모델 capacity 문제 가능성 높음 | Teacher/MTKD 적용 우선순위 높음 |
-| loss 설계 문제 가능성 있음 | loss 구성과 weight 재검토 |
-
-후보 개선 항목:
-
-- output KD
-- feature KD
-- frequency/edge KD
-- perceptual/texture 관련 loss 재조정
-
-### Synthetic은 괜찮고 Real에서 나쁠 때
-
-| 판단 | 후속 방향 |
-|---|---|
-| degradation pipeline과 실제 센서 입력 사이 domain mismatch 가능성 높음 | Teacher 학습보다 degradation pipeline 보정 우선 |
-
-후보 개선 항목:
-
-- real sensor blur/noise/sharpening 특성 반영
-- compression/ISP artifact 반영
-- scene/zoom 조건별 degradation profile 분리
-
-### GPU FP32는 괜찮고 Deploy/NPU에서 나쁠 때
-
-| 판단 | 후속 방향 |
-|---|---|
-| ONNX 변환, quantization, NPU runtime 이슈 가능성 높음 | MTKD보다 export/quantization 검증 우선 |
+| NIQE/BRISQUE/PIQE | Deploy SR 대비 Finetune SR이 악화되지 않아야 함 |
+| Sharpness / edge density | 과도한 edge boost가 줄어드는지 확인 |
+| High-frequency energy | false texture나 noise amplification이 줄어드는지 확인 |
+| Ringing score | edge 주변 ringing이 감소하는지 확인 |
+| Local contrast | 과도한 contrast 변화가 없는지 확인 |
+| Tone/color proxy | Denoise 출력 대비 luma/chroma drift가 과도하지 않은지 확인 |
+| Top-risk visual review | edge/ringing/false texture/frame별 artifact를 직접 확인 |
 
 ---
 
-## 8. 다음 액션
+## 4. 참고 비교
 
-- [x] 회사에서 x4 deploy PyTorch checkpoint 실제 경로 확인
-- [ ] Synthetic benchmark용 HR 샘플 폴더 선정
-- [x] Real sensor 입력 샘플 폴더 선정: `results/260602_mc_g105_probe_42/raw`
-- [x] x4 GPU inference 결과 생성
-- [x] 비교 이미지와 지표를 repo `results/sr_x4_baseline_analysis/`에 저장
-- [x] 분석 결과를 바탕으로 SR finetune 방향 결정
-  - [x] Deploy SR은 no-reference IQA는 개선하지만 edge boost/ringing/false texture risk가 큼
-  - [x] Denoise 후단 SR을 가정하고 optical blur, aliasing/resampling, mild compression/ISP artifact, denoise residual artifact 중심의 2-stage degradation으로 정리
-  - [x] 학습 방식은 Deploy checkpoint에서 바로 1-phase finetune으로 진행
+주 평가는 Deploy Denoise 출력을 고정 입력으로 사용한다. 단, 참고용으로 아래 비교도 같이 보면 좋다.
+
+| 참고 비교 | 목적 |
+|---|---|
+| Raw/Input -> Deploy SR | Denoise 없이 SR을 걸었을 때 artifact amplification 확인 |
+| Raw/Input -> Finetune SR | Finetune SR의 raw 입력 robustness 확인 |
+| Bicubic x4 | SR 모델이 단순 upsampling 대비 어떤 artifact를 만드는지 확인 |
+
+참고 비교는 최종 판단의 보조 자료이며, 주 판단축은 `Deploy Denoise -> Deploy SR` vs `Deploy Denoise -> Finetune SR`이다.
 
 ---
 
-## 9. 2026-06-05 SR Finetune 실행
+## 5. 월요일 판단 분기
 
-- [x] x4 2-stage degradation config 추가: `configs/data/sr_finetune_eo_denoised_input_x4_2stage.yaml`
-- [x] x2 2-stage degradation config 추가: `configs/data/sr_finetune_eo_denoised_input_x2_2stage.yaml`
-- [x] x4 1-phase finetune config 추가: `configs/finetune/SVFocusSRNet/svfocussrnet_4x_eo_denoised_input_1phase.yaml`
-- [x] x2 1-phase finetune config 추가: `configs/finetune/SVFocusSRNet/svfocussrnet_2x_eo_denoised_input_1phase.yaml`
-- [x] YAML numeric parsing 이슈 수정
-  - [x] `src/losses/losses.py`: `eps`, threshold, kernel size, loss weight를 numeric type으로 캐스팅
-  - [x] `eps: 1e-3` 문자열 파싱으로 인한 `CharbonnierLoss` TypeError 해결
-- [/] x2 SR finetune 진행 중
-  - [x] epoch 1 validation 완료: loss `0.086243`, PSNR `25.7627`, SSIM `0.7144`, LPIPS `0.3871`, NIQE `5.6560`
-  - [/] 2026-06-05 18:12 KST 기준 epoch 2 약 `85/653`, GPU 4 약 `15.5GB`
-- [/] x4 SR finetune 진행 중
-  - [/] 2026-06-05 18:12 KST 기준 epoch 1 약 `462/1306`, GPU 1 약 `26.9GB`
-- [ ] 월요일 오전 x2/x4 finetune validation 추세 확인
-- [ ] fixed 42 real sensor probe로 Deploy vs finetuned SR 재비교
+### Finetune SR이 Deploy SR보다 개선될 때
+
+- [ ] fixed 42 real sensor probe에서 top-risk frame 개선 확인
+- [ ] edge oversharpening/ringing 감소 확인
+- [ ] false texture/noise amplification 감소 확인
+- [ ] no-reference IQA가 유지 또는 개선되는지 확인
+- [ ] Deploy 후보로 유지하고 추가 epoch 진행 여부 판단
+
+### Finetune SR이 Deploy SR보다 악화될 때
+
+- [ ] 해당 checkpoint는 보류
+- [ ] loss weight 재조정
+- [ ] edge/perceptual loss를 더 낮추거나 TV/color consistency 비중 재검토
+- [ ] degradation이 실제 Denoise output 분포와 맞는지 재확인
+- [ ] 필요 시 이전 epoch checkpoint와 비교
+
+---
+
+## 6. SR MTKD로 넘어가기 전 조건
+
+- [ ] Deploy SR baseline failure mode가 명확히 정리되어야 함
+- [ ] Finetune SR이 Deploy SR 대비 어떤 실패를 줄였는지 확인되어야 함
+- [ ] Synthetic GT benchmark가 별도로 구성되어야 함
+- [ ] Real sensor no-reference 개선과 synthetic GT 정량 개선을 분리해서 판단해야 함
+- [ ] Teacher 모델 선택은 위 조건 확인 후 진행
+
+---
+
+## 7. 월요일 작업 순서
+
+1. SR x2/x4 finetune 학습 상태 확인
+2. epoch 3-5 validation trend 확인
+3. Deploy Denoise output을 입력으로 Deploy SR / Finetune SR 추론
+4. fixed 42 real sensor probe 비교 리포트 생성
+5. no-reference metric과 top-risk frame 확인
+6. x2/x4 finetune 계속 진행 여부 결정
+7. 결과가 충분히 안정적이면 SR MTKD 설계로 넘어갈 준비
+
+---
 
 ## Quick Priority
 
 | 우선순위 | 작업 | 상태 |
 |---:|---|---|
-| 1 | x4 deploy GPU baseline checkpoint 확보 | 완료 |
-| 2 | Synthetic GT benchmark 구성 | 대기 |
-| 3 | Real sensor no-reference validation 구성 | 완료 |
-| 4 | x4 baseline failure mode 정리 | 완료 |
-| 5 | x2/x4 SR finetune 진행 및 Monday validation 확인 | 진행 중 |
+| 1 | SR x2/x4 finetune validation trend 확인 | 월요일 진행 |
+| 2 | Deploy Denoise -> Deploy SR 결과 확보 | 기존 출력 활용 |
+| 3 | Deploy Denoise -> Finetune SR 결과 생성 | 월요일 진행 |
+| 4 | fixed 42 probe 비교 리포트 생성 | 월요일 진행 |
+| 5 | SR MTKD 필요성 및 방향 판단 | finetune 평가 이후 |
