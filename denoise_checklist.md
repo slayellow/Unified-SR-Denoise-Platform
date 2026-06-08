@@ -6,7 +6,7 @@
 |---|---|
 | 작성일 | 2026-06-06 |
 | 다음 확인일 | 2026-06-08 월요일 |
-| 현재 결론 | Denoise KD는 일시 중단. Tone 완화 degradation을 적용한 Teacher 모델을 먼저 재평가한다. |
+| 현재 결론 | Denoise KD는 일시 중단. Restormer/NAFNet tone-safe Teacher 학습을 계속 진행 중이다. |
 | 핵심 판단 | Teacher가 Deploy 대비 실사용 개선을 보일 때만 KD 재설계를 시작한다. |
 
 ---
@@ -21,6 +21,8 @@
   - Teacher tone/detail trade-off
   - loss weight 설계 문제
 - [x] 현재 방향은 KD 즉시 재시작이 아니라 Teacher gate 재검증 후 KD 재설계
+- [x] 2026-06-08 퇴근 시점 기준 Denoise Teacher 2개만 live training 유지
+- [x] SR x2/x4 rejected finetune cleanup 완료 후 Denoise Teacher gate로 다시 집중
 
 ---
 
@@ -92,13 +94,42 @@ Teacher는 validation PSNR/SSIM만으로 채택하지 않는다. 아래 조건�
 
 ## 5. 월요일 작업 순서
 
-1. Restormer tone-safe와 NAFNet tone-safe 학습 상태 확인
-2. 최신 `last.pth`/`best.pth` timestamp와 validation log 확인
-3. fixed 42 real sensor probe에 대해 최신 Teacher 추론 수행
-4. Deploy / Restormer / NAFNet 비교 리포트 생성
-5. metric table과 top-risk comparison image 확인
-6. Teacher 채택 여부 결정
+1. Restormer tone-safe와 NAFNet tone-safe 학습 상태 확인 완료
+2. 최신 `last.pth`/`best.pth` timestamp와 validation log 확인 완료
+3. fixed 42 real sensor probe에 대해 최신 Teacher 추론 수행은 추가 epoch 진행 후 수행
+4. Deploy / Restormer / NAFNet 비교 리포트 생성은 최신 checkpoint 확보 후 수행
+5. metric table과 top-risk comparison image 확인은 다음 probe 단계에서 수행
+6. Teacher 채택 여부 결정은 보류
 7. 채택된 Teacher가 있을 때만 KD 재설계안 작성
+
+---
+
+## 6. 2026-06-08 퇴근 Handoff
+
+### Live Teacher 상태
+
+| Run | GPU | Latest completed validation | Current progress | Status |
+|---|---:|---|---|---|
+| Restormer tone-safe Teacher | 2 | epoch 14, val_loss `0.215638`, PSNR `26.1862`, SSIM `0.8311`, NIQE `3.7987` | epoch 15 about `13764/49260` (`28%`) | [/] 계속 학습 |
+| NAFNet tone-safe Teacher | 3 | epoch 35, val_loss `0.081893`, PSNR `26.8130`, SSIM `0.8372`, NIQE `3.7992` | epoch 36 about `1679/12315` (`14%`) | [/] 계속 학습 |
+
+### Checkpoint
+
+- Restormer:
+  - `last.pth`: `2026-06-08 09:55 KST`, epoch 14 완료 후 갱신
+  - `best.pth`: `2026-06-07 01:58 KST`, epoch 11 기준 유지
+  - path: `checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601`
+- NAFNet:
+  - `last.pth`: `2026-06-08 12:36 KST`, epoch 35 완료 후 갱신
+  - `best.pth`: `2026-06-08 12:36 KST`, epoch 35 완료 후 갱신
+  - path: `checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_tonesafe_lr1e4_260605`
+
+### 다음 액션
+
+1. 다음 출근/확인 시 live process와 GPU 상태를 먼저 재확인한다.
+2. Restormer/NAFNet 최신 완료 epoch를 기준으로 fixed 42 probe를 다시 실행한다.
+3. Deploy 대비 tone shift, chroma drift, noise suppression, edge/detail retention을 확인한다.
+4. Teacher gate가 통과되기 전까지 Student KD 재시작은 금지한다.
 
 ---
 
@@ -106,8 +137,8 @@ Teacher는 validation PSNR/SSIM만으로 채택하지 않는다. 아래 조건�
 
 | 우선순위 | 작업 | 상태 |
 |---:|---|---|
-| 1 | Tone-safe Teacher 최신 checkpoint 확인 | 월요일 진행 |
-| 2 | fixed 42 probe 동일 평가 실행 | 월요일 진행 |
-| 3 | Deploy 대비 Teacher 가치 판단 | 월요일 진행 |
+| 1 | Tone-safe Teacher 최신 checkpoint 확인 | 완료, 계속 학습 |
+| 2 | fixed 42 probe 동일 평가 실행 | 다음 최신 checkpoint 후 진행 |
+| 3 | Deploy 대비 Teacher 가치 판단 | probe 이후 |
 | 4 | KD target 범위 재설계 | Teacher gate 이후 |
 | 5 | Student capacity 재검토 | Teacher gate 이후 |

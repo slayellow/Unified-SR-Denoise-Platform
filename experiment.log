@@ -1,168 +1,83 @@
 # Experiment Log
 
-## Date: 2026-06-05 (Friday)
+## Date: 2026-06-08 (Monday)
 ## Topic
-MC-G105 Denoise KD 재판단, Teacher 재학습 재개, SR real sensor 검증 및 finetune 착수
+MC-G105 Denoise Teacher 학습 지속, SR finetune rejected cleanup, 퇴근 handoff
 
-## 1. Denoise KD 판단
+## 1. Morning Check-in Sync
 
-Validation Dataset 정량 결과에서는 MTKD/STKD가 Deploy보다 좋아 보였다.
+출근 Flow를 수행해 GitHub `main`의 Monday checklist 갱신분을 GitLab `master`에 반영했다.
 
-| Model | PSNR | SSIM | LPIPS | NIQE |
-|---|---:|---:|---:|---:|
-| Deploy | 22.774104 | 0.655639 | 0.459345 | 3.244047 |
-| MTKD | 23.930828 | 0.727922 | 0.412953 | 3.467943 |
-| STKD | 24.045846 | 0.730479 | 0.404252 | 3.416925 |
+- GitHub source commit: `99c3d69 docs: refresh denoise and sr monday checklists`
+- GitLab sync commit: `b529495 Sync Monday checklists from GitHub`
+- 반영 파일:
+  - `denoise_checklist.md`
+  - `sr_checklist.md`
+- 보호 대상 유지:
+  - `experiment.log`
+  - runtime checkpoints/logs/results
+  - image artifacts
 
-하지만 fixed 42 real sensor probe와 영상 정성 확인에서는 deployable 개선으로 보기 어렵다고 판단했다.
+## 2. SR Finetune 판단 및 정리
 
-- MTKD/STKD 모두 noise-like high frequency를 줄이지만 tone-down, local contrast 저하, edge/detail 손실이 동반된다.
-- STKD가 MTKD보다 상대적으로 낫지만, Deploy 대비 실제 운용 영상에서 교체 가치가 명확하지 않았다.
-- 현재 Student `dim32 block2`는 약 44K params라 Teacher의 full denoise/tone/detail 복원 능력을 흡수하기에는 너무 작다.
-- KD 접근 자체가 틀렸다고 보기보다는, Student 체급과 KD target 범위를 재설계해야 한다.
+SR x2/x4 denoised-input 1-phase finetune은 현재 Deploy SR보다 실사용 품질이 떨어지는 것으로 판단했다.
 
-42장 real sensor 분석 요약:
+### 판단 요약
 
-| Model | NIQE | BRISQUE | PIQE | flat_hf_ratio | strong_edge_grad_ratio | lowfreq_luma_mae | chroma_mae | risk_score |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Deploy | 5.453 | 33.421 | 28.691 | 0.828 | 0.923 | 0.249 | 0.556 | 0.524 |
-| MTKD | 6.415 | 52.884 | 63.933 | 0.639 | 0.726 | 5.781 | 1.454 | 2.786 |
-| STKD | 6.096 | 42.370 | 44.788 | 0.687 | 0.801 | 4.664 | 1.195 | 2.262 |
+- x2 finetune:
+  - fixed 42 Deploy Denoise 입력 기준 regression frame rate 약 `71%`
+  - 평균 NIQE/BRISQUE/PIQE는 일부 개선처럼 보였지만, top-risk frame과 proxy 지표에서 detail smoothing/softness가 많았다.
+  - Deploy 대체 후보로 채택하지 않는다.
+- x4 finetune:
+  - fixed 42 Deploy Denoise 입력 기준 regression frame rate 약 `74%`
+  - Finetune - Deploy 기준 BRISQUE `+4.02`, PIQE `+6.92`, high-frequency ratio `1.142`로 false texture/ringing 위험이 커졌다.
+  - Deploy 대체 후보로 채택하지 않는다.
 
-산출물:
+### 삭제 및 정리
 
-- script: `tools/analyze_denoise_real_sensor_42.py`
-- report: `results/denoise_real_sensor_42_kd_analysis/report.md`
-- metrics: `results/denoise_real_sensor_42_kd_analysis/metrics/`
-- comparison overview: `results/denoise_real_sensor_42_kd_analysis/comparisons/overview_stkd_improvement.jpg`
+실패한 SR finetune 관련 설정, checkpoint 실험 폴더, log, 임시 비교 산출물을 삭제했다.
 
-## 2. Denoise KD 정리 및 Teacher 재개
+- 삭제 commit: `1c95e2f Remove rejected SR finetune experiments`
+- 삭제된 tracked config:
+  - `configs/data/sr_finetune_eo_denoised_input_x2_2stage.yaml`
+  - `configs/data/sr_finetune_eo_denoised_input_x4_2stage.yaml`
+  - `configs/finetune/SVFocusSRNet/svfocussrnet_2x_eo_denoised_input_1phase.yaml`
+  - `configs/finetune/SVFocusSRNet/svfocussrnet_4x_eo_denoised_input_1phase.yaml`
+- 사용자가 추가 삭제한 기존 SR x4 baseline report/metric 산출물도 commit에 반영했다.
 
-Student KD run은 모두 정리했다.
+현재 Deploy SR 기준 checkpoint는 유지했다.
 
-- ToneGuard MTKD config 삭제: `configs/train/Denoise/svfocusdenoise_block2_adv_mtkd_toneguard_mcg105.yaml`
-- NAFNet-only STKD config 삭제: `configs/train/Denoise/svfocusdenoise_block2_adv_stkd_nafnet_mcg105.yaml`
-- 기존 `checklist.log`는 2026-06-05 오전 commit에서 제거된 상태이므로, 현재 handoff는 `denoise_checklist.md`와 `sr_checklist.md`를 기준으로 유지한다.
+- `checkpoints/csuav_deploy/finetune_svfocussrnet_eo_sr_x2_dim32_epoch100_bs_16_ga_2_lr_5e-5/best.pth`
+- `checkpoints/csuav_deploy/finetune_svfocussrnet_eo_sr_x4_dim32_epoch100_bs_16_ga_2_lr_5e-5/best.pth`
 
-Denoise KD 재설계 방향:
+## 3. Denoise Teacher Live State
 
-- 현재 44K Student에 full-output KD를 강하게 주는 방식은 보류.
-- 44K~60K급을 유지해야 한다면 residual/local artifact KD처럼 narrow target으로 제한해야 한다.
-- Teacher 성능을 더 실질적으로 받으려면 최소 수백 K급 Student 후보를 별도로 검토하는 편이 맞다.
-- 이후 denoise KD 논문 기준을 더 조사해서 Student compression ratio와 loss target을 다시 잡는다.
+퇴근 전 확인 시각: `2026-06-08 12:52 KST`
 
-Teacher 재학습은 재개했다.
+| Run | GPU | Mode | Latest completed validation | Current progress | Checkpoint |
+|---|---:|---|---|---|---|
+| Restormer tone-safe Teacher | 2 | resume | epoch 14, val_loss `0.215638`, PSNR `26.1862`, SSIM `0.8311`, LPIPS `0.1891`, NIQE `3.7987` | epoch 15, about `13764/49260` (`28%`) | `checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601/last.pth` |
+| NAFNet tone-safe Teacher | 3 | scratch config | epoch 35, val_loss `0.081893`, PSNR `26.8130`, SSIM `0.8372`, LPIPS `0.2006`, NIQE `3.7992` | epoch 36, about `1679/12315` (`14%`) | `checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_tonesafe_lr1e4_260605/last.pth` |
 
-- Restormer Teacher:
-  - GPU: `2`
-  - mode: resume
-  - checkpoint: `checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601/last.pth`
-  - log: `logs/train_restormer_teacher_tonesafe_resume_gpu2_260605.log`
-  - launch: `CUDA_VISIBLE_DEVICES=2 nohup accelerate launch --num_processes=1 tools/train.py --resume checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601/last.pth > logs/train_restormer_teacher_tonesafe_resume_gpu2_260605.log 2>&1 &`
-- NAFNet Teacher:
-  - GPU: `3`
-  - mode: tone-safe config로 scratch
-  - config: `configs/train/Denoise/nafnet_deploy_denoise_teacher_tonesafe.yaml`
-  - checkpoint dir: `checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_tonesafe_lr1e4_260605`
-  - log: `logs/train_nafnet_teacher_tonesafe_scratch_gpu3_260605.log`
-  - launch: `CUDA_VISIBLE_DEVICES=3 nohup accelerate launch --num_processes=1 tools/train.py --config configs/train/Denoise/nafnet_deploy_denoise_teacher_tonesafe.yaml > logs/train_nafnet_teacher_tonesafe_scratch_gpu3_260605.log 2>&1 &`
+### Runtime notes
 
-Live status at 2026-06-05 18:12 KST:
+- Denoise Teacher 학습은 계속 유지한다.
+- Restormer `best.pth`는 epoch 11 시점으로 유지되어 있고, `last.pth`는 epoch 14 완료 후 갱신됐다.
+- NAFNet `best.pth`와 `last.pth`는 epoch 35 완료 후 갱신됐다.
+- GPU 1과 GPU 4는 비어 있다.
+- GPU 0은 별도 YOLO teacher 작업이 사용 중이며, 이번 denoise/SR handoff 범위 밖이다.
 
-| GPU | Run | Status |
-|---:|---|---|
-| 0 | free | 0 MB |
-| 1 | SR x4 finetune | live, epoch 1 around 462/1306, about 26.9 GB |
-| 2 | Restormer Teacher resume | live, epoch 9 around 745/49260, about 27.0 GB |
-| 3 | NAFNet Teacher tone-safe scratch | live, epoch 1 around 1051/12315, about 26.9 GB |
-| 4 | SR x2 finetune | live, epoch 2 around 85/653, about 15.5 GB |
+## 4. Current Decisions
 
-## 3. SR x4 Real Sensor 검증
+- Denoise KD는 아직 재시작하지 않는다.
+- Teacher gate는 validation PSNR/SSIM만으로 판단하지 않고, fixed 42 real sensor probe에서 Deploy 대비 tone/detail/noise behavior를 본 뒤 결정한다.
+- SR MTKD는 현재 rejected SR finetune checkpoint를 기반으로 진행하지 않는다.
+- 다음 작업은 Denoise Teacher가 충분히 더 진행된 뒤 최신 checkpoint로 fixed 42 probe를 다시 실행하는 것이다.
 
-`sr_checklist.md` 6번 항목 기준으로 `results/260602_mc_g105_probe_42/raw` 42장을 사용해 real sensor x4 baseline을 검증했다.
+## 5. Next
 
-- 원본 `1920x1080`에서 중앙 `320x180` crop 생성
-- Bicubic x4와 Deploy GPU x4를 각각 `1280x720`으로 생성
-- NIQE/BRISQUE/PIQE는 `pyiqa` 구현으로 계산
-- PSNR/SSIM은 HR/GT가 없는 real sensor 입력이므로 제외
-
-주요 결과:
-
-| Metric | Bicubic | Deploy GPU | Delta |
-|---|---:|---:|---:|
-| NIQE | 8.859 | 8.185 | -0.674 |
-| BRISQUE | 67.223 | 48.718 | -18.505 |
-| PIQE | 79.459 | 60.930 | -18.529 |
-
-Deploy GPU x4는 Bicubic 대비 선명도와 edge density를 크게 올린다.
-
-- sharpness ratio: `2.331`
-- edge density ratio: `1.951`
-- high-frequency ratio: `0.892`
-- failure labels: edge oversharpening/ringing 35장, noise/false texture amplification 11장, local deviation 10장
-
-해석:
-
-- 현재 Deploy SR은 real sensor에서 전반적인 no-reference IQA는 개선하지만, 실제 개선의 상당 부분이 sharpening/edge boost로 보인다.
-- Denoise가 앞단에서 어느 정도 noise를 잡는다고 가정하면, SR 개선은 raw noise 자체보다 optical/MTF blur, aliasing/resampling, mild compression/ISP artifact, denoise residual artifact를 중점적으로 반영하는 쪽이 맞다.
-- SR 학습은 2-stage degradation을 유지하고, 학습 방식은 Deploy checkpoint에서 바로 1-phase finetune하는 방향으로 정리했다.
-
-산출물:
-
-- script: `tools/analyze_sr_real_sensor_x4.py`
-- report: `results/sr_x4_baseline_analysis/real_sensor/report.md`
-- metrics: `results/sr_x4_baseline_analysis/real_sensor/metrics/`
-- comparison overview: `results/sr_x4_baseline_analysis/real_sensor/comparisons/overview_top_risk.jpg`
-
-## 4. SR Finetune 설정 및 실행
-
-추가한 설정:
-
-- x4 degradation: `configs/data/sr_finetune_eo_denoised_input_x4_2stage.yaml`
-- x2 degradation: `configs/data/sr_finetune_eo_denoised_input_x2_2stage.yaml`
-- x4 train: `configs/finetune/SVFocusSRNet/svfocussrnet_4x_eo_denoised_input_1phase.yaml`
-- x2 train: `configs/finetune/SVFocusSRNet/svfocussrnet_2x_eo_denoised_input_1phase.yaml`
-
-학습 의도:
-
-- Deploy SR checkpoint에서 1-phase conservative finetune.
-- Degradation은 2-stage 유지.
-- perceptual/edge loss는 약하게 두고, Charbonnier/SSIM/TV/color consistency로 과도한 texture hallucination과 ringing을 줄이는 방향.
-
-실행 상태:
-
-- x2 SR:
-  - config: `configs/finetune/SVFocusSRNet/svfocussrnet_2x_eo_denoised_input_1phase.yaml`
-  - checkpoint dir: `checkpoints/finetune_svfocussrnet_eo_sr_x2_denoised_input_1phase_2stage_deg_epoch80_bs16_ga2_lr3e-5`
-  - epoch 1 validation 완료: loss `0.086243`, PSNR `25.7627`, SSIM `0.7144`, LPIPS `0.3871`, NIQE `5.6560`
-  - epoch 2 진행 중
-- x4 SR:
-  - config: `configs/finetune/SVFocusSRNet/svfocussrnet_4x_eo_denoised_input_1phase.yaml`
-  - checkpoint dir: `checkpoints/finetune_svfocussrnet_eo_sr_x4_denoised_input_1phase_2stage_deg_epoch80_bs8_ga4_lr3e-5`
-  - epoch 1 진행 중
-
-## 5. Code Fix
-
-SR x2 launch 중 YAML numeric parsing 문제로 `CharbonnierLoss.eps`가 string으로 들어와 아래 에러가 발생했다.
-
-`TypeError: unsupported operand type(s) for ** or pow(): 'str' and 'int'`
-
-수정:
-
-- `src/losses/losses.py`
-- `CharbonnierLoss.eps`, `EdgeLoss.threshold`, `HotPixelMaskedLoss.threshold/kernel_size`, `UnifiedLoss` weights를 각각 `float`/`int`로 캐스팅
-
-검증:
-
-- x2 SR config에서 `eps: 1e-3`가 raw YAML에서는 string으로 읽히는 것을 확인
-- 패치 후 `UnifiedLoss` forward smoke test 통과
-- 이후 x2/x4 SR 학습이 정상 진행됨
-
-## 6. Next
-
-1. 월요일 오전에 Teacher run 상태부터 확인한다.
-   - Restormer: epoch 9 이후 validation/checkpoint 갱신 여부
-   - NAFNet tone-safe: epoch 1 완료 여부와 validation tone/detail 경향
-2. SR x2/x4 finetune은 epoch 3-5 이후 validation 추세를 보고 계속 둘지 판단한다.
-3. SR 결과는 fixed 42 real sensor probe로 다시 Deploy vs finetune 비교한다.
-4. Denoise KD는 현재 44K Student 기준으로 재시작하지 않는다. 논문 기준 Student 규모와 target 설계를 조사한 뒤 새 실험으로 분리한다.
+1. Restormer/NAFNet Teacher 학습을 계속 둔다.
+2. 다음 확인 시 최신 `last.pth`/`best.pth`, `training_log.csv`, live log tail을 다시 확인한다.
+3. Denoise fixed 42 probe를 최신 Teacher checkpoint로 재실행한다.
+4. Deploy / Restormer / NAFNet 비교 리포트에서 Teacher gate를 판단한다.
+5. Teacher gate를 통과한 후보가 있을 때만 KD target 범위와 Student 체급을 다시 설계한다.

@@ -6,7 +6,7 @@
 |---|---|
 | 작성일 | 2026-06-06 |
 | 다음 확인일 | 2026-06-08 월요일 |
-| 현재 결론 | SR x2/x4 finetune은 진행 중이며, 월요일에는 real sensor 입력에서 Deploy SR 대비 개선 여부를 판단한다. |
+| 현재 결론 | SR x2/x4 denoised-input finetune은 Deploy SR 대비 실사용 품질이 떨어져 보류/삭제 처리했다. |
 | 핵심 비교 | 기존 Deploy Denoise 출력을 고정 입력으로 두고 Deploy SR과 Finetune SR을 비교한다. |
 
 ---
@@ -24,6 +24,8 @@
   - TV
   - color consistency
   - 약한 perceptual/edge loss
+- [x] 2026-06-08 fixed 42 probe 기준 x2/x4 finetune 모두 Deploy SR 대체 후보로 부적합하다고 판단
+- [x] 실패한 finetune 설정/학습 산출물/임시 비교 산출물 삭제
 
 ---
 
@@ -44,6 +46,8 @@
 | 기존 Deploy Denoise 출력 | `results/260602_mc_g105_probe_42/deploy` |
 | SR real sensor 분석 결과 | `results/sr_x4_baseline_analysis/real_sensor` |
 | 기존 분석 스크립트 | `tools/analyze_sr_real_sensor_x4.py` |
+
+참고: 2026-06-08 cleanup에서 `results/sr_x4_baseline_analysis/real_sensor`의 기존 report/metric 산출물은 삭제했다. 필요 시 `tools/analyze_sr_real_sensor_x4.py`로 다시 생성한다.
 
 ---
 
@@ -89,7 +93,8 @@
 
 ### Finetune SR이 Deploy SR보다 악화될 때
 
-- [ ] 해당 checkpoint는 보류
+- [x] 해당 checkpoint는 보류
+- [x] 실패한 x2/x4 finetune 설정과 checkpoint 실험 폴더 삭제
 - [ ] loss weight 재조정
 - [ ] edge/perceptual loss를 더 낮추거나 TV/color consistency 비중 재검토
 - [ ] degradation이 실제 Denoise output 분포와 맞는지 재확인
@@ -109,13 +114,42 @@
 
 ## 7. 월요일 작업 순서
 
-1. SR x2/x4 finetune 학습 상태 확인
-2. epoch 3-5 validation trend 확인
-3. Deploy Denoise output을 입력으로 Deploy SR / Finetune SR 추론
-4. fixed 42 real sensor probe 비교 리포트 생성
-5. no-reference metric과 top-risk frame 확인
-6. x2/x4 finetune 계속 진행 여부 결정
-7. 결과가 충분히 안정적이면 SR MTKD 설계로 넘어갈 준비
+1. SR x2/x4 finetune 학습 상태 확인 완료
+2. epoch 13 early stopping 상태 확인 완료
+3. Deploy Denoise output을 입력으로 Deploy SR / Finetune SR 추론 완료
+4. fixed 42 real sensor probe 비교 리포트 생성 후 판단 완료
+5. no-reference metric과 top-risk frame 확인 완료
+6. x2/x4 finetune 계속 진행 여부: 중단
+7. 결과가 충분히 안정적이지 않으므로 SR MTKD 설계로 넘어가지 않음
+
+---
+
+## 8. 2026-06-08 정리 결과
+
+### 판단
+
+- x2 finetune은 평균 no-reference IQA 일부가 좋아 보였지만, top-risk 비교와 proxy signal에서 detail smoothing/softness가 많아 Deploy 대체 후보로 부적합했다.
+- x4 finetune은 BRISQUE/PIQE 악화와 high-frequency/edge 계열 증가가 함께 나타나 false texture/ringing 위험이 더 컸다.
+- 따라서 현재 x2/x4 denoised-input 1-phase finetune은 SR MTKD의 출발점으로 사용하지 않는다.
+
+### 삭제한 범위
+
+- `configs/data/sr_finetune_eo_denoised_input_x2_2stage.yaml`
+- `configs/data/sr_finetune_eo_denoised_input_x4_2stage.yaml`
+- `configs/finetune/SVFocusSRNet/svfocussrnet_2x_eo_denoised_input_1phase.yaml`
+- `configs/finetune/SVFocusSRNet/svfocussrnet_4x_eo_denoised_input_1phase.yaml`
+- `checkpoints/finetune_svfocussrnet_eo_sr_x2_denoised_input_1phase_2stage_deg_epoch80_bs16_ga2_lr3e-5`
+- `checkpoints/finetune_svfocussrnet_eo_sr_x4_denoised_input_1phase_2stage_deg_epoch80_bs8_ga4_lr3e-5`
+- `logs/260605_svfocussrnet_2x_finetune.log`
+- `logs/260605_svfocussrnet_4x_finetune.log`
+- rejected finetune 비교용 임시 report/output
+
+### 퇴근 Handoff
+
+- 현재 실행 중인 SR 학습은 없다.
+- SR x2/x4 denoised-input finetune은 rejected 상태로 유지한다.
+- SR MTKD는 현재 checkpoint 기반으로 진행하지 않는다.
+- 다음 SR 실험은 Denoise Teacher gate 이후 별도 설계한다.
 
 ---
 
@@ -123,8 +157,8 @@
 
 | 우선순위 | 작업 | 상태 |
 |---:|---|---|
-| 1 | SR x2/x4 finetune validation trend 확인 | 월요일 진행 |
+| 1 | SR x2/x4 finetune validation trend 확인 | 완료 |
 | 2 | Deploy Denoise -> Deploy SR 결과 확보 | 기존 출력 활용 |
-| 3 | Deploy Denoise -> Finetune SR 결과 생성 | 월요일 진행 |
-| 4 | fixed 42 probe 비교 리포트 생성 | 월요일 진행 |
-| 5 | SR MTKD 필요성 및 방향 판단 | finetune 평가 이후 |
+| 3 | Deploy Denoise -> Finetune SR 결과 생성 | 완료 후 삭제 |
+| 4 | fixed 42 probe 비교 리포트 생성 | 완료 후 삭제 |
+| 5 | SR MTKD 필요성 및 방향 판단 | 현재 finetune 기준 보류 |
