@@ -8,6 +8,7 @@ import sys
 import time
 from collections import Counter
 from pathlib import Path
+from typing import Optional, List
 
 import cv2
 import matplotlib
@@ -34,21 +35,21 @@ DEFAULT_MODELS = {
         "config": "checkpoints/csuav_deploy/train_svfocusdenoise_adv_x1_dim32_block3_epoch300_lr1e-4_charbonnier_edge_ssim_hotpixel_260309/train_config.yaml",
         "checkpoint": "checkpoints/csuav_deploy/train_svfocusdenoise_adv_x1_dim32_block3_epoch300_lr1e-4_charbonnier_edge_ssim_hotpixel_260309/best.pth",
     },
-    "mtkd": {
-        "config": "checkpoints/train_svfocusdenoise_adv_x1_dim32_block2_mtkd_nafnet_restormer_toneguard_260605/train_config.yaml",
-        "checkpoint": "checkpoints/train_svfocusdenoise_adv_x1_dim32_block2_mtkd_nafnet_restormer_toneguard_260605/best.pth",
+    "restormer_teacher": {
+        "config": "checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601/train_config.yaml",
+        "checkpoint": "checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601/best.pth",
     },
-    "stkd": {
-        "config": "checkpoints/train_svfocusdenoise_adv_x1_dim32_block2_stkd_nafnet_mcg105_260605/train_config.yaml",
-        "checkpoint": "checkpoints/train_svfocusdenoise_adv_x1_dim32_block2_stkd_nafnet_mcg105_260605/best.pth",
+    "nafnet_teacher": {
+        "config": "checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_tonesafe_lr1e4_260605/train_config.yaml",
+        "checkpoint": "checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_tonesafe_lr1e4_260605/best.pth",
     },
 }
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Analyze Deploy/MTKD/STKD denoise outputs on MC-G105 42 real frames.")
-    parser.add_argument("--input_root", default="results/260602_mc_g105_probe_42/raw")
-    parser.add_argument("--output_root", default="results/denoise_real_sensor_42_kd_analysis")
+    parser = argparse.ArgumentParser(description="Analyze Deploy/Teacher denoise outputs on 42 real frames.")
+    parser.add_argument("--input_root", default="results/raw")
+    parser.add_argument("--output_root", default="results/denoise_teacher_probe_analysis")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--iqa_device", default="cpu")
     parser.add_argument("--fp16", action="store_true")
@@ -283,13 +284,17 @@ def add_label(image: np.ndarray, label: str) -> np.ndarray:
     return canvas
 
 
-def make_comparison(raw: np.ndarray, outputs: dict[str, np.ndarray], max_panel_w: int = 620) -> np.ndarray:
+def make_comparison(raw: np.ndarray, outputs: dict[str, np.ndarray], model_names: Optional[List[str]] = None, max_panel_w: int = 620) -> np.ndarray:
+    if model_names is None:
+        model_names = list(outputs.keys())
     scale = max_panel_w / raw.shape[1]
     panel_h = max(1, int(raw.shape[0] * scale))
     panel_size = (max_panel_w, panel_h)
     panels = [add_label(cv2.resize(raw, panel_size, interpolation=cv2.INTER_AREA), "Raw input")]
-    for name in ["deploy", "mtkd", "stkd"]:
-        panels.append(add_label(cv2.resize(outputs[name], panel_size, interpolation=cv2.INTER_AREA), name.upper()))
+    for name in model_names:
+        if name in outputs:
+            label = name.replace("_", " ").title()
+            panels.append(add_label(cv2.resize(outputs[name], panel_size, interpolation=cv2.INTER_AREA), label))
     return np.concatenate(panels, axis=1)
 
 
@@ -633,11 +638,12 @@ def main() -> None:
 
     # Build comparison images once all model outputs are ready.
     comparison_paths = {}
+    model_names = list(model_infos.keys())
     for image_path in images:
         rel = image_path.relative_to(input_root)
         rel_str = str(rel)
         raw = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
-        comp = make_comparison(raw, output_images_by_rel[rel_str])
+        comp = make_comparison(raw, output_images_by_rel[rel_str], model_names=model_names)
         comp_path = comparisons_root / rel.with_suffix(".compare.jpg")
         save_image(comp_path, comp)
         comparison_paths[rel_str] = str(comp_path.relative_to(comparisons_root))
@@ -671,11 +677,12 @@ def main() -> None:
             prefix = row["model"]
             for col in metric_cols:
                 base[f"{prefix}_{col}"] = row[col]
-        for model_name in ["mtkd", "stkd"]:
-            for col in metric_cols:
-                if col == "failure_labels":
-                    continue
-                base[f"{model_name}_minus_deploy_{col}"] = base[f"{model_name}_{col}"] - base[f"deploy_{col}"]
+        for model_name in model_names:
+            if model_name != "deploy" and "deploy" in base:
+                for col in metric_cols:
+                    if col == "failure_labels":
+                        continue
+                    base[f"{model_name}_minus_deploy_{col}"] = base.get(f"{model_name}_{col}", float("nan")) - base.get(f"deploy_{col}", float("nan"))
         frames.append(base)
     wide_df = pd.DataFrame(frames)
     wide_df.to_csv(metrics_dir / "per_frame_comparison.csv", index=False)

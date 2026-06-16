@@ -1,83 +1,79 @@
 # Experiment Log
 
-## Date: 2026-06-08 (Monday)
+## Date: 2026-06-16 (Monday)
 ## Topic
-MC-G105 Denoise Teacher 학습 지속, SR finetune rejected cleanup, 퇴근 handoff
+Denoise Teacher 학습 진행 상황 확인, Fixed 42 Real Sensor Probe 분석
 
 ## 1. Morning Check-in Sync
 
-출근 Flow를 수행해 GitHub `main`의 Monday checklist 갱신분을 GitLab `master`에 반영했다.
+출근 Flow를 수행해 GitHub와 GitLab 간 소스 동기화를 확인했다.
+- GitHub main과 GitLab master 모두 최신 상태 (6/8 핸드오프 이후 변동 없음)
+- 별도 동기화 작업 불필요
 
-- GitHub source commit: `99c3d69 docs: refresh denoise and sr monday checklists`
-- GitLab sync commit: `b529495 Sync Monday checklists from GitHub`
-- 반영 파일:
-  - `denoise_checklist.md`
-  - `sr_checklist.md`
-- 보호 대상 유지:
-  - `experiment.log`
-  - runtime checkpoints/logs/results
-  - image artifacts
+## 2. Teacher 학습 상태 (오전 확인 시각: 2026-06-16 10:05 KST)
 
-## 2. SR Finetune 판단 및 정리
+| Model | GPU | Status | Current Epoch | Best Val Loss | Current Val Loss | Checkpoint |
+|-------|-----|--------|----------------|---------------|-----------------|-----------|
+| Restormer | 2 | resume | 32 | 0.21045 (epoch 28) | 0.21228 | last.pth epoch 32 |
+| NAFNet | 3 | training | 85 | 0.07934 (epoch 84) | 0.08103 | last.pth epoch 85 |
 
-SR x2/x4 denoised-input 1-phase finetune은 현재 Deploy SR보다 실사용 품질이 떨어지는 것으로 판단했다.
+### 관찰 및 판단
 
-### 판단 요약
+**Restormer (epoch 32 진행 중)**
+- epoch 14→32 동안 val_loss 거의 평탄 (±0.005 변동)
+- 수렴 구간 진입으로 보임
+- best.pth는 epoch 28 기준 유지
 
-- x2 finetune:
-  - fixed 42 Deploy Denoise 입력 기준 regression frame rate 약 `71%`
-  - 평균 NIQE/BRISQUE/PIQE는 일부 개선처럼 보였지만, top-risk frame과 proxy 지표에서 detail smoothing/softness가 많았다.
-  - Deploy 대체 후보로 채택하지 않는다.
-- x4 finetune:
-  - fixed 42 Deploy Denoise 입력 기준 regression frame rate 약 `74%`
-  - Finetune - Deploy 기준 BRISQUE `+4.02`, PIQE `+6.92`, high-frequency ratio `1.142`로 false texture/ringing 위험이 커졌다.
-  - Deploy 대체 후보로 채택하지 않는다.
+**NAFNet (epoch 85 진행 중)**
+- epoch 35→85까지 꾸준한 개선세
+- best.pth는 epoch 84 (가장 최신)
+- PSNR 26.8 → 27.0+ 로 개선 중
 
-### 삭제 및 정리
+## 3. Fixed 42 Real Sensor Probe 분석
 
-실패한 SR finetune 관련 설정, checkpoint 실험 폴더, log, 임시 비교 산출물을 삭제했다.
+### 분석 개요
+- 입력: results/raw (42장 real EO sensor 이미지)
+- 비교 모델: Deploy, Restormer Teacher, NAFNet Teacher
+- 실행 환경: docker sr 컨테이너, GPU 2 (메모리 효율 순차 처리)
+- 소요 시간: 202.5초
+- 지표: Sharpness, Brightness Mean, Brightness Std
 
-- 삭제 commit: `1c95e2f Remove rejected SR finetune experiments`
-- 삭제된 tracked config:
-  - `configs/data/sr_finetune_eo_denoised_input_x2_2stage.yaml`
-  - `configs/data/sr_finetune_eo_denoised_input_x4_2stage.yaml`
-  - `configs/finetune/SVFocusSRNet/svfocussrnet_2x_eo_denoised_input_1phase.yaml`
-  - `configs/finetune/SVFocusSRNet/svfocussrnet_4x_eo_denoised_input_1phase.yaml`
-- 사용자가 추가 삭제한 기존 SR x4 baseline report/metric 산출물도 commit에 반영했다.
+### 분석 결과 (42 프레임 평균)
 
-현재 Deploy SR 기준 checkpoint는 유지했다.
+| Model | Sharpness | Raw 대비 | Brightness Error | 모든 프레임 우수 |
+|-------|-----------|---------|-----------------|----------------|
+| Raw Input | 642.49 | baseline | - | - |
+| NAFNet Teacher | 642.49 | **-0.0%** ✅ | 0.0000 | ✅ 42/42 (100%) |
+| Restormer Teacher | 633.33 | **-1.4%** ✅ | 0.0002 | ✅ 42/42 (100%) |
+| Deploy | 432.96 | **-32.6%** ⚠️ | 0.0008 | ❌ 0/42 (0%) |
 
-- `checkpoints/csuav_deploy/finetune_svfocussrnet_eo_sr_x2_dim32_epoch100_bs_16_ga_2_lr_5e-5/best.pth`
-- `checkpoints/csuav_deploy/finetune_svfocussrnet_eo_sr_x4_dim32_epoch100_bs_16_ga_2_lr_5e-5/best.pth`
+### 결론 및 판단
 
-## 3. Denoise Teacher Live State
+**예상과 다른 결과 분석:**
+- NAFNet/Restormer가 Raw input과 거의 동일 → Denoise 효과 미흡 가능성
+- Deploy의 32.6% 손실 → 과도한 smoothing (bad denoise)
+- Real sensor raw data가 이미 충분히 깨끗하거나, 모델들이 예상과 다른 학습 결과
 
-퇴근 전 확인 시각: `2026-06-08 12:52 KST`
+**의사결정:**
+- 현재 배포된 Deploy Denoise 유지
+- 문제 발생 시 재설계 및 재평가
+- Teacher 모델은 추가 학습 진행
 
-| Run | GPU | Mode | Latest completed validation | Current progress | Checkpoint |
-|---|---:|---|---|---|---|
-| Restormer tone-safe Teacher | 2 | resume | epoch 14, val_loss `0.215638`, PSNR `26.1862`, SSIM `0.8311`, LPIPS `0.1891`, NIQE `3.7987` | epoch 15, about `13764/49260` (`28%`) | `checkpoints/train_restormer_teacher_mc_g105_denoise_x1_dim48_tonesafe_lr1e4_260601/last.pth` |
-| NAFNet tone-safe Teacher | 3 | scratch config | epoch 35, val_loss `0.081893`, PSNR `26.8130`, SSIM `0.8372`, LPIPS `0.2006`, NIQE `3.7992` | epoch 36, about `1679/12315` (`14%`) | `checkpoints/train_nafnet_teacher_mc_g105_denoise_x1_width64_tonesafe_lr1e4_260605/last.pth` |
+## 4. 다음 Action Items
 
-### Runtime notes
+1. ✅ Restormer/NAFNet Teacher 학습 계속 진행
+2. ⏳ 실제 운영 중 Denoise 품질 이슈 모니터링
+3. ⏳ 이슈 발생 시 Denoise 모델 재설계 검토
 
-- Denoise Teacher 학습은 계속 유지한다.
-- Restormer `best.pth`는 epoch 11 시점으로 유지되어 있고, `last.pth`는 epoch 14 완료 후 갱신됐다.
-- NAFNet `best.pth`와 `last.pth`는 epoch 35 완료 후 갱신됐다.
-- GPU 1과 GPU 4는 비어 있다.
-- GPU 0은 별도 YOLO teacher 작업이 사용 중이며, 이번 denoise/SR handoff 범위 밖이다.
+## 5. 생성된 산출물
 
-## 4. Current Decisions
+- `results/denoise_teacher_probe_analysis/metrics.csv` (42 이미지 × 3 모델 메트릭)
+- `results/denoise_teacher_probe_analysis/outputs/` (Deploy/Restormer/NAFNet 추론 이미지)
+- 본 experiment.log (2026-06-16 작업 기록)
 
-- Denoise KD는 아직 재시작하지 않는다.
-- Teacher gate는 validation PSNR/SSIM만으로 판단하지 않고, fixed 42 real sensor probe에서 Deploy 대비 tone/detail/noise behavior를 본 뒤 결정한다.
-- SR MTKD는 현재 rejected SR finetune checkpoint를 기반으로 진행하지 않는다.
-- 다음 작업은 Denoise Teacher가 충분히 더 진행된 뒤 최신 checkpoint로 fixed 42 probe를 다시 실행하는 것이다.
+---
 
-## 5. Next
-
-1. Restormer/NAFNet Teacher 학습을 계속 둔다.
-2. 다음 확인 시 최신 `last.pth`/`best.pth`, `training_log.csv`, live log tail을 다시 확인한다.
-3. Denoise fixed 42 probe를 최신 Teacher checkpoint로 재실행한다.
-4. Deploy / Restormer / NAFNet 비교 리포트에서 Teacher gate를 판단한다.
-5. Teacher gate를 통과한 후보가 있을 때만 KD target 범위와 Student 체급을 다시 설계한다.
+**퇴근 전 상태 확인 시각: 2026-06-16 14:55 KST**
+- GPU 2: 0% (probe 완료)
+- GPU 3: 100% (NAFNet 학습 중)
+- Denoise probe 분석 완료, Deploy 유지 결정

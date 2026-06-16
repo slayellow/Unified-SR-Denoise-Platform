@@ -1,0 +1,4 @@
+  File "tools/analyze_denoise_real_sensor_42.py", line 48
+    def parse_args() -> argparse.Namespace:
+                     ^
+SyntaxError: invalid syntax

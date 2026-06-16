@@ -1,0 +1,47 @@
+# Denoise & SR Training Checklist
+
+## 2026-06-16 (Monday)
+
+### Denoise Teacher 학습
+- [x] Restormer tone-safe Teacher 학습 재개 (6/8 이후)
+  - 진행: epoch 14 → 32 (18 epoch 추가)
+  - 상태: 수렴 구간 진입, best epoch 28 유지
+  
+- [x] NAFNet tone-safe Teacher 학습 진행
+  - 진행: epoch 35 → 85 (50 epoch 추가)
+  - 상태: 꾸준한 개선, best epoch 84 (최신)
+
+### Fixed 42 Real Sensor Probe 분석
+- [x] Probe 환경 준비 (결과/이미지 데이터)
+- [x] Deploy 모델 Inference
+- [x] Restormer Teacher Inference
+- [x] NAFNet Teacher Inference
+- [x] 메트릭 계산 및 분석
+- [x] 결과 정리 및 보고
+
+### Denoise 모델 판단
+- [x] Probe 분석 결과 검토
+- [x] Teacher vs Deploy 성능 비교
+- [x] Deploy 유지 결정
+
+---
+
+## Next Steps (다음 작업)
+
+### 우선순위: HIGH
+- [ ] Restormer/NAFNet Teacher 학습 계속 진행 (현재 진행 중)
+- [ ] Teacher 학습 완료 후 최종 checkpoint 평가
+
+### 우선순위: MEDIUM
+- [ ] 실제 운영 중 Denoise 품질 모니터링
+- [ ] 이슈 발생 시 재설계 계획 수립
+
+### 우선순위: LOW
+- [ ] 다른 Denoise 아키텍처 벤치마크 (필요 시)
+
+---
+
+## Notes
+- Deploy Denoise는 현 상태 유지 (변경 예정 없음)
+- Teacher 모델은 추가 학습 진행 (KD 준비용)
+- Probe 결과는 raw와 유사 → 실제 noise가 미약하거나 모델 특성상 예상과 다를 수 있음
