@@ -1,16 +1,19 @@
 import os
 import glob
 import random
+# float -> uint8 casts round instead of truncating. A bare astype floors, which
+# biases every synthesised pixel by -0.5 DN on average; measured end-to-end the
+# LR came out 0.09 DN (EO) / 0.36 DN (IR) darker than its HR target, a bias the
+# model then has to spend capacity undoing. Phase-1 is unaffected because its
+# only op is the resize, but Phase-2 runs the noise stack.
 import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from .degradations import random_mixed_kernels, circular_lowpass_kernel, random_add_poisson_noise, random_add_atmospheric_turbulence
-from .unprocess import add_unprocess_isp_noise
+from .degradations import random_mixed_kernels, circular_lowpass_kernel, random_add_poisson_noise
+from .degradations import apply_camera_model, validate_camera_model_cfg
 import math
 from typing import Any
-from copy import deepcopy
-from itertools import combinations
 
 # =========================================================
 #  Common Utils
@@ -30,23 +33,56 @@ def get_interpolation(name):
     if name == "cv2.INTER_LANCZOS4": return cv2.INTER_LANCZOS4
     return cv2.INTER_CUBIC
 
-def add_vertical_line_noise(img, prob=0.5, intensity_range=(2, 10), alpha=0.15):
-    """ [IR Sensor Noise] Vertical Line Noise """
-    if random.random() > prob: return img
+def add_vertical_line_noise(img, prob=0.5, sigma_dn=0.75, strong_frac=0.03,
+                            strong_dn=6.0, intensity_range=None, alpha=None):
+    """[IR Sensor Noise] Column offsets, shaped like the sensor's actual residual.
+
+    Every column gets its own offset, drawn from N(0, sigma_dn), and a small
+    fraction get a larger one on top. That is what the deployed sensor leaves
+    behind: measured 2026-09-08 on 600 frames straight off /dev/video2, after
+    the sensor's own NUC, the per-column offset had a robust sigma of 0.867 DN
+    with 56% of columns past 0.5 DN and 26% past 1.0 DN. It is not a fixed
+    pattern -- profiles 18 seconds apart correlate at 0.046 -- so it is drawn
+    fresh per sample rather than held as a calibration table.
+
+    The previous shape was a different artefact entirely: 2-8 isolated columns
+    displaced by up to +-38 DN (alpha=0.15 of full scale). Nothing on the
+    sensor looks like that, and a model trained against it suppressed the real
+    residual by only 8% when the measured shape was injected. Strength is
+    deliberately left at the measured level rather than raised: more noise
+    steers the model toward denoising, and denoising is blur -- the trap this
+    project documented on the EO side.
+
+    ``sigma_dn`` is calibrated, not assumed: injecting into RAYSENSE training
+    frames and re-measuring with the same estimator used on the sensor, 0.75
+    reproduces the sensor's numbers (amplitude 0.87 DN, 56% of columns past
+    0.5 DN, 26% past 1.0 DN) to within the spread across images. The value is
+    below the sensor's own sigma because uint8 rounding swallows part of a
+    sub-DN offset, and because the estimator is calibrated end to end rather
+    than on the injected quantity.
+
+    ``intensity_range`` and ``alpha`` are accepted and ignored so that v1/v2
+    configs still load; they parameterise the old shape, which no longer
+    exists. Callers that set them get the measured shape instead.
+    """
+    if random.random() > prob:
+        return img
     out = img.copy()
     is_uint8 = (out.dtype == np.uint8)
-    if is_uint8: out = out.astype(np.float32) / 255.0
+    if is_uint8:
+        out = out.astype(np.float32)
+    else:
+        out = out * 255.0
 
-    h, w, c = out.shape
-    num_lines = random.randint(intensity_range[0], intensity_range[1])
-    
-    for _ in range(num_lines):
-        col = random.randint(0, w - 1)
-        noise = random.uniform(-alpha, alpha)
-        out[:, col, :] = out[:, col, :] + noise 
-        
-    out = np.clip(out, 0.0, 1.0)
-    return (out * 255).astype(np.uint8) if is_uint8 else out
+    w = out.shape[1]
+    offsets = np.random.normal(0.0, float(sigma_dn), w).astype(np.float32)
+    if strong_frac > 0:
+        strong = np.random.random(w) < float(strong_frac)
+        offsets[strong] += np.random.uniform(-strong_dn, strong_dn, int(strong.sum()))
+    out = out + offsets[None, :, None]
+
+    out = np.clip(out, 0.0, 255.0)
+    return out.round().astype(np.uint8) if is_uint8 else (out / 255.0)
 
 def add_non_uniformity_noise(img, prob=0.5, amp_range=(0.1, 0.3)):
     """ [IR Sensor Noise] Vignetting/Shading """
@@ -66,120 +102,10 @@ def add_non_uniformity_noise(img, prob=0.5, amp_range=(0.1, 0.3)):
     
     noise_map = val_a * np.exp(-dist_sq / (2 * sigma**2))
     noise_map = np.expand_dims(noise_map, axis=2)
-    
-    # out = out - noise_map
+
     out = out + (noise_map - (val_a / 2))
     out = np.clip(out, 0.0, 1.0)
-    return (out * 255).astype(np.uint8) if is_uint8 else out
-
-def add_chroma_noise(img, sigma_range=(5, 20), downscale_factor=4):
-    """ Chroma (Color Mottling) Noise typically seen in high ISO sensor read noise """
-    sigma = random.uniform(sigma_range[0], sigma_range[1])
-    H, W, C = img.shape
-    img_float = img.astype(np.float32)
-    
-    h_down, w_down = max(H // downscale_factor, 1), max(W // downscale_factor, 1)
-    
-    noise = np.random.normal(0, sigma, (h_down, w_down, C)).astype('float32')
-    noise_up = cv2.resize(noise, (W, H), interpolation=cv2.INTER_CUBIC)
-    
-    return np.clip(img_float + noise_up, 0, 255).astype('uint8')
-
-def add_chroma_mottle(img, sigma_range=(2, 8), downscale_factor=8):
-    """Apply low-frequency chroma-only mottle in YCrCb space."""
-    sigma = random.uniform(sigma_range[0], sigma_range[1])
-    h, w, _ = img.shape
-    ycrcb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb).astype(np.float32)
-
-    h_down, w_down = max(h // downscale_factor, 1), max(w // downscale_factor, 1)
-    noise = np.random.normal(0, sigma, (h_down, w_down, 2)).astype(np.float32)
-    noise_up = cv2.resize(noise, (w, h), interpolation=cv2.INTER_CUBIC)
-
-    ycrcb[:, :, 1] += noise_up[:, :, 0]
-    ycrcb[:, :, 2] += noise_up[:, :, 1]
-    ycrcb = np.clip(ycrcb, 0, 255).astype(np.uint8)
-    return cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2BGR)
-
-def add_row_band_noise(img, sigma_range=(1.0, 8.0), channel_independent_prob=0.3):
-    """Apply weak row-wise offset noise often seen in sensor readout."""
-    out = img.astype(np.float32)
-    h, _, c = out.shape
-    sigma = random.uniform(sigma_range[0], sigma_range[1])
-
-    if random.random() < channel_independent_prob:
-        offsets = np.random.normal(0.0, sigma, (h, 1, c)).astype(np.float32)
-    else:
-        offsets = np.random.normal(0.0, sigma, (h, 1, 1)).astype(np.float32)
-
-    return np.clip(out + offsets, 0, 255).astype(np.uint8)
-
-def add_periodic_grid_noise(img, amplitude_range=(0.5, 3.0), period_range=(2.0, 8.0), channel_jitter=0.35):
-    """Apply subtle periodic grid/readout texture for MC-G105-style validation stress."""
-    out = img.astype(np.float32)
-    h, w, c = out.shape
-
-    amp = random.uniform(amplitude_range[0], amplitude_range[1])
-    px = random.uniform(period_range[0], period_range[1])
-    py = random.uniform(period_range[0], period_range[1])
-    phase_x = random.uniform(0, 2 * math.pi)
-    phase_y = random.uniform(0, 2 * math.pi)
-
-    yy, xx = np.mgrid[0:h, 0:w]
-    grid = np.sin((2 * math.pi * xx / px) + phase_x) + np.sin((2 * math.pi * yy / py) + phase_y)
-    grid = grid.astype(np.float32)
-    grid = grid / (np.max(np.abs(grid)) + 1e-6)
-
-    gains = np.ones((1, 1, c), dtype=np.float32)
-    if channel_jitter > 0:
-        gains += np.random.uniform(-channel_jitter, channel_jitter, (1, 1, c)).astype(np.float32)
-
-    return np.clip(out + amp * grid[:, :, None] * gains, 0, 255).astype(np.uint8)
-
-def add_eo_shading(img, strength_range=(0.04, 0.14), sigma_range=(0.65, 1.25), center_offset_range=(-0.12, 0.12), diagonal_prob=0.25, chroma_strength_range=(0.0, 0.015)):
-    """Apply EO-style low-frequency shading/vignetting without IR noise artifacts."""
-    out = img.astype(np.float32) / 255.0
-    h, w, _ = out.shape
-
-    cx = (0.5 + random.uniform(center_offset_range[0], center_offset_range[1])) * w
-    cy = (0.5 + random.uniform(center_offset_range[0], center_offset_range[1])) * h
-    yy, xx = np.mgrid[0:h, 0:w]
-    sigma = max(h, w) * random.uniform(sigma_range[0], sigma_range[1])
-    dist_sq = (xx - cx) ** 2 + (yy - cy) ** 2
-    radial = np.exp(-dist_sq / (2 * sigma ** 2)).astype(np.float32)
-    radial = radial - radial.mean()
-    radial = radial / (np.max(np.abs(radial)) + 1e-6)
-
-    strength = random.uniform(strength_range[0], strength_range[1])
-    shading = 1.0 + strength * radial
-
-    if random.random() < diagonal_prob:
-        gx = np.linspace(-1.0, 1.0, w, dtype=np.float32)
-        gy = np.linspace(-1.0, 1.0, h, dtype=np.float32)
-        plane = (gy[:, None] + gx[None, :]) * 0.5
-        shading += random.uniform(-0.5, 0.5) * strength * plane
-
-    chroma_strength = random.uniform(chroma_strength_range[0], chroma_strength_range[1])
-    channel_gain = np.array(
-        [1.0 + random.uniform(-chroma_strength, chroma_strength) for _ in range(3)],
-        dtype=np.float32
-    )
-
-    out = out * shading[:, :, None] * channel_gain.reshape(1, 1, 3)
-    return np.clip(out * 255.0, 0, 255).round().astype(np.uint8)
-
-def add_highlight_clipping(img, gain_range=(1.02, 1.10), gamma_range=(0.96, 1.02), channel_gain_jitter=(0.98, 1.03)):
-    """Simulate sunny highlight saturation with mild global/channel gain drift."""
-    out = img.astype(np.float32) / 255.0
-    gain = random.uniform(gain_range[0], gain_range[1])
-    gamma = random.uniform(gamma_range[0], gamma_range[1])
-    channel_gains = np.array(
-        [random.uniform(channel_gain_jitter[0], channel_gain_jitter[1]) for _ in range(3)],
-        dtype=np.float32
-    )
-
-    out = np.power(np.maximum(out, 1e-8), gamma)
-    out = out * gain * channel_gains.reshape(1, 1, 3)
-    return np.clip(out * 255.0, 0, 255).round().astype(np.uint8)
+    return (out * 255).round().astype(np.uint8) if is_uint8 else out
 
 def add_gaussian_noise(img, sigma_range=(1, 10), gray_prob=0.5):
     """ Gaussian Noise """
@@ -193,7 +119,7 @@ def add_gaussian_noise(img, sigma_range=(1, 10), gray_prob=0.5):
     else:
         noise = np.random.normal(0, sigma, (H, W, C)).astype('float32')
         
-    return np.clip(img_float + noise, 0, 255).astype('uint8')
+    return np.clip(img_float + noise, 0, 255).round().astype('uint8')
 
 def apply_jpeg(img, quality_range=(30, 95)):
     """ JPEG Compression Artifacts """
@@ -206,58 +132,37 @@ def apply_kernel(img, kernel):
     return cv2.filter2D(img, -1, kernel)
 
 
-def add_color_cast(img, rg_shift_range=(-8.0, -1.0), bg_shift_range=(-6.0, 1.0), global_gain_range=(0.98, 1.02)):
-    """Apply a global channel bias to simulate sensor/ISP color cast drift."""
-    out = img.astype(np.float32)
-    gain = random.uniform(global_gain_range[0], global_gain_range[1])
-    rg_shift = random.uniform(rg_shift_range[0], rg_shift_range[1])
-    bg_shift = random.uniform(bg_shift_range[0], bg_shift_range[1])
-
-    out[:, :, 1] *= gain
-    out[:, :, 0] += bg_shift        # B-G
-    out[:, :, 2] += rg_shift        # R-G
-    return np.clip(out, 0, 255).astype(np.uint8)
-
-
-def add_detail_attenuation(img, blur_sigma_range=(0.2, 1.2), detail_blend_range=(0.15, 0.45), contrast_range=(0.88, 0.98)):
-    """Simulate zoom/night detail collapse by mixing blurred image and reducing local contrast."""
-    out = img.astype(np.float32)
-    sigma = random.uniform(blur_sigma_range[0], blur_sigma_range[1])
-    blend = random.uniform(detail_blend_range[0], detail_blend_range[1])
-    contrast = random.uniform(contrast_range[0], contrast_range[1])
-
-    blurred = cv2.GaussianBlur(out, (0, 0), sigmaX=sigma, sigmaY=sigma)
-    out = out * (1.0 - blend) + blurred * blend
-    mean = out.mean(axis=(0, 1), keepdims=True)
-    out = (out - mean) * contrast + mean
-    return np.clip(out, 0, 255).astype(np.uint8)
-
-
-def add_signal_instability(img, gain_range=(0.95, 1.05), gamma_range=(0.95, 1.05), channel_gain_jitter=(0.97, 1.03)):
-    """Simulate frame-level exposure / ISP instability as weak gain and gamma drift."""
-    out = img.astype(np.float32) / 255.0
-    global_gain = random.uniform(gain_range[0], gain_range[1])
-    gamma = random.uniform(gamma_range[0], gamma_range[1])
-    channel_gains = np.array([random.uniform(channel_gain_jitter[0], channel_gain_jitter[1]) for _ in range(3)], dtype=np.float32)
-
-    out = np.clip(out * global_gain, 0.0, 1.0)
-    out = np.power(np.maximum(out, 1e-8), gamma)
-    out = out * channel_gains.reshape(1, 1, 3)
-    return np.clip(out * 255.0, 0, 255).astype(np.uint8)
-
-
 def collect_image_paths(dataset_root: Any) -> list[str]:
-    """Collect image paths recursively from one or more dataset roots."""
+    """Collect image paths recursively from one or more dataset roots.
+
+    Extensions are matched case-insensitively. Globbing for '*.png' alone made a
+    directory of .PNG files come back empty, and the callers only printed a
+    warning before training on nothing.
+    """
+    extensions = ('.png', '.jpg', '.jpeg')
     image_paths: list[str] = []
     if isinstance(dataset_root, str):
         dataset_root = [dataset_root]
 
     for root_dir in dataset_root:
-        image_paths.extend(glob.glob(os.path.join(root_dir, '**', '*.png'), recursive=True))
-        image_paths.extend(glob.glob(os.path.join(root_dir, '**', '*.jpg'), recursive=True))
-        image_paths.extend(glob.glob(os.path.join(root_dir, '**', '*.jpeg'), recursive=True))
+        for path in glob.glob(os.path.join(root_dir, '**', '*'), recursive=True):
+            if path.lower().endswith(extensions):
+                image_paths.append(path)
 
-    return image_paths
+    return sorted(set(image_paths))
+
+
+def _stem_map(files: list[str], label: str) -> dict[str, str]:
+    """Map file stem -> path, refusing to collapse two files onto one stem."""
+    mapping: dict[str, str] = {}
+    for path in files:
+        stem = os.path.splitext(os.path.basename(path))[0]
+        if stem in mapping:
+            raise ValueError(
+                f"{label}: duplicate stem {stem!r} from {mapping[stem]} and {path}"
+            )
+        mapping[stem] = path
+    return mapping
 
 
 def ensure_min_image_size(img: np.ndarray, min_h: int, min_w: int) -> np.ndarray:
@@ -268,103 +173,108 @@ def ensure_min_image_size(img: np.ndarray, min_h: int, min_w: int) -> np.ndarray
     return cv2.resize(img, (max(width, min_w), max(height, min_h)), interpolation=cv2.INTER_CUBIC)
 
 
+def augment_pair(hr: np.ndarray, lr: np.ndarray, use_flip: bool = False,
+                 use_rot: bool = False) -> tuple[np.ndarray, np.ndarray]:
+    """Dihedral augmentation applied identically to an HR/LR pair.
+
+    One draw drives both images, so they stay pixel-registered. Horizontal flip
+    and 90-degree rotation together generate the 8-element dihedral group, which
+    is exactly what `use_flip` and `use_rot` in the data configs have always
+    promised and never delivered.
+    """
+    if use_flip and random.random() < 0.5:
+        hr, lr = hr[:, ::-1], lr[:, ::-1]
+    if use_flip and random.random() < 0.5:
+        hr, lr = hr[::-1, :], lr[::-1, :]
+    if use_rot and random.random() < 0.5:
+        hr, lr = np.rot90(hr, axes=(0, 1)), np.rot90(lr, axes=(0, 1))
+    return np.ascontiguousarray(hr), np.ascontiguousarray(lr)
+
+
 def image_to_tensor(image_bgr: np.ndarray) -> torch.Tensor:
     """Convert a BGR uint8 image into a float RGB tensor in [0, 1]."""
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
     return torch.from_numpy(np.ascontiguousarray(image_rgb.transpose(2, 0, 1))).float()
 
 
-def merge_nested_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Recursively merge two dictionaries without mutating the inputs."""
-    result = deepcopy(base)
-    for key, value in override.items():
-        if isinstance(value, dict) and isinstance(result.get(key), dict):
-            result[key] = merge_nested_dict(result[key], value)
-        else:
-            result[key] = deepcopy(value)
-    return result
+# Effective defaults of apply_configured_degradation, in application order.
+# op -> (default enabled, default prob). MUST stay in sync with the .get()
+# fallbacks in apply_configured_degradation below; prob None means the op has
+# no top-level prob gate (target_resize applies whenever enabled, ir_noise
+# uses per-sub-op probs).
+_DEGRADATION_PIPELINE_DEFAULTS = {
+    'stage1': {
+        'blur': (True, 0.5),
+        'resize': (True, 0.7),
+        'gaussian_noise': (True, 0.5),
+        'poisson_noise': (True, 0.5),
+        'jpeg': (True, 0.5),
+        'sinc': (True, 0.1),
+    },
+    'stage2': {
+        'blur': (True, 0.5),
+        'target_resize': (True, None),
+        'ir_noise': (True, None),
+        'common_noise': (True, 0.0),
+        'hot_pixels': (False, 0.5),
+        'final_jpeg': (True, 0.8),
+    },
+}
 
 
-def sample_weighted_profile(weight_map: dict[str, Any], fallback: str) -> str:
-    """Sample one profile label from a weight map."""
-    if not weight_map:
-        return fallback
-    labels = list(weight_map.keys())
-    weights = [float(weight_map[label]) for label in labels]
-    if sum(weights) <= 0:
-        return fallback
-    return random.choices(labels, weights=weights, k=1)[0]
+def log_active_degradations(cfg: dict[str, Any], tag: str) -> None:
+    """Print the effective degradation pipeline once, at dataset init.
 
-
-def resolve_conditional_cfg(cfg: dict[str, Any]) -> tuple[dict[str, Any], dict[str, str]]:
-    """Resolve conditional profile overrides for degradation config."""
-    conditional = cfg.get('conditional_profiles', {})
-    if not conditional.get('enabled', False):
-        return cfg, {}
-
-    resolved_cfg = deepcopy(cfg)
-    sampling = conditional.get('sampling', {})
-    axes = conditional.get('axes')
-    resolved_labels: dict[str, str] = {}
-
-    if not axes:
-        axes = []
-        for axis in ('time', 'zoom'):
-            if axis in sampling or f'{axis}_profiles' in conditional:
-                axes.append(axis)
-        for axis in sampling.keys():
-            if axis not in axes and f'{axis}_profiles' in conditional:
-                axes.append(axis)
-
-    for axis in axes:
-        label = sample_weighted_profile(sampling.get(axis, {}), 'default')
-        profile_map = conditional.get(f'{axis}_profiles', {})
-        if label in profile_map:
-            resolved_cfg = merge_nested_dict(resolved_cfg, profile_map[label])
-            resolved_labels[axis] = label
-
-    combo_profiles = conditional.get('combo_profiles', {})
-    label_pairs = [(axis, resolved_labels[axis]) for axis in axes if axis in resolved_labels]
-    for combo_len in range(2, len(label_pairs) + 1):
-        for combo in combinations(label_pairs, combo_len):
-            label_key = '__'.join(label for _, label in combo)
-            axis_label_key = '__'.join(f'{axis}:{label}' for axis, label in combo)
-            if label_key in combo_profiles:
-                resolved_cfg = merge_nested_dict(resolved_cfg, combo_profiles[label_key])
-                resolved_labels[f'combo_{combo_len}_{len(resolved_labels)}'] = label_key
-            if axis_label_key in combo_profiles:
-                resolved_cfg = merge_nested_dict(resolved_cfg, combo_profiles[axis_label_key])
-                resolved_labels[f'combo_{combo_len}_{len(resolved_labels)}'] = axis_label_key
-
-    return resolved_cfg, resolved_labels
+    Mirrors the defaults of apply_configured_degradation so an op whose key is
+    missing from the config is reported with the value the pipeline will really
+    use. Greppable via the '[Degradation]' prefix. Called from __init__, which
+    runs in the main process only, so it prints once per process rather than
+    once per dataloader worker.
+    """
+    d = cfg.get('degradation', {}) or {}
+    for stage_name, ops in _DEGRADATION_PIPELINE_DEFAULTS.items():
+        stage_cfg = d.get(stage_name, {}) or {}
+        active, off = [], []
+        for op, (default_enabled, default_prob) in ops.items():
+            op_cfg = stage_cfg.get(op, {}) or {}
+            if not op_cfg.get('enabled', default_enabled):
+                off.append(op)
+            elif op == 'ir_noise':
+                nu = (op_cfg.get('non_uniformity', {}) or {}).get('prob', 0.5)
+                vl = (op_cfg.get('vertical_line', {}) or {}).get('prob', 0.5)
+                tn = (op_cfg.get('thermal_noise', {}) or {})
+                t_desc = f"p={tn.get('prob', 1.0)}" if tn.get('enabled', True) else 'off'
+                active.append(f"ir_noise(non_uniformity={nu},vertical_line={vl},thermal={t_desc})")
+            elif default_prob is None:
+                active.append(f"{op}(always)")
+            else:
+                active.append(f"{op}(p={op_cfg.get('prob', default_prob)})")
+        print(f"[Degradation] {tag} {stage_name} active: {', '.join(active) or '(none)'}")
+        print(f"[Degradation] {tag} {stage_name} off: {', '.join(off) or '(none)'}")
+        unknown = sorted(set(stage_cfg) - set(ops))
+        if unknown:
+            print(f"[Degradation] {tag} WARNING: {stage_name} keys not read by the pipeline: {', '.join(unknown)}")
+    print(f"[Degradation] {tag} clean_prob={cfg.get('clean_prob', 0.0)}")
+    cam = cfg.get('camera_model', {}) or {}
+    if cam.get('enabled', False):
+        modes = ', '.join(f"{m.get('name')}(p={m.get('prob')}{', impulses' if m.get('impulses') else ''})"
+                          for m in cam.get('noise_modes', []))
+        print(f"[Degradation] {tag} camera_model on: prob={cam.get('prob', 1.0)} target={cam.get('target', 'camera')} "
+              f"(rest = stage1/stage2 replay, target = HR) "
+              f"optics_sigma={cam.get('optics_sigma')} noise_scale={cam.get('noise_scale')} "
+              f"hot_pixels={(cam.get('hot_pixels') or {}).get('density', 'off')} modes: {modes}")
+    else:
+        print(f"[Degradation] {tag} camera_model off")
 
 
 def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_factor: int) -> np.ndarray:
     """Apply the shared on-the-fly degradation pipeline for SR/Denoise datasets."""
-    effective_cfg, _ = resolve_conditional_cfg(cfg)
     out = img_hr.copy()
     h_hr, w_hr = out.shape[:2]
 
-    d = effective_cfg.get('degradation', {})
+    d = cfg.get('degradation', {})
     s1 = d.get('stage1', {})
     s2 = d.get('stage2', {})
-
-    c_unprocess = s1.get('unprocess_noise', {})
-    if c_unprocess.get('enabled', False) and random.random() < c_unprocess.get('prob', 0.5):
-        out = add_unprocess_isp_noise(
-            out,
-            read_noise_max=c_unprocess.get('read_noise_max', 0.02),
-            shot_noise_max=c_unprocess.get('shot_noise_max', 10.0)
-        )
-
-    c_turb = s1.get('turbulence', {})
-    if c_turb.get('enabled', False) and random.random() < c_turb.get('prob', 0.5):
-        out = apply_float_op(
-            out,
-            random_add_atmospheric_turbulence,
-            alpha_range=tuple(c_turb.get('alpha', [5, 15])),
-            sigma_range=tuple(c_turb.get('sigma', [3, 7]))
-        )
 
     c_blur = s1.get('blur', {})
     if c_blur.get('enabled', True) and random.random() < c_blur.get('prob', 0.5):
@@ -452,68 +362,30 @@ def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_
     c_ir = s2.get('ir_noise', {})
     if c_ir.get('enabled', True):
         non_uniformity_cfg = c_ir.get('non_uniformity', {})
-        if random.random() < non_uniformity_cfg.get('prob', 0.5):
+        if non_uniformity_cfg.get('enabled', True) and random.random() < non_uniformity_cfg.get('prob', 0.5):
             amp = (non_uniformity_cfg.get('amp_min', 0.1), non_uniformity_cfg.get('amp_max', 0.3))
             out = add_non_uniformity_noise(out, prob=1.0, amp_range=amp)
 
         vertical_line_cfg = c_ir.get('vertical_line', {})
-        if random.random() < vertical_line_cfg.get('prob', 0.5):
-            ints = (vertical_line_cfg.get('intensity_min', 2), vertical_line_cfg.get('intensity_max', 10))
-            out = add_vertical_line_noise(out, prob=1.0, intensity_range=ints)
+        if vertical_line_cfg.get('enabled', True) and random.random() < vertical_line_cfg.get('prob', 0.5):
+            # Defaults are the measured post-NUC residual (see the function).
+            out = add_vertical_line_noise(
+                out, prob=1.0,
+                sigma_dn=vertical_line_cfg.get('sigma_dn', 0.75),
+                strong_frac=vertical_line_cfg.get('strong_frac', 0.03),
+                strong_dn=vertical_line_cfg.get('strong_dn', 6.0),
+            )
 
+        # thermal_noise used to ignore its own enabled flag and apply on every
+        # frame. Defaults (enabled True, prob 1.0) reproduce that behavior for
+        # configs that relied on it; the flags simply work now.
         t_noise = c_ir.get('thermal_noise', {})
-        out = add_gaussian_noise(
-            out,
-            sigma_range=(t_noise.get('sigma_min', 5), t_noise.get('sigma_max', 20)),
-            gray_prob=t_noise.get('gray_prob', 0.9)
-        )
-
-    c_eo_shading = s2.get('eo_shading', {})
-    if c_eo_shading.get('enabled', False) and random.random() < c_eo_shading.get('prob', 0.5):
-        out = add_eo_shading(
-            out,
-            strength_range=tuple(c_eo_shading.get('strength', [0.04, 0.14])),
-            sigma_range=tuple(c_eo_shading.get('sigma', [0.65, 1.25])),
-            center_offset_range=tuple(c_eo_shading.get('center_offset', [-0.12, 0.12])),
-            diagonal_prob=c_eo_shading.get('diagonal_prob', 0.25),
-            chroma_strength_range=tuple(c_eo_shading.get('chroma_strength', [0.0, 0.015]))
-        )
-
-    c_detail = s2.get('detail_attenuation', {})
-    if c_detail.get('enabled', False) and random.random() < c_detail.get('prob', 0.5):
-        out = add_detail_attenuation(
-            out,
-            blur_sigma_range=tuple(c_detail.get('blur_sigma', [0.2, 1.2])),
-            detail_blend_range=tuple(c_detail.get('detail_blend', [0.15, 0.45])),
-            contrast_range=tuple(c_detail.get('contrast', [0.88, 0.98]))
-        )
-
-    c_signal = s2.get('signal_instability', {})
-    if c_signal.get('enabled', False) and random.random() < c_signal.get('prob', 0.5):
-        out = add_signal_instability(
-            out,
-            gain_range=tuple(c_signal.get('gain', [0.95, 1.05])),
-            gamma_range=tuple(c_signal.get('gamma', [0.95, 1.05])),
-            channel_gain_jitter=tuple(c_signal.get('channel_gain', [0.97, 1.03]))
-        )
-
-    c_cast = s2.get('color_cast', {})
-    if c_cast.get('enabled', False) and random.random() < c_cast.get('prob', 0.5):
-        out = add_color_cast(
-            out,
-            rg_shift_range=tuple(c_cast.get('rg_shift', [-8.0, -1.0])),
-            bg_shift_range=tuple(c_cast.get('bg_shift', [-6.0, 1.0])),
-            global_gain_range=tuple(c_cast.get('global_gain', [0.98, 1.02]))
-        )
-
-    c_highlight = s2.get('highlight_clipping', {})
-    if c_highlight.get('enabled', False) and random.random() < c_highlight.get('prob', 0.5):
-        out = add_highlight_clipping(
-            out,
-            gain_range=tuple(c_highlight.get('gain', [1.02, 1.10])),
-            gamma_range=tuple(c_highlight.get('gamma', [0.96, 1.02])),
-            channel_gain_jitter=tuple(c_highlight.get('channel_gain', [0.98, 1.03]))
-        )
+        if t_noise.get('enabled', True) and random.random() < t_noise.get('prob', 1.0):
+            out = add_gaussian_noise(
+                out,
+                sigma_range=(t_noise.get('sigma_min', 5), t_noise.get('sigma_max', 20)),
+                gray_prob=t_noise.get('gray_prob', 0.9)
+            )
 
     c_common = s2.get('common_noise', {})
     if c_common.get('enabled', True) and random.random() < c_common.get('prob', 0.0):
@@ -521,39 +393,6 @@ def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_
             out,
             sigma_range=(c_common.get('sigma_min', 1), c_common.get('sigma_max', 10)),
             gray_prob=c_common.get('gray_prob', 0.2)
-        )
-
-    c_chroma = s2.get('chroma_noise', {})
-    if c_chroma.get('enabled', False) and random.random() < c_chroma.get('prob', 0.5):
-        out = add_chroma_noise(
-            out,
-            sigma_range=(c_chroma.get('sigma_min', 5), c_chroma.get('sigma_max', 20)),
-            downscale_factor=c_chroma.get('downscale', 4)
-        )
-
-    c_mottle = s2.get('chroma_mottle', {})
-    if c_mottle.get('enabled', False) and random.random() < c_mottle.get('prob', 0.5):
-        out = add_chroma_mottle(
-            out,
-            sigma_range=(c_mottle.get('sigma_min', 2), c_mottle.get('sigma_max', 8)),
-            downscale_factor=c_mottle.get('downscale', 8)
-        )
-
-    c_row = s2.get('row_noise', {})
-    if c_row.get('enabled', False) and random.random() < c_row.get('prob', 0.5):
-        out = add_row_band_noise(
-            out,
-            sigma_range=(c_row.get('sigma_min', 1.0), c_row.get('sigma_max', 8.0)),
-            channel_independent_prob=c_row.get('channel_independent_prob', 0.3)
-        )
-
-    c_grid = s2.get('periodic_grid_noise', {})
-    if c_grid.get('enabled', False) and random.random() < c_grid.get('prob', 0.5):
-        out = add_periodic_grid_noise(
-            out,
-            amplitude_range=(c_grid.get('amplitude_min', 0.5), c_grid.get('amplitude_max', 3.0)),
-            period_range=(c_grid.get('period_min', 2.0), c_grid.get('period_max', 8.0)),
-            channel_jitter=c_grid.get('channel_jitter', 0.35)
         )
 
     c_hot = s2.get('hot_pixels', {})
@@ -580,7 +419,7 @@ def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_
                         k_size = radius * 2 + 1
                         temp = cv2.GaussianBlur(temp, (k_size, k_size), 0)
                     mask = (temp > 0).astype(np.float32)
-                    out = (out * (1 - mask) + temp * mask).astype(np.uint8)
+                    out = (out * (1 - mask) + temp * mask).round().astype(np.uint8)
             else:
                 out[y_coords[idx], x_coords[idx], :] = color
 
@@ -597,7 +436,7 @@ def apply_configured_degradation(img_hr: np.ndarray, cfg: dict[str, Any], scale_
 class SRDataset(Dataset):
     """
     Real-ESRGAN Style Degradation Pipeline for Super-Resolution
-    Supports configurable degradation via 'degradation_config'.
+    Supports configurable degradation via 'config' (the data config dict).
     """
     def __init__(self, dataset_root, scale_factor=2, patch_size=128, is_train=True, config=None):
         super().__init__()
@@ -605,16 +444,19 @@ class SRDataset(Dataset):
         self.patch_size = patch_size
         self.is_train = is_train
         self.cfg = config if config else {}
-        
-        # Load Defaults if cfg is empty
+        # An empty config is not "no degradation": every op would run on its default.
         if not self.cfg:
-            print("[SRDataset] Warning: No degradation config provided. Using defaults.")
-            pass # Defaults are handled safely with .get() in pipeline
+            raise ValueError("SRDataset got an empty data config; pass the recipe's data config")
+        if (self.cfg.get('camera_model', {}) or {}).get('enabled', False):
+            raise ValueError("camera_model is implemented for DenoiseDataset only; SRDataset would ignore it silently")
+        log_active_degradations(self.cfg, tag=f"SRDataset({'train' if is_train else 'val'})")
 
         self.image_paths = collect_image_paths(dataset_root)
 
         if not self.image_paths:
-            print(f"[Warning] No images found in {dataset_root}")
+            raise FileNotFoundError(
+                f"SRDataset found no images under {dataset_root}. Check the data root path."
+            )
 
     def __len__(self):
         return len(self.image_paths)
@@ -632,10 +474,37 @@ class SRDataset(Dataset):
         lr_h, lr_w = self.patch_size, self.patch_size
         hr_h, hr_w = lr_h * self.scale_factor, lr_w * self.scale_factor
         
-        # Ensure image is large enough
+        # An image smaller than the HR crop used to be bicubic-upscaled to fit,
+        # which makes the TARGET a bicubic upsample -- band-limited below its own
+        # Nyquist and stretched on whichever axis was short, because only the
+        # deficient one is grown. The model then learns to reproduce exactly the
+        # bicubic softness this project is trying to remove. Measured on LSDIR
+        # (median 1128x864) with the old scale-blind patch_size of 288: 13% of
+        # samples at x2, 56% at x3, 93% at x4, and a 30% loss of high-frequency
+        # energy in the target patch. Skip to another image instead.
         if H < hr_h or W < hr_w:
-            img_hr_raw = ensure_min_image_size(img_hr_raw, min_h=hr_h, min_w=hr_w)
-            H, W, C = img_hr_raw.shape
+            if not getattr(self, '_warned_small', False):
+                print(f"[SRDataset] HR 크롭 {hr_h}px 보다 작은 이미지는 건너뜁니다 "
+                      f"(확대하면 정답이 bicubic 업샘플이 됩니다)")
+                self._warned_small = True
+            # Redraw at random, in a loop rather than by recursion (the recursive
+            # form blew the stack at 978 frames inside a DataLoader worker).
+            # LSDIR groups its files by source, so undersized images come in runs;
+            # stepping to the next file sent a whole run to one image -- 1,374
+            # draws per Phase-1 epoch for OST/tallgrass_019.png. The ordered scan
+            # after the random draws only guarantees a fit when few images are
+            # large enough.
+            n = len(self.image_paths)
+            for attempt in range(2 * n - 1):
+                cand_index = random.randrange(n) if attempt < n else (index + attempt - n + 1) % n
+                cand = cv2.imread(self.image_paths[cand_index], cv2.IMREAD_COLOR)
+                if cand is not None and cand.shape[0] >= hr_h and cand.shape[1] >= hr_w:
+                    img_hr_raw = cand
+                    H, W, C = img_hr_raw.shape
+                    break
+            else:
+                raise RuntimeError(
+                    f"HR 크롭 {hr_h}px 를 만족하는 이미지가 데이터셋에 하나도 없습니다.")
 
         rnd_h = random.randint(0, H - hr_h)
         rnd_w = random.randint(0, W - hr_w)
@@ -647,10 +516,32 @@ class SRDataset(Dataset):
         lr_h, lr_w = hr_h // self.scale_factor, hr_w // self.scale_factor
         
         if clean_prob > 0 and random.random() < clean_prob:
-            img_lr_patch = cv2.resize(img_hr_patch, (lr_w, lr_h), interpolation=cv2.INTER_CUBIC)
+            # The clean pair still has to be built with the SAME downsampling
+            # kernels as the degraded one. Hardcoding INTER_CUBIC here made the
+            # clean fraction a pocket of the old single-kernel distribution --
+            # the one the model was measured to overfit -- so raising clean_prob
+            # would have partly undone the kernel randomisation it is paired
+            # with. cv2's INTER_CUBIC does not antialias when shrinking, and
+            # INTER_AREA is the only one of the four that does.
+            interps = ((self.cfg.get('degradation', {}).get('stage2', {})
+                        .get('target_resize', {}) or {}).get('interpolations')
+                       or ["cv2.INTER_CUBIC"])
+            img_lr_patch = cv2.resize(img_hr_patch, (lr_w, lr_h),
+                                      interpolation=get_interpolation(random.choice(interps)))
         else:
             img_lr_patch = self.degradation_pipeline(img_hr_patch)
-        
+
+        # Geometric augmentation. use_flip/use_rot have been in the data configs
+        # from the start but nothing ever read them -- every deployed model was
+        # trained without the free 8x expansion the dihedral group gives a
+        # 22.7k-parameter network. One draw drives both images so the pair stays
+        # registered, and it runs after the degradation so the LR keeps the
+        # artifacts of its own orientation rather than of a rotated one.
+        img_hr_patch, img_lr_patch = augment_pair(
+            img_hr_patch, img_lr_patch,
+            use_flip=self.cfg.get('use_flip', False),
+            use_rot=self.cfg.get('use_rot', False))
+
         # To Tensor
         img_hr = image_to_tensor(img_hr_patch)
         img_lr = image_to_tensor(img_lr_patch)
@@ -660,127 +551,6 @@ class SRDataset(Dataset):
 # =========================================================
 #  2. Denoising Dataset (Synthetic Noise)
 # =========================================================
-
-class RealisticNoiseGenerator:
-    def __init__(self, config=None):
-        self.cfg = config if config else {}
-        # Load probs
-        probs = self.cfg.get('probs', {})
-        self.poisson_prob = probs.get('poisson', 0.8)
-        self.hot_pixels_prob = probs.get('hot_pixels', 0.8)
-        self.row_noise_prob = probs.get('row_noise', 0.5)
-        self.jpeg_prob = probs.get('jpeg', 0.2)
-
-    def add_poisson_gaussian_noise(self, image):
-        cfg = self.cfg.get('poisson', {})
-        image_float = image.astype(np.float32) / 255.0
-        a = np.random.uniform(cfg.get('scale_min', 0.0005), cfg.get('scale_max', 0.002)) 
-        b = np.random.uniform(0.00001, 0.0005)
-        variance = np.maximum(a * image_float + b, 1e-10)
-        noise = np.random.randn(*image.shape) * np.sqrt(variance)
-        return np.clip((image_float + noise) * 255.0, 0, 255).astype(np.uint8)
-
-    def add_row_noise(self, image):
-        cfg = self.cfg.get('row_noise', {})
-        out = image.astype(np.float32)
-        h, w, c = out.shape
-        sigma = np.random.uniform(cfg.get('sigma_min', 5.0), cfg.get('sigma_max', 25.0))
-        
-        if np.random.random() < cfg.get('channel_independent_prob', 0.3):
-            row_offsets = np.random.normal(0, sigma, (h, 1, c))
-        else:
-            row_offsets = np.random.normal(0, sigma, (h, 1))
-            row_offsets = np.repeat(row_offsets, c, axis=1).reshape(h, 1, c)
-
-        out = out + row_offsets
-        return np.clip(out, 0, 255).astype(np.uint8)
-
-    def add_hot_pixels_and_blobs(self, image):
-        cfg = self.cfg.get('hot_pixels', {})
-        out = np.copy(image)
-        h, w, c = image.shape
-
-        density = np.random.uniform(cfg.get('density_min', 0.001), cfg.get('density_max', 0.008)) 
-        total_defects = int(density * h * w)
-
-        y_coords = np.random.randint(0, h, total_defects)
-        x_coords = np.random.randint(0, w, total_defects)
-
-        for i in range(total_defects):
-            if np.random.random() < (1.0 - cfg.get('colored_prob', 0.5)): # If colored_prob is 0.5, then 0.5 chance gray
-                val = np.random.randint(200, 256)
-                color = (val, val, val)
-            else:
-                r = np.random.randint(150, 256)
-                g = np.random.randint(150, 256)
-                b = np.random.randint(150, 256)
-                color = (int(r), int(g), int(b))
-
-            if np.random.random() < cfg.get('blob_prob', 0.3):
-                radius = np.random.randint(cfg.get('blob_radius_min', 1), cfg.get('blob_radius_max', 4)+1)
-                shape_type = np.random.choice(['circle', 'square', 'soft_circle'])
-                if shape_type == 'circle':
-                    cv2.circle(out, (x_coords[i], y_coords[i]), radius, color, -1)
-                elif shape_type == 'square':
-                    cv2.rectangle(out, 
-                                  (x_coords[i]-radius, y_coords[i]-radius), 
-                                  (x_coords[i]+radius, y_coords[i]+radius), 
-                                  color, -1)
-                else: # soft_circle
-                    temp = np.zeros_like(out, dtype=np.float32)
-                    cv2.circle(temp, (x_coords[i], y_coords[i]), radius, color, -1)
-                    if radius > 1:
-                        k_size = radius * 2 + 1
-                        temp = cv2.GaussianBlur(temp, (k_size, k_size), 0)
-                    mask = (temp > 0).astype(np.float32)
-                    out = (out * (1 - mask) + temp * mask).astype(np.uint8)
-            else:
-                out[y_coords[i], x_coords[i], :] = color
-
-        return out
-
-    def add_jpeg_compression(self, image):
-        cfg = self.cfg.get('jpeg', {})
-        quality = random.randint(cfg.get('quality_min', 75), cfg.get('quality_max', 95))
-        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
-        img_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        _, encimg = cv2.imencode('.jpg', img_bgr, encode_param)
-        decimg = cv2.imdecode(encimg, 1)
-        return cv2.cvtColor(decimg, cv2.COLOR_BGR2RGB)
-
-    def __call__(self, image):
-        noisy = image.copy()
-        h, w = noisy.shape[:2]
-
-        # Filter transforms based on enabled flag
-        active_transforms = []
-        
-        # Check config and add to active list
-        if self.cfg.get('row_noise', {}).get('enabled', True):
-            active_transforms.append(('row', self.add_row_noise, self.row_noise_prob))
-        
-        if self.cfg.get('poisson', {}).get('enabled', True):
-            active_transforms.append(('poisson', self.add_poisson_gaussian_noise, self.poisson_prob))
-            
-        if self.cfg.get('hot_pixels', {}).get('enabled', True):
-            active_transforms.append(('hotpixel', self.add_hot_pixels_and_blobs, self.hot_pixels_prob))
-            
-        if self.cfg.get('jpeg', {}).get('enabled', True):
-            active_transforms.append(('jpeg', self.add_jpeg_compression, self.jpeg_prob))
-            
-        if self.cfg.get('chroma_noise', {}).get('enabled', False):
-            c_cfg = self.cfg['chroma_noise']
-            prob = c_cfg.get('prob', 0.5)
-            sigma = c_cfg.get('sigma', [5, 20])
-            downscale = c_cfg.get('downscale', 4)
-            active_transforms.append(('chroma', lambda x: add_chroma_noise(x, sigma_range=sigma, downscale_factor=downscale), prob))
-
-        random.shuffle(active_transforms)
-        
-        for name, func, prob in active_transforms:
-            if random.random() < prob:
-                noisy = func(noisy)
-        return noisy
 
 class DenoiseDataset(Dataset):
     """
@@ -794,13 +564,22 @@ class DenoiseDataset(Dataset):
         self.patch_size = patch_size
         self.is_train = is_train
         self.cfg = config if config else {}
-
+        # An empty config is not "no degradation": every op would run on its default.
         if not self.cfg:
-            print("[DenoiseDataset] Warning: No degradation config provided. Using defaults.")
+            raise ValueError("DenoiseDataset got an empty data config; pass the recipe's data config")
+        # The camera model's values are measurements; a malformed block must stop
+        # training here, in the main process, not inside a DataLoader worker.
+        cam = self.cfg.get('camera_model', {}) or {}
+        self.camera_cfg = cam if cam.get('enabled', False) else None
+        if self.camera_cfg is not None:
+            validate_camera_model_cfg(self.camera_cfg)
+        log_active_degradations(self.cfg, tag=f"DenoiseDataset({'train' if is_train else 'val'})")
 
         self.image_paths = collect_image_paths(dataset_root)
         if not self.image_paths:
-            print(f"[Warning] No images found in {dataset_root}")
+            raise FileNotFoundError(
+                f"DenoiseDataset found no images under {dataset_root}. Check the data root path."
+            )
 
     def __len__(self):
         return len(self.image_paths)
@@ -824,7 +603,13 @@ class DenoiseDataset(Dataset):
         img_hr_patch = img_hr_raw[rnd_h:rnd_h + crop_h, rnd_w:rnd_w + crop_w, :]
 
         clean_prob = self.cfg.get('clean_prob', 0.0)
-        if clean_prob > 0 and random.random() < clean_prob:
+        if self.camera_cfg is not None and random.random() < self.camera_cfg.get('prob', 1.0):
+            # Camera pair: camera_model.target picks the target (camera's own
+            # noise-free output, the pre-ISP optics image, or the source HR).
+            img_lr_patch, img_hr_patch = apply_camera_model(img_hr_patch, self.camera_cfg)
+            if clean_prob > 0 and random.random() < clean_prob:
+                img_lr_patch = img_hr_patch.copy()
+        elif clean_prob > 0 and random.random() < clean_prob:
             img_lr_patch = img_hr_patch.copy()
         else:
             img_lr_patch = self.degradation_pipeline(img_hr_patch)
@@ -834,175 +619,6 @@ class DenoiseDataset(Dataset):
 
         return {'lr': img_lr, 'hr': img_hr, 'path': path}
 
-# =========================================================
-#  3. Guided Super-Resolution Dataset (Paired LR/HR/Guide)
-# =========================================================
-
-class GuidedSRDataset(Dataset):
-    """
-    Guided Super-Resolution Dataset.
-    
-    두 가지 모드:
-    - Paired 모드 (lr_dirs 지정): 미리 생성된 LR 사용 (bicubic 등)
-    - Degradation 모드 (lr_dirs=None, config에 degradation 존재): HR에서 on-the-fly LR 생성
-    
-    Guide(RGB)는 항상 HR 해상도로 제공됩니다.
-    """
-    def __init__(self, hr_dirs, lr_dirs, guide_dirs, patch_size=128, scale_factor=2, is_train=True, config=None):
-        super().__init__()
-        self.patch_size = patch_size
-        self.scale_factor = scale_factor
-        self.is_train = is_train
-        self.cfg = config if config else {}
-
-        # Degradation 모드 판단: lr_dirs가 없고 config에 degradation이 있으면 on-the-fly
-        self.use_degradation = (lr_dirs is None) and bool(self.cfg.get('degradation'))
-        if self.use_degradation:
-            # SRDataset의 degradation_pipeline 재사용을 위해 임시 인스턴스 생성
-            self._sr_dataset = SRDataset(dataset_root=[], scale_factor=scale_factor, config=self.cfg)
-            print("[GuidedSRDataset] Degradation mode: on-the-fly LR from HR")
-
-        extensions = ('.png', '.jpg', '.jpeg')
-
-        # 경로를 리스트로 통일
-        if isinstance(hr_dirs, str): hr_dirs = [hr_dirs]
-        if isinstance(guide_dirs, str): guide_dirs = [guide_dirs]
-
-        self.pairs = []  # [(hr_path, lr_path_or_None, guide_path), ...]
-
-        if self.use_degradation:
-            # Degradation 모드: HR + Guide만 매칭
-            for hr_dir, guide_dir in zip(hr_dirs, guide_dirs):
-                hr_map = {}
-                for f in sorted(glob.glob(os.path.join(hr_dir, '*'))):
-                    if f.lower().endswith(extensions):
-                        stem = os.path.splitext(os.path.basename(f))[0]
-                        hr_map[stem] = f
-
-                guide_map = {}
-                for f in sorted(glob.glob(os.path.join(guide_dir, '*'))):
-                    if f.lower().endswith(extensions):
-                        stem = os.path.splitext(os.path.basename(f))[0]
-                        guide_map[stem] = f
-
-                common = sorted(set(hr_map.keys()) & set(guide_map.keys()))
-                if len(common) < len(hr_map):
-                    print(f"[GuidedSRDataset] {hr_dir}: {len(hr_map)} HR, {len(guide_map)} Guide -> {len(common)} matched")
-
-                for stem in common:
-                    self.pairs.append((hr_map[stem], None, guide_map[stem]))
-        else:
-            # Paired 모드: HR + LR + Guide 매칭
-            if isinstance(lr_dirs, str): lr_dirs = [lr_dirs]
-
-            for hr_dir, lr_dir, guide_dir in zip(hr_dirs, lr_dirs, guide_dirs):
-                hr_map = {}
-                for f in sorted(glob.glob(os.path.join(hr_dir, '*'))):
-                    if f.lower().endswith(extensions):
-                        stem = os.path.splitext(os.path.basename(f))[0]
-                        hr_map[stem] = f
-
-                lr_map = {}
-                for f in sorted(glob.glob(os.path.join(lr_dir, '*'))):
-                    if f.lower().endswith(extensions):
-                        stem = os.path.splitext(os.path.basename(f))[0]
-                        lr_map[stem] = f
-
-                guide_map = {}
-                for f in sorted(glob.glob(os.path.join(guide_dir, '*'))):
-                    if f.lower().endswith(extensions):
-                        stem = os.path.splitext(os.path.basename(f))[0]
-                        guide_map[stem] = f
-
-                common = sorted(set(hr_map.keys()) & set(lr_map.keys()) & set(guide_map.keys()))
-                if len(common) < len(hr_map):
-                    print(f"[GuidedSRDataset] {hr_dir}: {len(hr_map)} HR, {len(lr_map)} LR, {len(guide_map)} Guide -> {len(common)} matched")
-
-                for stem in common:
-                    self.pairs.append((hr_map[stem], lr_map[stem], guide_map[stem]))
-
-        if not self.pairs:
-            print(f"[Warning] GuidedSRDataset: No matched pairs found.")
-        else:
-            print(f"[GuidedSRDataset] Total {len(self.pairs)} pairs loaded.")
-
-    def __len__(self):
-        return len(self.pairs)
-
-    def __getitem__(self, index):
-        hr_path, lr_path, guide_path = self.pairs[index]
-
-        img_hr = cv2.imread(hr_path, cv2.IMREAD_COLOR)
-        img_guide = cv2.imread(guide_path, cv2.IMREAD_COLOR)
-
-        if self.use_degradation:
-            img_lr = None  # on-the-fly로 생성
-        else:
-            img_lr = cv2.imread(lr_path, cv2.IMREAD_COLOR)
-
-        if img_hr is None or img_guide is None or (not self.use_degradation and img_lr is None):
-            return self.__getitem__(random.randint(0, len(self) - 1))
-
-        # Guide(RGB)를 HR(thermal) 해상도에 맞춤 (FLIR 등 HR/RGB 해상도가 다른 경우)
-        hr_h, hr_w = img_hr.shape[:2]
-        guide_h, guide_w = img_guide.shape[:2]
-        if guide_h != hr_h or guide_w != hr_w:
-            img_guide = cv2.resize(img_guide, (hr_w, hr_h), interpolation=cv2.INTER_CUBIC)
-
-        if self.is_train:
-            # HR 기준으로 랜덤 크롭 좌표 결정
-            hr_h, hr_w = img_hr.shape[:2]
-            crop_hr = self.patch_size * self.scale_factor
-
-            if hr_h < crop_hr or hr_w < crop_hr:
-                new_h = max(hr_h, crop_hr)
-                new_w = max(hr_w, crop_hr)
-                img_hr = cv2.resize(img_hr, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
-                img_guide = cv2.resize(img_guide, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
-                if not self.use_degradation and img_lr is not None:
-                    img_lr = cv2.resize(img_lr, (new_w // self.scale_factor, new_h // self.scale_factor), interpolation=cv2.INTER_CUBIC)
-                hr_h, hr_w = img_hr.shape[:2]
-
-            rnd_h = random.randint(0, hr_h - crop_hr)
-            rnd_w = random.randint(0, hr_w - crop_hr)
-
-            img_hr = img_hr[rnd_h:rnd_h + crop_hr, rnd_w:rnd_w + crop_hr]
-            img_guide = img_guide[rnd_h:rnd_h + crop_hr, rnd_w:rnd_w + crop_hr]
-
-            if self.use_degradation:
-                # Degradation 모드: HR 패치에서 on-the-fly LR 생성
-                img_lr = self._sr_dataset.degradation_pipeline(img_hr)
-            else:
-                # Paired 모드: LR에서 대응 좌표 크롭
-                crop_lr = self.patch_size
-                lr_rnd_h = rnd_h // self.scale_factor
-                lr_rnd_w = rnd_w // self.scale_factor
-                img_lr = img_lr[lr_rnd_h:lr_rnd_h + crop_lr, lr_rnd_w:lr_rnd_w + crop_lr]
-
-            # 랜덤 플립/회전 (HR, LR, Guide 동일하게 적용)
-            if random.random() < 0.5:
-                img_hr = np.flip(img_hr, axis=1).copy()
-                img_lr = np.flip(img_lr, axis=1).copy()
-                img_guide = np.flip(img_guide, axis=1).copy()
-            if random.random() < 0.5:
-                img_hr = np.flip(img_hr, axis=0).copy()
-                img_lr = np.flip(img_lr, axis=0).copy()
-                img_guide = np.flip(img_guide, axis=0).copy()
-            if random.random() < 0.5:
-                img_hr = np.rot90(img_hr).copy()
-                img_lr = np.rot90(img_lr).copy()
-                img_guide = np.rot90(img_guide).copy()
-
-        # BGR -> RGB, normalize, to tensor
-        img_hr = cv2.cvtColor(img_hr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-        img_lr = cv2.cvtColor(img_lr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-        img_guide = cv2.cvtColor(img_guide, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-
-        hr_t = torch.from_numpy(np.ascontiguousarray(img_hr.transpose(2, 0, 1))).float()
-        lr_t = torch.from_numpy(np.ascontiguousarray(img_lr.transpose(2, 0, 1))).float()
-        guide_t = torch.from_numpy(np.ascontiguousarray(img_guide.transpose(2, 0, 1))).float()
-
-        return {'lr': lr_t, 'hr': hr_t, 'guide': guide_t, 'path': hr_path}
 
 # =========================================================
 #  4. Paired Dataset (Val / Test)
@@ -1026,20 +642,31 @@ class PairedDataset(Dataset):
         extensions = ('.png', '.jpg', '.jpeg')
         self.hr_files = sorted([f for f in self.hr_files if f.lower().endswith(extensions)])
         self.lr_files = sorted([f for f in self.lr_files if f.lower().endswith(extensions)])
-        
-        if len(self.hr_files) != len(self.lr_files):
-            print(f"[Warning] Mismatch in PairedDataset: HR={len(self.hr_files)}, LR={len(self.lr_files)}")
-            # Truncate to min
-            min_len = min(len(self.hr_files), len(self.lr_files))
-            self.hr_files = self.hr_files[:min_len]
-            self.lr_files = self.lr_files[:min_len]
+
+        # Pair by file stem, not by sorted position. Position pairing shifted every
+        # pair after the first missing file and only printed a warning, so every
+        # number downstream -- best-checkpoint selection, the evaluation tables, the
+        # FP32-vs-quantized comparison -- stayed plausible while being meaningless.
+        hr_map = _stem_map(self.hr_files, "PairedDataset HR")
+        lr_map = _stem_map(self.lr_files, "PairedDataset LR")
+        common = sorted(set(hr_map) & set(lr_map))
+        if len(common) < max(len(hr_map), len(lr_map)):
+            raise ValueError(
+                f"PairedDataset stem mismatch: HR={len(hr_map)}, LR={len(lr_map)}, "
+                f"matched={len(common)}. HR-only={sorted(set(hr_map) - set(lr_map))[:5]}, "
+                f"LR-only={sorted(set(lr_map) - set(hr_map))[:5]}"
+            )
+        if not common:
+            raise FileNotFoundError(
+                f"PairedDataset found no image pairs. HR={hr_dir}, LR={lr_dir}"
+            )
+        self.pairs = [(hr_map[k], lr_map[k]) for k in common]
 
     def __len__(self):
-        return len(self.hr_files)
+        return len(self.pairs)
 
     def __getitem__(self, index):
-        hr_path = self.hr_files[index]
-        lr_path = self.lr_files[index]
+        hr_path, lr_path = self.pairs[index]
         
         img_hr = cv2.imread(hr_path, cv2.IMREAD_COLOR)
         img_lr = cv2.imread(lr_path, cv2.IMREAD_COLOR)
@@ -1055,65 +682,3 @@ class PairedDataset(Dataset):
         
         return {'lr': img_lr, 'hr': img_hr, 'path': hr_path}
 
-class GuidedPairedDataset(Dataset):
-    """
-    Simple paired dataset for Validation or Inference of Guided-SR Models
-    """
-    def __init__(self, hr_dir, lr_dir, guide_dir):
-        super().__init__()
-        if isinstance(hr_dir, str): hr_dir = [hr_dir]
-        if isinstance(lr_dir, str): lr_dir = [lr_dir]
-        if isinstance(guide_dir, str): guide_dir = [guide_dir]
-
-        self.hr_files = []
-        for d in hr_dir: self.hr_files.extend(glob.glob(os.path.join(d, '*')))
-        self.lr_files = []
-        for d in lr_dir: self.lr_files.extend(glob.glob(os.path.join(d, '*')))
-        self.guide_files = []
-        for d in guide_dir: self.guide_files.extend(glob.glob(os.path.join(d, '*')))
-        
-        # Filter only images
-        extensions = ('.png', '.jpg', '.jpeg')
-        self.hr_files = sorted([f for f in self.hr_files if f.lower().endswith(extensions)])
-        self.lr_files = sorted([f for f in self.lr_files if f.lower().endswith(extensions)])
-        self.guide_files = sorted([f for f in self.guide_files if f.lower().endswith(extensions)])
-        
-        # We assume file names map 1:1 in sorted order. For robustness, we could map by name, 
-        # but sorted order is acceptable if directories are identical in clean setups. 
-        # A more robust check:
-        import os as _os
-        self.pairs = []
-        hr_map = {_os.path.splitext(_os.path.basename(f))[0]: f for f in self.hr_files}
-        lr_map = {_os.path.splitext(_os.path.basename(f))[0]: f for f in self.lr_files}
-        guide_map = {_os.path.splitext(_os.path.basename(f))[0]: f for f in self.guide_files}
-        
-        common = sorted(set(hr_map.keys()) & set(lr_map.keys()) & set(guide_map.keys()))
-        for stem in common:
-            self.pairs.append((hr_map[stem], lr_map[stem], guide_map[stem]))
-            
-        if len(self.pairs) != len(self.hr_files):
-            print(f"[Warning] Mismatch in GuidedPairedDataset: HR={len(self.hr_files)}, LR={len(self.lr_files)}, Guide={len(self.guide_files)} -> {len(self.pairs)} matched")
-
-    def __len__(self):
-        return len(self.pairs)
-
-    def __getitem__(self, index):
-        hr_path, lr_path, guide_path = self.pairs[index]
-        
-        img_hr = cv2.imread(hr_path, cv2.IMREAD_COLOR)
-        img_lr = cv2.imread(lr_path, cv2.IMREAD_COLOR)
-        img_guide = cv2.imread(guide_path, cv2.IMREAD_COLOR)
-        
-        img_hr = cv2.cvtColor(img_hr, cv2.COLOR_BGR2RGB)
-        img_lr = cv2.cvtColor(img_lr, cv2.COLOR_BGR2RGB)
-        img_guide = cv2.cvtColor(img_guide, cv2.COLOR_BGR2RGB)
-        
-        img_hr = img_hr.astype(np.float32) / 255.0
-        img_lr = img_lr.astype(np.float32) / 255.0
-        img_guide = img_guide.astype(np.float32) / 255.0
-        
-        img_hr = torch.from_numpy(np.ascontiguousarray(img_hr.transpose(2, 0, 1))).float()
-        img_lr = torch.from_numpy(np.ascontiguousarray(img_lr.transpose(2, 0, 1))).float()
-        img_guide = torch.from_numpy(np.ascontiguousarray(img_guide.transpose(2, 0, 1))).float()
-        
-        return {'lr': img_lr, 'hr': img_hr, 'guide': img_guide, 'path': hr_path}

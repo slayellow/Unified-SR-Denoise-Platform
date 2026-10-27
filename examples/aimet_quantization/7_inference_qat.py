@@ -19,16 +19,15 @@ from src.models import build_model
 from src.aimet.utils import apply_mmp_from_json
 
 # AIMET Imports
-from aimet_torch.model_preparer import prepare_model
-from aimet_torch.quantsim import QuantizationSimModel, load_encodings_to_sim
+from aimet_torch.quantsim import load_encodings_to_sim
 from aimet_common.defs import QuantScheme
-from aimet_torch.batch_norm_fold import fold_all_batch_norms
-from aimet_torch.cross_layer_equalization import equalize_model
+
+from src.aimet.quant_sim import DEFAULT_QUANTSIM_CONFIG, build_quantsim
 
 def get_args():
     parser = argparse.ArgumentParser(description="QAT Model Inference Script")
-    parser.add_argument("--config", type=str, required=True, help="Path to config file (e.g. configs/finetune/quicksrnet_4x_ir.yaml)")
-    parser.add_argument("--checkpoint", type=str, required=True, help="Path to QAT best checkpoint (e.g. results/qat/qat_checkpoints/best_model.pth)")
+    parser.add_argument("--config", type=str, required=True, help="Path to config file (e.g. configs/finetune/BicubicPlusPlus/bicubicplusplus_4x_ir.yaml)")
+    parser.add_argument("--checkpoint", type=str, required=True, help="Path to QAT best checkpoint (e.g. results/qat/qat_checkpoints/best.pth)")
     parser.add_argument("--input", type=str, required=True, help="Path to input image file or directory")
     parser.add_argument("--output_dir", type=str, default="results/qat_inference", help="Directory to save output images")
     
@@ -37,68 +36,15 @@ def get_args():
     parser.add_argument("--output_bw", type=int, default=8, help="Default Output Bitwidth")
     parser.add_argument("--encodings", type=str, default=None, help="Path to pre-computed .encodings file (Optional)")
     parser.add_argument("--mmp_config", type=str, default=None, help="Path to MMP JSON config (Optional)")
+    parser.add_argument("--quantsim_config", type=str, default=DEFAULT_QUANTSIM_CONFIG,
+                        help="AIMET quantsim config: must match the one used in 6_apply_qat.py, "
+                             "otherwise the QAT encodings do not load (strict).")
     
     parser.add_argument("--base_model", type=str, default=None, help="Path to base model object (.pth), e.g., compressed_model.pth if pruned")
     parser.add_argument("--width", type=int, default=640, help="Width of dummy input (must match training patch/size ratio if static needed)")
     parser.add_argument("--height", type=int, default=360, help="Height of dummy input")
     parser.add_argument("--device", type=str, default="cuda")
     return parser.parse_args()
-
-def apply_default_mmp(sim):
-    print("[Info] Applying default hardcoded MMP logic...")
-    high_mse_indices = [5, 6, 7, 11]
-    sensitive_indices = [10]
-    target_modules = []
-
-    target_modules.append(("head", sim.model.head))
-
-    for idx in high_mse_indices:
-        prev_idx = idx - 1
-        if prev_idx >= 0:
-            try:
-                prev_block = getattr(sim.model.body, str(prev_idx))
-                target_modules.append((f"body.{prev_idx}.act", prev_block.act))
-            except AttributeError:
-                pass
-
-    for idx in sensitive_indices:
-        try:
-            curr_block = getattr(sim.model.body, str(idx))
-            target_modules.append((f"body.{idx}.act", curr_block.act))
-        except AttributeError:
-            pass
-
-    if hasattr(sim.model, 'upsample'):
-        if isinstance(sim.model.upsample, torch.nn.Conv2d) or \
-           (hasattr(sim.model.upsample, 'output_quantizers') and sim.model.upsample.output_quantizers):
-             target_modules.append(("upsample", sim.model.upsample))
-        else:
-            try:
-                upsample_0 = getattr(sim.model.upsample, "0")
-                target_modules.append(("upsample.0", upsample_0))
-            except AttributeError:
-                try:
-                    upsample_0 = sim.model.upsample[0]
-                    target_modules.append(("upsample.0", upsample_0))
-                except:
-                    pass
-        
-    if hasattr(sim.model, 'final_act'): 
-        target_modules.append(("final_act", sim.model.final_act))
-
-    if hasattr(sim.model, 'module_add'): 
-        target_modules.append(("module_add", sim.model.module_add))
-
-    unique_modules = {name: mod for name, mod in target_modules}
-    for name, module in unique_modules.items():
-        if hasattr(module, 'output_quantizers') and module.output_quantizers:
-            if module.output_quantizers[0] is not None:
-                module.output_quantizers[0].bitwidth = 8
-                
-        if name == "head":
-            if hasattr(module, 'input_quantizers') and module.input_quantizers:
-                if module.input_quantizers[0] is not None:
-                    module.input_quantizers[0].bitwidth = 8
 
 def process_video(fpath, model, device, args, output_dir, scale):
     cap = cv2.VideoCapture(fpath)
@@ -211,34 +157,23 @@ def main():
         print(f">> Building model: {config['model']['name']}...")
         model = build_model(config['model']).to(device)
 
-    if hasattr(model, 'switch_to_deploy'):
-        print(">> Switching model to deploy mode (reparameterization)...")
-        model.switch_to_deploy()
-
-    # 3. Prepare Model (Must match QAT script preparation exactly)
-    print(">> Preparing Model (BN Folding, CLE)...")
-    model = prepare_model(model)
+    # 3. build_quantsim runs the same chain as 6_apply_qat.py: switch_to_deploy (ECB fold,
+    # then the IR achromatic fold) -> prepare -> eval -> BN fold -> CLE -> sim. The graph
+    # must match step 6 exactly, or the QAT encodings do not line up.
     dummy_input = torch.randn(1, 3, args.height, args.width).to(device)
-    
-    _ = fold_all_batch_norms(model, input_shapes=dummy_input.shape, dummy_input=dummy_input)
-    _ = equalize_model(model, input_shapes=dummy_input.shape, dummy_input=dummy_input)
-    model.eval()
 
     # 4. Initialize QuantSim
     quant_scheme = getattr(QuantScheme, "training_range_learning_with_tf_init") # Default for QAT
     print(f"\n>> Initializing QuantizationSimModel (Base: W{args.param_bw}A{args.output_bw})...")
-    sim = QuantizationSimModel(model=model,
-                               dummy_input=dummy_input,
-                               quant_scheme=quant_scheme,
-                               default_output_bw=args.output_bw,
-                               default_param_bw=args.param_bw,
-                               config_file="htp_v73")
+    sim = build_quantsim(model, dummy_input,
+                         quant_scheme=quant_scheme,
+                         default_output_bw=args.output_bw,
+                         default_param_bw=args.param_bw,
+                         config_file=args.quantsim_config)
 
-    # 5. Apply MMP
+    # 5. Apply MMP (same JSON as step 6; none = every layer at the default bitwidth)
     if args.mmp_config:
         apply_mmp_from_json(sim, args.mmp_config)
-    else:
-        apply_default_mmp(sim)
 
     # 6. Load Encodings
     if args.encodings and os.path.exists(args.encodings):
@@ -263,12 +198,9 @@ def main():
         elif 'state_dict' in checkpoint:
             state_dict = checkpoint['state_dict']
 
-    try:
-        sim.model.load_state_dict(state_dict)
-        print("[Success] Loaded QAT model state dictionary.")
-    except Exception as e:
-        print(f"[Error] Failed to load checkpoint. {e}")
-        return
+    # A mismatch must stop the run: printing it and returning exited 0 with no output.
+    sim.model.load_state_dict(state_dict)
+    print("[Success] Loaded QAT model state dictionary.")
 
     sim.model.eval()
 

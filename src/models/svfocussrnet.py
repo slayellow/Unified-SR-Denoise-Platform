@@ -10,7 +10,7 @@ class RepBlock_Advanced(nn.Module):
     - 추론 시 1갈래: 단일 3x3 Conv로 융합 (NPU 4.5ms 보장)
     - W8A8 QAT 방어용 Hardtanh(0, 1) 적용
     """
-    def __init__(self, n_feats, kernel_size=3, dilation=1, padding=1):
+    def __init__(self, n_feats):
         super(RepBlock_Advanced, self).__init__()
         self.deploy = False
         self.n_feats = n_feats
@@ -103,12 +103,12 @@ class RepBlock(nn.Module):
     - 추론 시: 단일 3x3 Conv로 Fusing -> 고속 추론 (NPU 친화적)
     * W8A8 양자화(QAT)를 위해 활성화 함수를 Hardtanh(0, 1)로 변경
     """
-    def __init__(self, n_feats, kernel_size=3, dilation=1, padding=1):
+    def __init__(self, n_feats):
         super(RepBlock, self).__init__()
         self.deploy = False
         self.n_feats = n_feats
         
-        self.branch_3x3 = nn.Conv2d(n_feats, n_feats, kernel_size=kernel_size, padding=padding, dilation=dilation, bias=True)
+        self.branch_3x3 = nn.Conv2d(n_feats, n_feats, kernel_size=3, padding=1, bias=True)
         self.branch_1x1 = nn.Conv2d(n_feats, n_feats, kernel_size=1, padding=0, bias=True)
         self.branch_identity = nn.Identity()
         
@@ -278,41 +278,3 @@ class SVFocusSRNet(nn.Module):
             self.upsample[0].weight.data.mul_(0.01) 
             if self.upsample[0].bias is not None:
                 self.upsample[0].bias.data.zero_()
-
-if __name__ == '__main__':
-    print("=== Testing Reparameterization Correctness ===")
-    dummy_input = torch.randn(1, 3, 360, 640)
-    
-    # 1. Test Advanced RepBlock
-    print("\n[Testing RepBlock_Advanced]")
-    model_adv = SVFocusSRNet(scaling_factor=2, use_advanced_rep=True)
-    model_adv.eval()
-    
-    with torch.no_grad():
-        out_train_adv = model_adv(dummy_input)
-        model_adv.switch_to_deploy()
-        out_deploy_adv = model_adv(dummy_input)
-        diff_adv = torch.abs(out_train_adv - out_deploy_adv).max().item()
-        
-    print(f"Max absolute difference: {diff_adv}")
-    if diff_adv < 1e-4:
-        print("-> SUCCESS! Reparameterization is mathematically equivalent.")
-    else:
-        print("-> FAILED! Difference is too large.")
-
-    # 2. Test Basic RepBlock
-    print("\n[Testing Basic RepBlock]")
-    model_basic = SVFocusSRNet(scaling_factor=2, use_advanced_rep=False)
-    model_basic.eval()
-
-    with torch.no_grad():
-        out_train_basic = model_basic(dummy_input)
-        model_basic.switch_to_deploy()
-        out_deploy_basic = model_basic(dummy_input)
-        diff_basic = torch.abs(out_train_basic - out_deploy_basic).max().item()
-
-    print(f"Max absolute difference: {diff_basic}")
-    if diff_basic < 1e-4:
-        print("-> SUCCESS! Reparameterization is mathematically equivalent.")
-    else:
-        print("-> FAILED! Difference is too large.")

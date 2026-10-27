@@ -21,21 +21,23 @@ from src.data.datasets import PairedDataset, SRDataset, DenoiseDataset
 from src.aimet.utils import evaluate_model, create_sampled_data_loader, AutoQuantDatasetWrapper
 
 # AIMET Imports
-from aimet_torch.model_preparer import prepare_model
 from aimet_torch.quant_analyzer import QuantAnalyzer
 from aimet_torch.common.utils import CallbackFunc
 from aimet_common.defs import QuantScheme
-from aimet_torch.quantsim import QuantizationSimModel
 
-# python3 examples/4_apply_quant_analyzer.py --config configs/train/quicksrnet.yaml --data_config configs/data/sr.yaml 
-# --checkpoint checkpoints/train_quicksrnet_large_sr_x2_dim64_epoch800_bs_32_lr_1e-4/best.pth 
-# --output_dir results/quicksrnet_larger_quant_analyzer_ob4_pb4_tfe --scheme post_training_tf_enhanced 
-# --param_bw 4 --output_bw 4 --width 640 --height 360 --calib_batches 100 --device 1
+from src.aimet.quant_sim import DEFAULT_QUANTSIM_CONFIG, prepare_deploy_model, fold_and_equalize, build_quantsim
+
+# python3 examples/aimet_quantization/4_apply_quant_analyzer.py \
+#     --config configs/finetune/BicubicPlusPlus/bicubicplusplus_4x_eo.yaml \
+#     --data_config configs/data/bicubicpp/sr_finetune_eo_phase-2.yaml \
+#     --checkpoint results/release_v3/checkpoints/EO_x4.pth --output_dir <out_dir> \
+#     --scheme post_training_tf_enhanced --param_bw 8 --output_bw 8 --width 320 --height 180 \
+#     --calib_batches 100 --device 0
 
 def get_args():
     parser = argparse.ArgumentParser(description="QuantAnalyzer Application")
-    parser.add_argument("--config", type=str, default="configs/train.yaml", help="Config file")
-    parser.add_argument("--data_config", type=str, default="configs/data/sr.yaml", help="Data config file")
+    parser.add_argument("--config", type=str, required=True, help="Config file")
+    parser.add_argument("--data_config", type=str, required=True, help="Data config of the recipe; calibration draws from it")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to float32 checkpoint")
     parser.add_argument("--output_dir", type=str, default="results/quant_analyzer", help="Output directory")
     
@@ -50,6 +52,9 @@ def get_args():
     parser.add_argument("--height", type=int, default=360, help="Height of dummy input")
     
     parser.add_argument("--calib_batches", type=int, default=500, help="Number of samples for calibration analysis (Default: 500)")
+    parser.add_argument("--quantsim_config", type=str, default=DEFAULT_QUANTSIM_CONFIG,
+                        help="AIMET quantsim config: builtin name (e.g. htp_v73) or path to a JSON file. "
+                             "Default: repo config without the Conv+LeakyRelu supergroup.")
     
     parser.add_argument("--device", type=str, default="cuda")
     return parser.parse_args()
@@ -179,24 +184,10 @@ def main():
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
         
-    # Load Data Config
-    if args.data_config and os.path.exists(args.data_config):
-        with open(args.data_config, 'r') as f:
-            data_config = yaml.safe_load(f)
-        config['data_config'] = data_config
-    else:
-         if config['task'] == 'sr':
-             default_path = "configs/data/sr.yaml"
-         elif config['task'] == 'denoise':
-             default_path = "configs/data/denoise.yaml"
-         else:
-             default_path = None
-        
-         if default_path and os.path.exists(default_path):
-              with open(default_path, 'r') as f:
-                 config['data_config'] = yaml.safe_load(f)
-         else:
-             config['data_config'] = {}
+    # A missing recipe must stop the run: an empty data config would calibrate on every
+    # degradation at its default instead of on the recipe the model was trained with.
+    with open(args.data_config, 'r') as f:
+        config['data_config'] = yaml.safe_load(f)
 
     print(f"Loading model: {config['model']['name']}...")
     model = build_model(config['model']).to(device)
@@ -216,18 +207,16 @@ def main():
             
         model.load_state_dict(state_dict)
     
-    model.eval()
-    if hasattr(model, 'switch_to_deploy'):
-        print("Switching model to deploy mode...")
-        model.switch_to_deploy()
-
-    # Prepare model
-    print(">> Preparing Model...")
-    model = prepare_model(model)
-    model.eval()
+    # Prepare model: switch_to_deploy -> prepare_model -> eval
+    model = prepare_deploy_model(model)
 
     # 4. Data Loaders
     dummy_input = torch.randn(1, 3, args.height, args.width).to(device)
+
+    # Previously missing here (P0-4): the analyzer must see the same folded and
+    # equalized graph QAT and deployment use, or its sensitivity ranking is for
+    # a graph that never ships.
+    model = fold_and_equalize(model, dummy_input)
     
     # Calibration Loader (Unlabeled Train)
     if config['task'] == 'sr':
@@ -261,13 +250,15 @@ def main():
     dummy_input_export = torch.randn(1, 3, args.height, args.width).to(device)
     quant_scheme = getattr(QuantScheme, args.scheme)
     
-    # Initialize QuantizationSimModel to see default quantizer placement
-    # We use the same config_file "htp_v73" to match what QuantAnalyzer likely uses or standard HTP
-    sim = QuantizationSimModel(sim_model, dummy_input=dummy_input_export, 
-                               quant_scheme=quant_scheme,
-                               default_param_bw=args.param_bw,
-                               default_output_bw=args.output_bw,
-                               config_file="htp_v73")
+    # Initialize QuantizationSimModel to see default quantizer placement.
+    # prepare/fold False: sim_model is a deepcopy of the already prepared, folded
+    # and equalized model; re-running CLE would re-scale its weights.
+    sim = build_quantsim(sim_model, dummy_input_export,
+                         quant_scheme=quant_scheme,
+                         default_param_bw=args.param_bw,
+                         default_output_bw=args.output_bw,
+                         config_file=args.quantsim_config,
+                         prepare=False, fold=False)
                                
     export_quant_config(sim, args.output_dir)
     del sim, sim_model
@@ -309,7 +300,7 @@ def main():
     analyzer.analyze(quant_scheme=quant_scheme,
                      default_param_bw=param_bw,
                      default_output_bw=output_bw,
-                     config_file="htp_v73",
+                     config_file=args.quantsim_config,
                      results_dir=args.output_dir)
                      
     print(f"\n[QuantAnalyzer] Analysis complete. Results saved to {args.output_dir}")

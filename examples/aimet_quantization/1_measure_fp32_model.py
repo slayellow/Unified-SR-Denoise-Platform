@@ -10,7 +10,6 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from skimage.metrics import peak_signal_noise_ratio as psnr, structural_similarity as ssim
 
 # Add project root to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -19,14 +18,13 @@ from src.models import build_model
 from src.data.datasets import PairedDataset
 from src.aimet.utils import evaluate_model
 
-# python3 examples/1_measure_fp32_model.py --config configs/train/quicksrnet.yaml 
-# --checkpoint checkpoints/train_quicksrnet_large_sr_x2_dim64_epoch800_bs_32_lr_1e-4/best.pth 
-# --device 0 --data_config configs/data/sr.yaml
+# python3 examples/aimet_quantization/1_measure_fp32_model.py \
+#     --config configs/finetune/BicubicPlusPlus/bicubicplusplus_4x_eo.yaml \
+#     --checkpoint results/release_v3/checkpoints/EO_x4.pth --device 0
 
 def get_args():
     parser = argparse.ArgumentParser(description="Measure FP32 Model Performance")
-    parser.add_argument("--config", type=str, default="configs/train.yaml", help="Config file")
-    parser.add_argument("--data_config", type=str, default="configs/data/sr.yaml", help="Data config file")
+    parser.add_argument("--config", type=str, required=True, help="Config file")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to float32 checkpoint")
     parser.add_argument("--device", type=str, default="cuda")
     return parser.parse_args()
@@ -62,7 +60,7 @@ def main():
         state_dict = checkpoint['model_state_dict']
     else:
         state_dict = checkpoint
-    model.load_state_dict(state_dict, strict=False)
+    model.load_state_dict(state_dict)
     model.eval()
 
     if hasattr(model, 'switch_to_deploy'):

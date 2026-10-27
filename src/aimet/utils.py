@@ -7,17 +7,28 @@ import pandas as pd
 import json
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader, Subset
-from skimage.metrics import peak_signal_noise_ratio as psnr
+from src.metrics import METRIC_SPEC, create_psnr
 
-def evaluate_model(model, loader, device, title="Model"):
+def evaluate_model(model, loader, device, title="Model", scale=None):
     """
-    Evaluate model performance (PSNR, SSIM) on a given loader.
+    Evaluate model performance (PSNR) on a given loader.
+
+    PSNR comes from src.metrics, the same definition the trainer and
+    tools/evaluate.py use. This function used to compute RGB PSNR at
+    data_range=1.0, which reads about 2 dB below every other table in the repo:
+    FP32-vs-quantized deltas were still valid, but the absolute number could not
+    be carried anywhere else.
+
+    `scale` is derived from the first batch when not given, so the border shave
+    is right without every caller having to thread the config through.
     """
     if title:
         print(f"\n--- Evaluating {title} ---")
         
     model.eval()
+    metric_psnr = None if scale is None else create_psnr(scale, device)
     psnr_list = []
+    total = 0
     
     with torch.no_grad():
         for batch in tqdm(loader, desc="Testing"):
@@ -35,16 +46,23 @@ def evaluate_model(model, loader, device, title="Model"):
             sr = model(lr)
             if isinstance(sr, tuple): sr = sr[0]
             sr = torch.clamp(sr, 0.0, 1.0)
+
+            if sr.shape[-2:] != hr.shape[-2:]:
+                height = min(sr.shape[-2], hr.shape[-2])
+                width = min(sr.shape[-1], hr.shape[-1])
+                sr = sr[..., :height, :width]
+                hr = hr[..., :height, :width]
             
-            # Iterate over batch to calculate metrics
-            for i in range(sr.shape[0]):
-                sr_img = sr[i].cpu().permute(1, 2, 0).numpy()
-                hr_img = hr[i].cpu().permute(1, 2, 0).numpy()
-                
-                p = psnr(hr_img, sr_img, data_range=1.0)
-                psnr_list.append(p)
+            if metric_psnr is None:
+                derived = max(1, round(hr.shape[-2] / max(lr.shape[-2], 1)))
+                metric_psnr = create_psnr(derived, device)
+                if title:
+                    print(f"[{title}] metrics: {METRIC_SPEC}, scale={derived}")
+
+            psnr_list.append(metric_psnr(sr, hr).mean().item() * sr.shape[0])
+            total += sr.shape[0]
             
-    avg_psnr = np.mean(psnr_list)
+    avg_psnr = float(np.sum(psnr_list) / max(total, 1))
     
     if title:
         print(f"[{title}] PSNR: {avg_psnr:.4f}")
@@ -76,31 +94,6 @@ def save_active_results_to_csv(results, output_dir, filename="quant_results.csv"
     
     df.to_csv(csv_path, index=False)
     print(f"[CSV] Results saved to {csv_path}")
-
-class AdaRoundDataLoader:
-    """
-    Wrapper for DataLoader to yield (input,) tuples for Adaround.
-    Adaround expects the data loader to yield the inputs to the model.
-    Since our dataset yields {'lr': ..., 'hr': ...}, we need to extract 'lr'.
-    """
-    def __init__(self, loader, device):
-        self.loader = loader
-        self.device = device
-
-    def __iter__(self):
-        for batch in self.loader:
-            if isinstance(batch, dict):
-                # Yield ((input, ), dummy_target) 
-                # AIMET default_forward_fn unpacks as: inputs, target = batch
-                # Then calls: model(*inputs)
-                yield (batch['lr'].to(self.device),), 0
-            elif isinstance(batch, (list, tuple)):
-                yield (batch[0].to(self.device),), 0
-            else:
-                yield (batch.to(self.device),), 0
-
-    def __len__(self):
-        return len(self.loader)
 
 class AutoQuantDatasetWrapper(Dataset):
     def __init__(self, dataset):
@@ -138,10 +131,6 @@ def apply_mmp_from_json(sim, config_path):
         }
     }
     """
-    if not config_path or not os.path.exists(config_path):
-        print(f"[MMP] Config file not found: {config_path}")
-        return
-
     print(f"\n[MMP] Loading configuration from {config_path}...")
     with open(config_path, 'r') as f:
         mmp_config = json.load(f)

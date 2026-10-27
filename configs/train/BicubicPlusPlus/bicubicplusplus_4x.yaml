@@ -1,0 +1,84 @@
+task: sr
+data_config_path: configs/data/bicubicpp/sr_train_phase-1.yaml
+
+model:
+  name: bicubicplusplus
+  scale: 4
+  dim: 32
+  bias: false
+  negative_slope: 0.1
+  clamp_output: true
+  upsample_mode: auto
+  use_rep: true
+
+data:
+  type: eo
+  train_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/tmp/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/LRx4_v3
+train:
+  epochs: 120
+  batch_size: 16
+  lr: 5e-4
+  num_workers: 8
+  gradient_accumulation_steps: 1
+  save_name: "train_bicubicplusplus_sr_x4_dim32_knee_ep120_bs16_lr5e-4_mse_v3"
+
+  patch_size: 144
+
+  save_interval: 10
+  pretrained_path: null
+
+  optimizer:
+    type: Adam
+    betas: [0.9, 0.999]
+
+  weight_decay: 0.0
+  grad_clip: 0.0
+
+  deploy_softening:
+    denoise_prob: 0.5
+    noise_sigma: [2.0, 15.0]
+    denoise_checkpoint: checkpoints/csuav_deploy/train_svfocusdenoise_adv_x1_dim32_block3_epoch300_lr1e-4_charbonnier_edge_ssim_hotpixel_260309/best.pth
+
+  ema:
+    enabled: true
+    decay: 0.999
+    start_epoch: 2
+
+  early_stopping:
+    patience: 120
+    min_delta: 0.0
+    monitor: 'psnr'
+    mode: 'max'
+
+  scheduler:
+    type: KneeLR
+    peak_lr: 5e-4
+    warmup_steps: 0
+    total_steps: 120
+    min_lr: 5e-6
+
+loss:
+  mse:
+    enabled: true
+    weight: 1.0
+  l1:
+    enabled: false
+    weight: 1.0
+  charbonnier:
+    enabled: false
+    weight: 1.0
+  edge:
+    enabled: false
+    weight: 0.5
+    mode: 'gray'
+  ssim:
+    enabled: false
+    weight: 0.1
+  perceptual:
+    enabled: false
+    weight: 0.05
+  tv:
+    enabled: false
+    weight: 0.1

@@ -11,12 +11,12 @@ import cv2
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-import lpips
 import pyiqa
-from skimage.metrics import peak_signal_noise_ratio as psnr, structural_similarity as ssim
 
-from src.models import build_model
-from src.data.datasets import PairedDataset, GuidedPairedDataset
+from src.metrics import METRIC_SPEC, create_lpips, create_niqe, create_psnr, create_ssim
+
+from src.engine.checkpoint import load_model
+from src.data.datasets import PairedDataset
 from torch.utils.data import DataLoader
 
 def get_args():
@@ -25,48 +25,29 @@ def get_args():
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to model checkpoint (.pth)")
     parser.add_argument("--hr_dir", type=str, default=None, help="Path to HR images (Optional, defaults to config val_hr_root)")
     parser.add_argument("--lr_dir", type=str, default=None, help="Path to LR images (Optional, defaults to config val_lr_root)")
-    parser.add_argument("--guide_dir", type=str, default=None, help="Path to Guide images (Optional, defaults to config val_guide_root)")
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--save_dir", type=str, default="results", help="Base directory to save output images")
+    parser.add_argument("--save_dir", type=str, required=True, help="Base directory for metrics.csv and output images (<save_dir>/<checkpoint name>/)")
     parser.add_argument("--save_images", action="store_true", help="If set, save the reconstructed images")
     return parser.parse_args()
 
-def calculate_metrics(img1, img2, lpips_fn, niqe_fn, device):
+def calculate_metrics(img1, img2, metrics, device):
     """
-    img1, img2: Numpy (H, W, C) in [0, 1] RGB
+    img1, img2: Numpy (H, W, C) in [0, 1] RGB. img1 is HR, img2 is SR.
+
+    PSNR and SSIM come from src.metrics so this table can be compared with the
+    trainer's validation log and with published numbers. The previous local
+    definition read the luminance channel through cv2's full-range YCrCb, which
+    on the x2 validation set sat 1.3 dB below the SR convention.
     """
+    t_hr = torch.from_numpy(img1).permute(2, 0, 1).unsqueeze(0).to(device)
+    t_sr = torch.from_numpy(img2).permute(2, 0, 1).unsqueeze(0).to(device)
 
-    # 1. [0, 1] 범위의 RGB를 [0, 255] 범위의 BGR로 변환하여 OpenCV와 호환되게 맞춤
-    img1_bgr = cv2.cvtColor((img1 * 255).astype(np.float32), cv2.COLOR_RGB2BGR)
-    img2_bgr = cv2.cvtColor((img2 * 255).astype(np.float32), cv2.COLOR_RGB2BGR)
-    
-    # 2. BGR을 YCrCb로 변환하고 Y 채널만 추출
-    hr_y = cv2.cvtColor(img1_bgr, cv2.COLOR_BGR2YCrCb)[:, :, 0]
-    sr_y = cv2.cvtColor(img2_bgr, cv2.COLOR_BGR2YCrCb)[:, :, 0]
-    
-    # 3. Y 채널에 대해 PSNR / SSIM 계산 (data_range는 255)
-    # 흑백(2D) 이미지이므로 channel_axis를 쓰지 않습니다.
-    psnr_val = psnr(hr_y, sr_y, data_range=255.0)
-    ssim_val = ssim(hr_y, sr_y, data_range=255.0)
+    psnr_val = metrics['psnr'](t_sr, t_hr).item()
+    ssim_val = metrics['ssim'](t_sr, t_hr).item()
+    lpips_val = metrics['lpips'](t_sr, t_hr).item()
+    # NIQE is no-reference, so it only sees the reconstruction.
+    niqe_val = metrics['niqe'](t_sr).item()
 
-    # # PSNR / SSIM
-    # # skimage expects [0, 1] or [0, 255] with data_range specified
-    # psnr_val = psnr(img1, img2, data_range=1.0)
-    # ssim_val = ssim(img1, img2, data_range=1.0, channel_axis=2)
-    
-    # Prepare Tensors for LPIPS/NIQE
-    # img1 = HR (Reference), img2 = SR (Distorted)
-    
-    # LPIPS: Expects Float Tensor (N, 3, H, W) in [-1, 1]
-    t1 = torch.from_numpy(img1).permute(2, 0, 1).unsqueeze(0).to(device) * 2 - 1
-    t2 = torch.from_numpy(img2).permute(2, 0, 1).unsqueeze(0).to(device) * 2 - 1
-    lpips_val = lpips_fn(t1, t2).item()
-
-    # NIQE: Expects Float Tensor (N, 3, H, W) in [0, 1]
-    # NIQE is No-Reference, so we check the SR image (t2_01)
-    t2_01 = torch.from_numpy(img2).permute(2, 0, 1).unsqueeze(0).to(device)
-    niqe_val = niqe_fn(t2_01).item()
-    
     return psnr_val, ssim_val, lpips_val, niqe_val
 
 def main():
@@ -92,14 +73,10 @@ def main():
     # 1. Resolve Data Paths (Prioritize CLI -> Config)
     hr_dir = args.hr_dir if args.hr_dir else config['data'].get('val_hr_root')
     lr_dir = args.lr_dir if args.lr_dir else config['data'].get('val_lr_root')
-    guide_dir = args.guide_dir if args.guide_dir else config['data'].get('val_guide_root')
 
     if not hr_dir or not lr_dir:
         raise ValueError("Dataset paths must be provided via CLI arguments or Config file.")
     
-    task = config.get('task', 'sr')
-    if task == 'guide' and not guide_dir:
-        print("[Info] No guide directory provided. Running without guide (self-guide mode).")
 
     # 2. Resolve Save Directory
     # Create a subfolder based on checkpoint name for better organization
@@ -112,48 +89,26 @@ def main():
     print(f" - Checkpoint: {args.checkpoint}")
     print(f" - HR Dir: {hr_dir}")
     print(f" - LR Dir: {lr_dir}")
-    if task == 'guide':
-        print(f" - Guide Dir: {guide_dir}")
     print(f" - Save Dir: {save_path}")
     print(f" - Save Images: {args.save_images}")
 
-    # Build Model
-    print(f"Loading model...")
-    model = build_model(config['model']).to(device)
-    
-    # Load Weights
+    # Model in deploy mode, the graph that ships
     print(f"Loading checkpoint: {args.checkpoint}")
-    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
-    
-    if isinstance(checkpoint, torch.nn.Module):
-        print("[Info] Loaded full model object.")
-        model = checkpoint.to(device)
-    else:
-        if 'model_state_dict' in checkpoint:
-            state_dict = checkpoint['model_state_dict']
-        else:
-            state_dict = checkpoint
-            
-        model.load_state_dict(state_dict)
-
-    model.eval()
-    
-    # Switch to deploy if possible (for faster inference/realistic evaluation)
-    if hasattr(model, 'switch_to_deploy'):
-        print("Switching model to deploy mode...")
-        model.switch_to_deploy()
+    model = load_model(args.checkpoint, config['model'], device)
 
     # Dataset
-    if task == 'guide' and guide_dir:
-        dataset = GuidedPairedDataset(hr_dir, lr_dir, guide_dir)
-    else:
-        dataset = PairedDataset(hr_dir, lr_dir)
+    dataset = PairedDataset(hr_dir, lr_dir)
     loader = DataLoader(dataset, batch_size=1, shuffle=False)
     
-    # Metrics
-    print("Loading metrics...")
-    lpips_fn = lpips.LPIPS(net='alex').to(device)
-    niqe_fn = pyiqa.create_metric('niqe', device=device)
+    # Metrics -- one definition, shared with the trainer (see src/metrics).
+    scale = int(config.get('model', {}).get('scale', 1) or 1)
+    print(f"Loading metrics: {METRIC_SPEC}, scale={scale}")
+    metrics = {
+        'psnr': create_psnr(scale, device),
+        'ssim': create_ssim(scale, device),
+        'lpips': create_lpips(device),
+        'niqe': create_niqe(scale, device),
+    }
     
     # Results
     results = []
@@ -168,15 +123,13 @@ def main():
             filename = os.path.basename(path)
             
             # Inference
-            if task == 'guide' and 'guide' in batch:
-                guide = batch['guide'].to(device)
-                sr = model(lr, guide)
-            elif task == 'guide':
-                # guide task이지만 guide 없음 → self-guide mode
-                sr = model(lr, None)
-            else:
-                sr = model(lr)
+            sr = model(lr)
             if isinstance(sr, tuple): sr = sr[0]
+
+            # x3 of a 1280-wide frame is 1278 wide. Crop both to the common size, as the
+            # trainer's Validator does, so the table matches the validation log.
+            h, w = min(sr.shape[-2], hr.shape[-2]), min(sr.shape[-1], hr.shape[-1])
+            sr, hr = sr[..., :h, :w], hr[..., :h, :w]
             
             # Post-process
             sr = torch.clamp(sr, 0.0, 1.0)
@@ -186,7 +139,7 @@ def main():
             hr_np = hr.cpu().squeeze(0).permute(1, 2, 0).numpy()
             
             # Metrics
-            p, s, l, n = calculate_metrics(hr_np, sr_np, lpips_fn, niqe_fn, device)
+            p, s, l, n = calculate_metrics(hr_np, sr_np, metrics, device)
             
             results.append({
                 'filename': filename,
@@ -200,10 +153,8 @@ def main():
             if args.save_images:
                 out_path = os.path.join(save_path, filename)
                 # RGB -> BGR for opencv
-                sr_bgr = cv2.cvtColor((sr_np * 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
+                sr_bgr = cv2.cvtColor((sr_np * 255.0).round().astype(np.uint8), cv2.COLOR_RGB2BGR)
                 cv2.imwrite(out_path, sr_bgr)
-            
-            # print(f"{filename}: PSNR={p:.2f} SSIM={s:.4f} LPIPS={l:.4f} NIQE={n:.4f}")
 
     df = pd.DataFrame(results)
     print("\n=== Evaluation Summary ===")

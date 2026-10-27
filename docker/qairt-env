@@ -1,0 +1,20 @@
+#!/bin/bash
+# Run one command with the QAIRT 2.41 converter environment (docs/modules/20261019-MOD-DockerEnv.md §3.3).
+#   qairt-env bash <folder>/convert_all.sh
+# Outside this command the repo's Python environment (NumPy 2.2.6) stays as it is; the QAIRT tools need their
+# own NumPy-1 venv, and their Python scripts start with "#!/usr/bin/env python3", so the venv goes first on PATH.
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+    echo "qairt-env: usage: qairt-env CMD..." >&2
+    exit 2
+fi
+QAIRT_SDK_ROOT=/opt/qairt
+export QAIRT_SDK_ROOT
+export QNN_SDK_ROOT="$QAIRT_SDK_ROOT"
+export SNPE_ROOT="$QAIRT_SDK_ROOT"
+export VIRTUAL_ENV=/opt/qairt-venv
+export PATH="$VIRTUAL_ENV/bin:$QAIRT_SDK_ROOT/bin/x86_64-linux-clang:$PATH"
+export LD_LIBRARY_PATH="$QAIRT_SDK_ROOT/lib/x86_64-linux-clang${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export PYTHONPATH="$QAIRT_SDK_ROOT/lib/python"
+exec "$@"

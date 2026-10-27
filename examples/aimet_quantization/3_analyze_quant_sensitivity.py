@@ -20,27 +20,27 @@ from src.data.datasets import PairedDataset, SRDataset, DenoiseDataset
 from src.aimet.utils import evaluate_model, save_active_results_to_csv, create_sampled_data_loader
 
 # AIMET Imports
-from aimet_torch.model_preparer import prepare_model
-from aimet_torch.batch_norm_fold import fold_all_batch_norms
-from aimet_torch.cross_layer_equalization import equalize_model
 from aimet_torch.common.defs import QuantScheme, QuantizationDataType
-from aimet_torch import QuantizationSimModel
 
-# python3 examples/3_analyze_quant_sensitivity.py --config configs/train/quicksrnet.yaml 
-# --checkpoint checkpoints/train_quicksrnet_large_sr_x2_dim64_epoch800_bs_32_lr_1e-4/best.pth 
-# --device 0 --calib_batches 10 --data_config configs/data/sr.yaml --use_bn_folding --use_cle 
-# --output_dir results/bnf_cle_noada
+from src.aimet.quant_sim import DEFAULT_QUANTSIM_CONFIG, prepare_deploy_model, fold_and_equalize, build_quantsim
+
+# python3 examples/aimet_quantization/3_analyze_quant_sensitivity.py \
+#     --config configs/finetune/BicubicPlusPlus/bicubicplusplus_4x_eo.yaml \
+#     --data_config configs/data/bicubicpp/sr_finetune_eo_phase-2.yaml \
+#     --checkpoint results/release_v3/checkpoints/EO_x4.pth --width 320 --height 180 \
+#     --calib_batches 10 --device 0 --output_dir <out_dir>
 
 def get_args():
     parser = argparse.ArgumentParser(description="Analyze Quantization Sensitivity")
-    parser.add_argument("--config", type=str, default="configs/train.yaml", help="Config file")
-    parser.add_argument("--data_config", type=str, default="configs/data/sr.yaml", help="Data config file")
+    parser.add_argument("--config", type=str, required=True, help="Config file")
+    parser.add_argument("--data_config", type=str, required=True, help="Data config of the recipe; calibration draws from it")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to float32 checkpoint")
     parser.add_argument("--output_dir", type=str, default="results/sensitivity", help="Output directory for plots/results")
     parser.add_argument("--calib_batches", type=int, default=500, help="Number of batches for calibration (Default: 500)")
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--use_bn_folding", action="store_true", help="Use Batch Normalization Folding")
-    parser.add_argument("--use_cle", action="store_true", help="Use Cross Layer Equalization")
+    parser.add_argument("--quantsim_config", type=str, default=DEFAULT_QUANTSIM_CONFIG,
+                        help="AIMET quantsim config: builtin name (e.g. htp_v73) or path to a JSON file. "
+                             "Default: repo config without the Conv+LeakyRelu supergroup.")
     parser.add_argument("--width", type=int, default=640, help="Width of dummy input")
     parser.add_argument("--height", type=int, default=360, help="Height of dummy input")
     return parser.parse_args()
@@ -103,25 +103,10 @@ def main():
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
 
-    # Load Data Config
-    if args.data_config and os.path.exists(args.data_config):
-        with open(args.data_config, 'r') as f:
-            data_config = yaml.safe_load(f)
-        config['data_config'] = data_config
-    else:
-        # Fallback logic to defaults if not provided, similar to quant_test
-        if config['task'] == 'sr':
-            default_path = "configs/data/sr.yaml"
-        elif config['task'] == 'denoise':
-            default_path = "configs/data/denoise.yaml"
-        else:
-            default_path = None
-            
-        if default_path and os.path.exists(default_path):
-             with open(default_path, 'r') as f:
-                config['data_config'] = yaml.safe_load(f)
-        else:
-            config['data_config'] = {}
+    # A missing recipe must stop the run: an empty data config would calibrate on every
+    # degradation at its default instead of on the recipe the model was trained with.
+    with open(args.data_config, 'r') as f:
+        config['data_config'] = yaml.safe_load(f)
         
     print(f"Loading model: {config['model']['name']}...")
     model = build_model(config['model']).to(device)
@@ -188,16 +173,11 @@ def main():
     print(">> Baseline FP32 Evaluation...")
     fp32_psnr = evaluate_model(model, val_loader, device)
     
-    # 6. Prepare Model
-    print(">> Preparing Model (BN Folding, etc.)...")
-    prepared_model = prepare_model(model)
-
-    if args.use_bn_folding:
-        _ = fold_all_batch_norms(prepared_model, input_shapes=dummy_input.shape, dummy_input=dummy_input)
-        print(">> Batch Normalization Folding Applied")
-    if args.use_cle:
-        _ = equalize_model(prepared_model, input_shapes=dummy_input.shape, dummy_input=dummy_input)
-        print(">> Cross Layer Equalization Applied")
+    # 6. Prepare Model -- always the deploy graph: switch -> prepare -> eval -> fold -> CLE.
+    # The old --use_bn_folding/--use_cle flags are gone: the deployed graph always
+    # folds and equalizes, so analyzing without them measured the wrong graph.
+    prepared_model = prepare_deploy_model(model)
+    prepared_model = fold_and_equalize(prepared_model, dummy_input)
 
     # 7. Sensitivity Analysis Loop
     print(">> Starting Sensitivity Analysis...")
@@ -222,14 +202,14 @@ def main():
 
                     try:
                         current_model = prepared_model
-                        sim = QuantizationSimModel(model=current_model, 
-                                                   dummy_input=dummy_input,
-                                                   quant_scheme=s, 
-                                                   default_output_bw=obw,
-                                                   default_param_bw=pbw,
-                                                   in_place=False,
-                                                   config_file="htp_v73",
-                                                   default_data_type=dt)
+                        sim = build_quantsim(current_model, dummy_input,
+                                             quant_scheme=s,
+                                             default_output_bw=obw,
+                                             default_param_bw=pbw,
+                                             config_file=args.quantsim_config,
+                                             prepare=False, fold=False,
+                                             in_place=False,
+                                             default_data_type=dt)
                         
                         # Calibration
                         def pass_data(model, loader):

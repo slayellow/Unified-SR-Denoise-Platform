@@ -32,13 +32,18 @@ from aimet_torch.defs import GreedySelectionParameters, SpatialSvdParameters, Ch
 
 
 ### Only Channel Pruning
-# python3 examples/2_compress_svd_pruning.py --config configs/finetune/quicksrnet_ir.yaml --data_config configs/data/sr_finetune_ir.yaml --checkpoint checkpoints/finetune_quicksrnet_large_ir_sr_x2_dim64_epoch100_bs_32_ga_2_lr_1e-4/best.pth --output_dir results/20260220_quicksrnet-large_ir_prune50 --width 640 --height 360 --use_pruning --target_ratio 0.5 --num_comp_ratio_candidates 10 --calib_batches 500 --ft_epochs 30 --ft_lr 5e-5 --dataset_ratio 0.5 --device 0 --ignore_layers cnn.0 clip_output add_op anchor.net pixel_shuffle
+# python3 examples/aimet_quantization/2_compress_svd_pruning.py \
+#     --config configs/finetune/BicubicPlusPlus/bicubicplusplus_4x_eo.yaml \
+#     --data_config configs/data/bicubicpp/sr_finetune_eo_phase-2.yaml \
+#     --checkpoint results/release_v3/checkpoints/EO_x4.pth --output_dir <out_dir> --width 320 --height 180 \
+#     --use_pruning --target_ratio 0.5 --num_comp_ratio_candidates 10 --calib_batches 500 \
+#     --ft_epochs 30 --ft_lr 5e-5 --dataset_ratio 0.5 --device 0
 
 
 def get_args():
     parser = argparse.ArgumentParser(description="Spatial SVD + Channel Pruning Compression")
-    parser.add_argument("--config", type=str, default="configs/train.yaml", help="Config file")
-    parser.add_argument("--data_config", type=str, default="configs/data/sr.yaml", help="Data config file")
+    parser.add_argument("--config", type=str, required=True, help="Config file")
+    parser.add_argument("--data_config", type=str, required=True, help="Data config of the recipe; calibration draws from it")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to float32 checkpoint")
     parser.add_argument("--output_dir", type=str, default="results/compression", help="Output directory")
     
@@ -267,24 +272,10 @@ def main():
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
         
-    # Load Data Config
-    if args.data_config and os.path.exists(args.data_config):
-        with open(args.data_config, 'r') as f:
-            data_config = yaml.safe_load(f)
-        config['data_config'] = data_config
-    else:
-         if config['task'] == 'sr':
-             default_path = "configs/data/sr.yaml"
-         elif config['task'] == 'denoise':
-             default_path = "configs/data/denoise.yaml"
-         else:
-             default_path = None
-        
-         if default_path and os.path.exists(default_path):
-              with open(default_path, 'r') as f:
-                 config['data_config'] = yaml.safe_load(f)
-         else:
-             config['data_config'] = {}
+    # A missing recipe must stop the run: an empty data config would calibrate on every
+    # degradation at its default instead of on the recipe the model was trained with.
+    with open(args.data_config, 'r') as f:
+        config['data_config'] = yaml.safe_load(f)
 
     print(f"Loading model: {config['model']['name']}...")
     model = build_model(config['model']).to(device)
@@ -296,7 +287,7 @@ def main():
         state_dict = checkpoint['model_state_dict']
     else:
         state_dict = checkpoint
-    model.load_state_dict(state_dict, strict=False)
+    model.load_state_dict(state_dict)
 
     # Switch to deploy if possible (for faster inference/realistic evaluation)
     model.eval()

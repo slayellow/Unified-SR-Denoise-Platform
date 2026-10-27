@@ -1,0 +1,4 @@
+{
+    "_comment": "층별 예외 없이 전부 기본 비트폭을 쓴다. W16A16 은 --param_bw 16 --output_bw 16 으로 지정한다. 2026-10-16 전에는 mmp_config 를 주지 않으면 6_apply_qat.py 가 SVSRNet 용 하드코딩 MMP 로 떨어져, SVFocusSRNet 은 최종층 출력이 INT8 로 바뀌었고 Bicubic++ 는 head 가 없어 멈췄다. 지금은 빼도 결과가 같지만, 출하 기록과 같은 명령을 유지하려고 넘긴다.",
+    "layers": {}
+}

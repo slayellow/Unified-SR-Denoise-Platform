@@ -1,0 +1,84 @@
+task: sr
+data_config_path: configs/data/bicubicpp/sr_finetune_eo_phase-2.yaml
+
+model:
+  name: bicubicplusplus
+  scale: 4
+  dim: 32
+  bias: false
+  negative_slope: 0.1
+  clamp_output: true
+  upsample_mode: auto
+  use_rep: true
+
+data:
+  type: eo
+  train_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/train/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Pretrained_Dataset/val/LRx4_weaknoise_eo_v3
+
+train:
+  epochs: 100
+  batch_size: 16
+  lr: 5e-5
+  num_workers: 4
+  gradient_accumulation_steps: 1
+  patch_size: 144
+  save_interval: 20
+  save_name: finetune_bicubicplusplus_eo_sr_x4_dim32_v3
+  pretrained_path: checkpoints/bicubicpp_deploy/train_bicubicplusplus_sr_x4_dim32_knee_ep120_bs16_lr5e-4_mse_v3/best.pth
+
+  optimizer:
+    type: Adam
+    betas: [0.9, 0.999]
+
+  weight_decay: 0.0
+  grad_clip: 0.0
+
+  deploy_softening:
+    denoise_prob: 0.5
+    denoise_checkpoint: checkpoints/csuav_deploy/train_svfocusdenoise_adv_x1_dim32_block3_epoch300_lr1e-4_charbonnier_edge_ssim_hotpixel_260309/best.pth
+
+  ema:
+    enabled: true
+    decay: 0.999
+    start_epoch: 2
+
+  early_stopping:
+    patience: 50
+    min_delta: 0.0001
+    monitor: 'lpips'
+    mode: 'min'
+
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 100
+    eta_min: 1e-7
+
+loss:
+  mse:
+    enabled: true
+    weight: 1.0
+
+  gradient_variance:
+    enabled: true
+    weight: 0.05
+    patch: 8
+    mode: 'mean'
+    warmup_epochs: 10
+
+  ssim:
+    enabled: true
+    weight: 0.02
+    warmup_epochs: 10
+
+  edge:
+    enabled: true
+    weight: 0.02
+    mode: 'mean'
+    warmup_epochs: 10
+  perceptual:
+    enabled: true
+    gray: true
+    weight: 0.05
+    layers: {8: 0.25, 17: 0.5, 26: 0.25}

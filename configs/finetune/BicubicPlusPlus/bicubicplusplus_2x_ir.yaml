@@ -1,0 +1,80 @@
+task: sr
+data_config_path: configs/data/bicubicpp/sr_finetune_ir_phase-2.yaml
+
+model:
+  name: bicubicplusplus
+  scale: 2
+  dim: 32
+  bias: false
+  negative_slope: 0.1
+  clamp_output: true
+  upsample_mode: auto
+  use_rep: true
+  achromatic_output: true
+
+data:
+  type: ir
+  train_root: /mnt/data_server/etc/jshong/SuperResolution/Finetunning_Dataset/train/
+  val_hr_root: /mnt/data_server/etc/jshong/SuperResolution/Finetunning_Dataset/val/HR
+  val_lr_root: /mnt/data_server/etc/jshong/SuperResolution/Finetunning_Dataset/val/LRx2_weaknoise_ir
+
+train:
+  epochs: 100
+  batch_size: 16
+  lr: 5e-5
+  num_workers: 8
+  gradient_accumulation_steps: 1
+  patch_size: 288
+  save_interval: 20
+  save_name: finetune_bicubicplusplus_ir_sr_x2_dim32_v3
+  pretrained_path: checkpoints/bicubicpp_deploy/train_bicubicplusplus_sr_x2_dim32_knee_ep120_bs16_lr5e-4_mse_v3/best.pth
+
+  optimizer:
+    type: Adam
+    betas: [0.9, 0.999]
+
+  weight_decay: 0.0
+  grad_clip: 0.0
+
+  ema:
+    enabled: true
+    decay: 0.999
+    start_epoch: 2
+
+  early_stopping:
+    patience: 50
+    min_delta: 0.0001
+    monitor: 'lpips'
+    mode: 'min'
+
+  scheduler:
+    type: CosineAnnealingLR
+    T_max: 100
+    eta_min: 1e-7
+
+loss:
+  mse:
+    enabled: true
+    weight: 1.0
+
+  gradient_variance:
+    enabled: true
+    weight: 0.05
+    patch: 8
+    mode: 'mean'
+    warmup_epochs: 10
+
+  perceptual:
+    enabled: false
+
+  ssim:
+    enabled: true
+    weight: 0.05
+    warmup_epochs: 10
+
+  edge:
+    enabled: true
+    weight: 0.02
+    mode: mean
+    warmup_epochs: 10
+    signed: true

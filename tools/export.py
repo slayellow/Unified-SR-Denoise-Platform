@@ -10,6 +10,7 @@ import torch
 import onnx
 
 from src.models import build_model
+from src.engine.checkpoint import load_model
 
 def get_args():
     parser = argparse.ArgumentParser(description="Unified Model Export (ONNX)")
@@ -20,7 +21,6 @@ def get_args():
     parser.add_argument("--width", type=int, default=256, help="Input Width")
     parser.add_argument("--opset", type=int, default=17, help="ONNX Opset Version")
     parser.add_argument("--device", type=str, default="cpu", help="Device for tracing (cpu recommended for export)")
-    parser.add_argument("--sim", action='store_true', help="Use onnx-simplifier if available")
     return parser.parse_args()
 
 def main():
@@ -32,51 +32,23 @@ def main():
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
 
-    # 2. Build Model
-    print(f"Building model: {config['model']['name']}...")
-    model = build_model(config['model']).to(device)
-    
-    # 3. Load Weights
+    # 2. Model in deploy mode (merged branches)
     if args.checkpoint:
         print(f"Loading checkpoint: {args.checkpoint}")
-        # User owns the checkpoint, so we can trust it.
-        checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
-        
-        if isinstance(checkpoint, torch.nn.Module):
-            # If the checkpoint is the entire model (e.g. from AIMET), use it directly
-            print("[Info] Loaded full model object.")
-            # We might need to move it to device if weights_only=False loaded it to CPU by default or similar
-            model = checkpoint.to(device)
-        else:
-            if 'model_state_dict' in checkpoint:
-                state_dict = checkpoint['model_state_dict']
-            else:
-                state_dict = checkpoint
-                
-            model.load_state_dict(state_dict)
+        model = load_model(args.checkpoint, config['model'], device)
     else:
         print(f"[Info] No checkpoint provided. Exporting {config['model']['name']} with randomly initialized weights.")
-    
-    # 4. Switch to Deploy Mode
-    if hasattr(model, 'switch_to_deploy'):
-        print("Switching model to deploy mode (merging branches)...")
-        model.switch_to_deploy()
-    
-    model.eval()
+        model = build_model(config['model']).to(device)
+        if hasattr(model, 'switch_to_deploy'):
+            model.switch_to_deploy()
+        model.eval()
 
     # 5. Prepare Input (Batch=1, Ch=3, H, W)
     input_shape = (1, 3, args.height, args.width)
     dummy_input = torch.randn(input_shape, device=device)
     
-    task = config.get('task', 'sr')
-    dummy_guide = None
-    if task == 'guide':
-        dummy_guide = torch.randn(input_shape, device=device)
-        export_inputs = (dummy_input, dummy_guide)
-        input_names_list = ['input', 'guide']
-    else:
-        export_inputs = (dummy_input, )
-        input_names_list = ['input']
+    export_inputs = (dummy_input, )
+    input_names_list = ['input']
     
     # 5-1. Calculate FLOPs & Params
     try:
@@ -113,21 +85,17 @@ def main():
     
     print(f"Exporting to {output_path} with input shape {input_shape}...")
     
-    # 7. ONNX Export
-    try:
-        torch.onnx.export(
-            model,
-            export_inputs,
-            output_path,
-            opset_version=args.opset,
-            input_names=input_names_list,
-            output_names=['output'],
-            # dynamic_axes removed for static shape export
-        )
-        print("ONNX export successful.")
-    except Exception as e:
-        print(f"Error during ONNX export: {e}")
-        return
+    # 7. ONNX Export (static shape). A failure raises, so the exit code says so.
+    torch.onnx.export(
+        model,
+        export_inputs,
+        output_path,
+        opset_version=args.opset,
+        dynamo=False,
+        input_names=input_names_list,
+        output_names=['output'],
+    )
+    print("ONNX export successful.")
 
     # 8. Verification
     print("Verifying ONNX model...")
@@ -135,39 +103,6 @@ def main():
     onnx.checker.check_model(onnx_model)
     print("Verification passed.")
     
-    # 9. Simplification (Optional)
-    if args.sim:
-        sim_success = False
-        # Try onnxslim first (User has this installed)
-        try:
-            import onnxslim
-            print("Running ONNX Slim (onnxslim)...")
-            # onnxslim.slim returns the optimized model
-            model_simp = onnxslim.slim(onnx_model)
-            onnx.save(model_simp, output_path)
-            print("ONNX simplified successfully with onnxslim.")
-            sim_success = True
-        except ImportError:
-            pass
-        except Exception as e:
-            print(f"Error during onnxslim: {e}")
-
-        # Fallback to onnx-simplifier
-        if not sim_success:
-            try:
-                from onnxsim import simplify
-                print("Running ONNX Simplifier (onnxsim)...")
-                model_simp, check = simplify(onnx_model)
-                if check:
-                    onnx.save(model_simp, output_path)
-                    print("ONNX simplified successfully with onnxsim.")
-                else:
-                    print("ONNX simplification check failed.")
-            except ImportError:
-                if not sim_success:
-                    print("Neither onnxslim nor onnx-simplifier is installed. Skipping simplification.")
-            except Exception as e:
-                print(f"Error during onnx-simplifier: {e}")
 
 if __name__ == "__main__":
     main()
