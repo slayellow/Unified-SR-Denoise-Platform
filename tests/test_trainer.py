@@ -157,3 +157,18 @@ def test_git_sha_marks_uncommitted_changes(tmp_path):
     assert clean != "unknown" and not clean.endswith("-dirty")
     (tmp_path / "a.py").write_text("x = 2\n")
     assert t.git_sha(str(tmp_path)) == clean + "-dirty"
+
+
+@pytest.mark.parametrize("value", [None, 0, "20"])
+def test_bad_save_interval_stops_before_training(value, tmp_path, monkeypatch):
+    """save_interval used to be read only after the first epoch had trained, as a KeyError."""
+    trainer, loader = _trainer(tmp_path, monkeypatch, accum=1)
+    if value is None:
+        trainer.cfg["train"].pop("save_interval", None)
+    else:
+        trainer.cfg["train"]["save_interval"] = value
+    trained = []
+    monkeypatch.setattr(trainer, "train_epoch", lambda loader, epoch: trained.append(epoch) or 0.0)
+    with pytest.raises(ValueError, match="save_interval"):
+        trainer.fit(loader, loader, epochs=1)
+    assert trained == []

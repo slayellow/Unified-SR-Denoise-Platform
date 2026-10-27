@@ -165,12 +165,28 @@ def _stem_map(files: list[str], label: str) -> dict[str, str]:
     return mapping
 
 
-def ensure_min_image_size(img: np.ndarray, min_h: int, min_w: int) -> np.ndarray:
-    """Resize an image if it is smaller than the requested spatial size."""
-    height, width = img.shape[:2]
-    if height >= min_h and width >= min_w:
-        return img
-    return cv2.resize(img, (max(width, min_w), max(height, min_h)), interpolation=cv2.INTER_CUBIC)
+def redraw_fitting_image(image_paths: list[str], index: int, min_h: int, min_w: int) -> np.ndarray:
+    """Read another image of at least min_h x min_w, in place of an undersized one.
+
+    Undersized images are skipped rather than upscaled: an upscaled crop makes the
+    TARGET a bicubic upsample -- band-limited below its own Nyquist and stretched
+    on whichever axis was short -- so the model learns to reproduce exactly the
+    softness this project is trying to remove.
+
+    Redraw at random, in a loop rather than by recursion (the recursive form blew
+    the stack at 978 frames inside a DataLoader worker). LSDIR groups its files by
+    source, so undersized images come in runs; stepping to the next file sent a
+    whole run to one image -- 1,374 draws per Phase-1 epoch for
+    OST/tallgrass_019.png. The ordered scan after the random draws only
+    guarantees a fit when few images are large enough.
+    """
+    n = len(image_paths)
+    for attempt in range(2 * n - 1):
+        cand_index = random.randrange(n) if attempt < n else (index + attempt - n + 1) % n
+        cand = cv2.imread(image_paths[cand_index], cv2.IMREAD_COLOR)
+        if cand is not None and cand.shape[0] >= min_h and cand.shape[1] >= min_w:
+            return cand
+    raise RuntimeError(f"크롭 {min_h}x{min_w}px 를 만족하는 이미지가 데이터셋에 하나도 없습니다.")
 
 
 def augment_pair(hr: np.ndarray, lr: np.ndarray, use_flip: bool = False,
@@ -474,37 +490,18 @@ class SRDataset(Dataset):
         lr_h, lr_w = self.patch_size, self.patch_size
         hr_h, hr_w = lr_h * self.scale_factor, lr_w * self.scale_factor
         
-        # An image smaller than the HR crop used to be bicubic-upscaled to fit,
-        # which makes the TARGET a bicubic upsample -- band-limited below its own
-        # Nyquist and stretched on whichever axis was short, because only the
-        # deficient one is grown. The model then learns to reproduce exactly the
-        # bicubic softness this project is trying to remove. Measured on LSDIR
-        # (median 1128x864) with the old scale-blind patch_size of 288: 13% of
-        # samples at x2, 56% at x3, 93% at x4, and a 30% loss of high-frequency
-        # energy in the target patch. Skip to another image instead.
+        # An image smaller than the HR crop used to be bicubic-upscaled to fit.
+        # Measured on LSDIR (median 1128x864) with the old scale-blind
+        # patch_size of 288: 13% of samples at x2, 56% at x3, 93% at x4, and a
+        # 30% loss of high-frequency energy in the target patch. Skip to another
+        # image instead (redraw_fitting_image).
         if H < hr_h or W < hr_w:
             if not getattr(self, '_warned_small', False):
                 print(f"[SRDataset] HR 크롭 {hr_h}px 보다 작은 이미지는 건너뜁니다 "
                       f"(확대하면 정답이 bicubic 업샘플이 됩니다)")
                 self._warned_small = True
-            # Redraw at random, in a loop rather than by recursion (the recursive
-            # form blew the stack at 978 frames inside a DataLoader worker).
-            # LSDIR groups its files by source, so undersized images come in runs;
-            # stepping to the next file sent a whole run to one image -- 1,374
-            # draws per Phase-1 epoch for OST/tallgrass_019.png. The ordered scan
-            # after the random draws only guarantees a fit when few images are
-            # large enough.
-            n = len(self.image_paths)
-            for attempt in range(2 * n - 1):
-                cand_index = random.randrange(n) if attempt < n else (index + attempt - n + 1) % n
-                cand = cv2.imread(self.image_paths[cand_index], cv2.IMREAD_COLOR)
-                if cand is not None and cand.shape[0] >= hr_h and cand.shape[1] >= hr_w:
-                    img_hr_raw = cand
-                    H, W, C = img_hr_raw.shape
-                    break
-            else:
-                raise RuntimeError(
-                    f"HR 크롭 {hr_h}px 를 만족하는 이미지가 데이터셋에 하나도 없습니다.")
+            img_hr_raw = redraw_fitting_image(self.image_paths, index, hr_h, hr_w)
+            H, W, C = img_hr_raw.shape
 
         rnd_h = random.randint(0, H - hr_h)
         rnd_w = random.randint(0, W - hr_w)
@@ -595,7 +592,14 @@ class DenoiseDataset(Dataset):
 
         crop_h = self.patch_size
         crop_w = self.patch_size
-        img_hr_raw = ensure_min_image_size(img_hr_raw, min_h=crop_h, min_w=crop_w)
+        # Same rule as SRDataset: an upscaled crop would make the clean target a
+        # bicubic upsample, so an undersized image is replaced, not grown.
+        if img_hr_raw.shape[0] < crop_h or img_hr_raw.shape[1] < crop_w:
+            if not getattr(self, '_warned_small', False):
+                print(f"[DenoiseDataset] 크롭 {crop_h}px 보다 작은 이미지는 건너뜁니다 "
+                      f"(확대하면 정답이 bicubic 업샘플이 됩니다)")
+                self._warned_small = True
+            img_hr_raw = redraw_fitting_image(self.image_paths, index, crop_h, crop_w)
         height, width, _ = img_hr_raw.shape
 
         rnd_h = random.randint(0, height - crop_h)
@@ -670,7 +674,12 @@ class PairedDataset(Dataset):
         
         img_hr = cv2.imread(hr_path, cv2.IMREAD_COLOR)
         img_lr = cv2.imread(lr_path, cv2.IMREAD_COLOR)
-        
+        # cv2 returns None for an unreadable file, which used to surface as a
+        # cvtColor assertion that named neither file.
+        for path, img in ((hr_path, img_hr), (lr_path, img_lr)):
+            if img is None:
+                raise IOError(f"PairedDataset: 이미지를 읽을 수 없습니다: {path}")
+
         img_hr = cv2.cvtColor(img_hr, cv2.COLOR_BGR2RGB)
         img_lr = cv2.cvtColor(img_lr, cv2.COLOR_BGR2RGB)
         

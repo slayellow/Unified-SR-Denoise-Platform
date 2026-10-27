@@ -76,7 +76,7 @@ Phase-1·Phase-2 공통 규칙이다. **`patch_size` 는 LR 기준**이고, 지�
 | x4 | 144 | 576 |
 
 - **어디에**: `configs/train/BicubicPlusPlus/bicubicplusplus_{2x,3x,4x}.yaml`, `configs/finetune/BicubicPlusPlus` 6개 전부. IR 은 v1 부터 이미 x3/x4 가 192/144, EO 는 v2 에서 바뀌었다.
-- **왜 (Phase-1, LSDIR)**: 모든 스케일에 288 을 쓰면 x4 의 HR 크롭이 **1152px** 가 되는데 LSDIR 중앙값이 **1128×864** 라, 당시 코드에서는 표본의 **93%** 가 `ensure_min_image_size` 로 bicubic 확대됐다 — **정답(GT) 자체가 뭉개진 상태로 학습**된다. x3(HR 864px)에서도 **56%** 가 확대 대상이었다. 지금 `SRDataset.__getitem__` 은 HR 크롭보다 작은 이미지를 확대하지 않고 건너뛰어, 무작위로 다시 뽑은 충분히 큰 이미지를 쓴다(건너뛰기 fd86960, 무작위 재추첨 9770dce, 4.4). 그래서 576 을 어기면 GT 가 뭉개지는 대신 그만큼 표본이 버려진다(`ensure_min_image_size` 는 지금 `DenoiseDataset` 만 쓴다).
+- **왜 (Phase-1, LSDIR)**: 모든 스케일에 288 을 쓰면 x4 의 HR 크롭이 **1152px** 가 되는데 LSDIR 중앙값이 **1128×864** 라, 당시 코드에서는 표본의 **93%** 가 `ensure_min_image_size` 로 bicubic 확대됐다 — **정답(GT) 자체가 뭉개진 상태로 학습**된다. x3(HR 864px)에서도 **56%** 가 확대 대상이었다. 지금 `SRDataset.__getitem__` 은 HR 크롭보다 작은 이미지를 확대하지 않고 건너뛰어, 무작위로 다시 뽑은 충분히 큰 이미지를 쓴다(건너뛰기 fd86960, 무작위 재추첨 9770dce, 4.4). 그래서 576 을 어기면 GT 가 뭉개지는 대신 그만큼 표본이 버려진다(`ensure_min_image_size` 는 지웠다. `DenoiseDataset` 도 같은 `redraw_fitting_image` 로 건너뛴다).
 - **왜 (Phase-2, EO)**: 288 이면 x3 의 HR 크롭 864px 가 **LSDIR train/ 의 40%** 를, x4 의 1152px 가 **60%** 를 건너뛴다 — 사전학습과 다른 크기로 파인튜닝하게 된다.
 - **왜 (Phase-2, IR)**: 288 이면 HR 크롭이 864px(x3)/1152px(x4) 인데 **IR 소스가 최대 1280×1024** 라 전부 미달이었다.
 - **폐기**: 전 스케일 288 방식, 그리고 v1 EO 의 x3/x4 `patch_size: 288`. v1 계열(`*_v1.yaml`)과 구세대 `SVFocusSRNet/*`, `QuickSRNet/*`(모두 삭제됨)의 `patch_size: 256` 은 이 보정 **이전** 값이다.

@@ -139,8 +139,6 @@ class Validator(BaseEngine):
             self.writer.add_scalar("Metrics/LPIPS", avg_lpips, epoch)
             self.writer.add_scalar("Metrics/NIQE", avg_niqe, epoch)
             
-            self.writer.add_scalar("Metrics/NIQE", avg_niqe, epoch)
-            
         return {
             'loss': avg_val_loss,
             'psnr': avg_psnr,
@@ -587,9 +585,11 @@ class Trainer(BaseEngine):
         for i, batch in enumerate(pbar):
             lr = self._soften(batch['lr'].to(self.device))
             hr = batch['hr'].to(self.device)
-            
-            self.optimizer.zero_grad()
-            
+
+            # Gradients are cleared only inside accumulate(), after the step:
+            # clearing them here as well read as if every micro-batch discarded
+            # the one before (it did not -- the prepared optimizer skips
+            # zero_grad on non-sync steps -- but nothing in the code said so).
             with self.accelerator.accumulate(self.model):
                 sr = self.model(lr)
 
@@ -616,13 +616,15 @@ class Trainer(BaseEngine):
             if (i + 1) % log_interval == 0 and self.writer:
                 avg_loss = running_loss / log_interval
                 current_lr = self.optimizer.param_groups[0]['lr']
-                
-                self.writer.add_scalar("Loss/Total", avg_loss, epoch * len(loader) + i)
-                self.writer.add_scalar("Train/LR", current_lr, epoch * len(loader) + i)
-                
+                # Epochs are 1-indexed; the first step of epoch 1 is step 0.
+                step = (epoch - 1) * len(loader) + i
+
+                self.writer.add_scalar("Loss/Total", avg_loss, step)
+                self.writer.add_scalar("Train/LR", current_lr, step)
+
                 # Log components
                 for name, val in loss_components.items():
-                    self.writer.add_scalar(f"Loss/{name}", val, epoch * len(loader) + i)
+                    self.writer.add_scalar(f"Loss/{name}", val, step)
 
                 pbar.set_postfix({'loss': f"{avg_loss:.6f}", 'lr': f"{current_lr:.2e}"})
                 running_loss = 0.0
@@ -632,6 +634,13 @@ class Trainer(BaseEngine):
         return (stats[0] / stats[1].clamp_min(1.0)).item()
 
     def fit(self, train_loader, val_loader=None, epochs=100):
+        # Checked up front: a missing key used to surface as a KeyError only
+        # after the first epoch had trained.
+        save_interval = self.cfg['train'].get('save_interval')
+        if not isinstance(save_interval, int) or isinstance(save_interval, bool) or save_interval < 1:
+            raise ValueError(
+                f"train.save_interval 은 1 이상의 정수여야 합니다 (지금 값: {save_interval!r}).")
+
         # Prepare components with accelerator
         train_loader, val_loader = self.prepare_accelerator(train_loader, val_loader)
         
@@ -774,7 +783,7 @@ class Trainer(BaseEngine):
                             self.accelerator.print("[Trainer] Early stopping triggered.")
                             break
                 
-                if self.plots_enabled and val_loader is not None and epoch % self.cfg['train']['save_interval'] == 0:
+                if self.plots_enabled and val_loader is not None and epoch % save_interval == 0:
                     try:
                         vds = getattr(val_loader, 'dataset', None)
                         if vds is not None and len(vds) > 0:
@@ -789,7 +798,7 @@ class Trainer(BaseEngine):
                     except Exception as exc:
                         self.accelerator.print(f"[Plots] probe skipped: {exc}")
 
-                if epoch % self.cfg['train']['save_interval'] == 0:
+                if epoch % save_interval == 0:
                     self.save_checkpoint(epoch, is_best=False)
                     
                 # Always save last

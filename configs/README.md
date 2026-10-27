@@ -132,7 +132,7 @@
 
 ### 3.4 `train`
 
-필수 키는 `epochs`, `batch_size`, `lr`, `num_workers`, `patch_size`, `save_interval` 이다. 빠지면 `KeyError` 로 멈춘다. `save_interval` 만은 첫 epoch 의 학습과 검증이 끝난 뒤에 읽으므로 그때 멈춘다.
+필수 키는 `epochs`, `batch_size`, `lr`, `num_workers`, `patch_size`, `save_interval` 이다. 빠지면 `KeyError` 로 멈춘다. `save_interval` 은 `Trainer.fit` 이 시작할 때 읽으며, 없거나 1 이상의 정수가 아니면 `ValueError` 로 멈춘다.
 
 | 키 | 기본값 | 뜻 |
 |---|---|---|
